@@ -1533,6 +1533,7 @@ function handle(song) {
   return {
     get playing() { return !song.stopped && !song.dead; },
     get style() { return song.name; },
+    get tracks() { return Object.keys(song.tracks); },
     stop(fade = 0.5) { try { song.stop(fade); } catch (e) { warnOnce('stop', e); } },
     setPos(v) { try { song.setPos(v); } catch (e) { warnOnce('setPos', e); } },
     setVolume(v, ramp = 0.1) { try { song.setVolume(v, ramp); } catch (e) { warnOnce('setVolume', e); } },
