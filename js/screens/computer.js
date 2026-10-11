@@ -2,7 +2,7 @@
 // visionneuse de texte, courriel, invite de commandes (avec fichiers protégés par mot de passe), calculatrice,
 // jeux intégrés et économiseur d'écran. Le contenu dépend de la machine : poste de sécurité ou boutique (opts.shop).
 import { drawText, textWidth, wrap } from './font.js';
-import { rect, frame, hash, clamp, drawNoise } from './util.js';
+import { rect, frame, hash, clamp } from './util.js';
 import { createGame, highScore, GAMES } from './games.js';
 import { VHS_TAPES } from './vhs.js';
 
@@ -112,9 +112,10 @@ function recordsText() {
 }
 function rentals() {
   let t = 'BASE DES LOCATIONS\n\n';
+  let n = 0;
   VHS_TAPES.forEach((v, i) => {
     if (v.id === 'gerard' || v.id === 'security_1987') return;
-    const ref = 'V' + String(i + 1).padStart(2, '0');
+    const ref = 'V' + String(++n).padStart(2, '0');
     if (v.id === 'no_label') t += '\n' + ref + ' (sans étiquette)\n    LOUÉE le 14/11/1987, client n° 0813.\n    JAMAIS RENDUE DEPUIS 1987.\n    Remarque : retrouvée en rayon chaque matin. NE PAS LOUER.\n';
     else { const title = v.title.length > 24 ? v.title.slice(0, 23) + '…' : v.title; t += ref + ' ' + title.padEnd(25) + (hash(i * 7) > 0.7 ? 'LOUÉE' : 'DISPO') + '\n'; }
   });
@@ -496,12 +497,13 @@ export function buildComputer(S, id) {
       }
       case 'calc': {
         const ops = { NumpadAdd: '+', NumpadSubtract: '−', Minus: '−', NumpadMultiply: '×', NumpadDivide: '÷', Slash: '÷', Equal: '=', NumpadEnter: '=', Period: '.', NumpadDecimal: '.', Comma: '.', KeyC: 'C', Delete: 'C', Escape: 'C' };
-        if (d >= 0) calcPress(v, String(d));
-        else if (ops[code]) calcPress(v, ops[code]);
-        else if (a === 'up') v.sel = (v.sel + 16) % 20;
-        else if (a === 'down') v.sel = (v.sel + 4) % 20;
-        else if (a === 'left') v.sel = (v.sel + 19) % 20;
-        else if (a === 'right') v.sel = (v.sel + 1) % 20;
+        if (d >= 0) { calcPress(v, String(d)); v.typing = true; }
+        else if (ops[code]) { calcPress(v, ops[code]); v.typing = true; }
+        else if (a === 'up') { v.sel = (v.sel + 16) % 20; v.typing = false; }
+        else if (a === 'down') { v.sel = (v.sel + 4) % 20; v.typing = false; }
+        else if (a === 'left') { v.sel = (v.sel + 19) % 20; v.typing = false; }
+        else if (a === 'right') { v.sel = (v.sel + 1) % 20; v.typing = false; }
+        else if (code === 'Enter' && v.typing) calcPress(v, '=');
         else if (a === 'ok') calcPress(v, CALC_KEYS[v.sel]);
         else if (a === 'back') os.back();
         break;

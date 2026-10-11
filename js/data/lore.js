@@ -66,7 +66,7 @@ export const LORE = {
     '• Vends scooter — Jean-Mi (quincaillerie) : 06 33 18 70 42\n' +
     '• Pizzeria Napoli — commandes : 01 47 70 12 34\n' +
     '• Dr Morel, pharmacie de garde : 01 45 22 98 10\n' +
-    '• Électricien (urgences) — M. Dubois : 06 80 11 22 33\n' +
+    '• Électricien (urgences) — M. Dubois : 01 80 11 22 33\n' +
     '• Objet trouvé : une boîte à musique. Personne ne l\'a réclamée depuis 1987.\n' +
     '• Ligne directe du poste de sécurité : 01 40 19 87 00' },
   gerard_note: { title: 'Note de Gérard', text: '(Le texte dépend de la nuit.)' },

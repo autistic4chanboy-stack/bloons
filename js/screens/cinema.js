@@ -1,7 +1,7 @@
 // Films projetés au Ciné Hélios : un muet burlesque en noir et blanc (grain, rayures, intertitres)
 // et une bobine sans titre, beaucoup moins drôle (« RANG M — SIÈGE 13 »).
-import { drawText, drawTextS, textWidth } from './font.js';
-import { rect, frame, circle, ellipse, poly, line, hash, clamp, lerp, smooth, corridor, filmOverlay, runScenes, scenesLength, drawNoise } from './util.js';
+import { drawText, textWidth } from './font.js';
+import { rect, frame, circle, ellipse, poly, line, hash, clamp, lerp, smooth, corridor, filmOverlay, runScenes, scenesLength } from './util.js';
 import { puppet, girl } from './vhs.js';
 
 const W = 256, H = 192, TAU = Math.PI * 2;
@@ -212,8 +212,7 @@ function filmCreepy(S) {
     [5, (g, lt) => {
       rect(g, 0, 0, W, H, '#000');
       const j = hash((lt * 12) | 0) > 0.7 ? 1 : 0;
-      drawText(g, 'RANG M', W / 2 + j, 72, '#e8e4dc', 3, 'center');
-      drawText(g, 'SIÈGE 13', W / 2 - j, 104, '#e8e4dc', 3, 'center');
+      drawText(g, 'RANG M — SIÈGE 13', W / 2 + j, 88, '#e8e4dc', 2, 'center');
     }],
     [10, (g, lt) => { seats(g, lt, lt > 7 ? 1 : 0); desat(g, 0.2); }],
     [4, (g, lt) => {

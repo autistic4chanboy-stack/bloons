@@ -2,7 +2,7 @@
 // (lignes de tracking, bruit, « PLAY ▶ », compteur). Trois cassettes sont des indices de l'histoire.
 import { drawText, drawTextS, textWidth } from './font.js';
 import {
-  rect, frame, circle, ellipse, poly, line, grad, hsl, star, hash, rng, clamp, lerp, smooth, makeCanvas,
+  rect, frame, circle, ellipse, poly, line, grad, hsl, star, hash, clamp, lerp, smooth, makeCanvas,
   person, figure, corridor, vhsOverlay, drawNoise, subtitle, runScenes, scenesLength,
 } from './util.js';
 
@@ -1065,8 +1065,12 @@ function vhsKaraoke(S) {
     if (i < 0) i = sd.lines.length - 1;
     const a = i - (i % 2);
     rect(g, 0, 112, W, 64, 'rgba(0,0,0,0.55)');
-    if (sd.lines[a]) karaokeLine(g, sd.lines[a], lt, 120);
-    if (sd.lines[a + 1]) karaokeLine(g, sd.lines[a + 1], lt, 148);
+    const pairStart = a === 0 ? 3 : sd.lines[a - 1].t1 + sd.tempo * 0.5, off = Math.round(clamp(1 - (lt - pairStart) / 0.35, 0, 1) * 56);
+    g.save(); g.beginPath(); g.rect(0, 112, W, 64); g.clip();
+    if (off && sd.lines[a - 2]) { karaokeLine(g, sd.lines[a - 2], lt, 120 + off - 56); karaokeLine(g, sd.lines[a - 1], lt, 148 + off - 56); }
+    if (sd.lines[a]) karaokeLine(g, sd.lines[a], lt, 120 + off);
+    if (sd.lines[a + 1]) karaokeLine(g, sd.lines[a + 1], lt, 148 + off);
+    g.restore();
     drawText(g, '♪ ' + sd.t, 6, 98, '#fff');
   }];
   const scenes = [
@@ -1168,10 +1172,11 @@ const GRAYS = ['#3a3a3a', '#4a4a4a', '#5a5a5a', '#6a6a6a', '#7a7a7a', '#8a8a8a',
 function cctvShop(g, light = 1) {
   rect(g, 0, 0, W, H, light > 0.5 ? '#5a5a5a' : '#1c1c1c');
   rect(g, 0, 0, W, 58, light > 0.5 ? '#6a6a6a' : '#222');
-  for (let i = 0; i < 6; i++) { const x = 4 + i * 36; rect(g, x, 12, 32, 44, light > 0.5 ? '#4a4a4a' : '#1a1a1a'); for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) rect(g, x + 3 + k * 10, 15 + j * 13, 8, 10, light > 0.5 ? GRAYS[(i + j + k) % 6 + 1] : '#262626'); }
-  rect(g, 222, 14, 30, 44, light > 0.5 ? '#3a3a3a' : '#141414');
-  rect(g, 224, 6, 28, 7, light > 0.5 ? '#ddd' : '#555'); drawText(g, 'SOUS-SOL', 238, 7, '#222', 1, 'center');
-  rect(g, 246, 34, 2, 3, '#888');
+  for (let i = 0; i < 5; i++) { const x = 2 + i * 34; rect(g, x, 12, 31, 44, light > 0.5 ? '#4a4a4a' : '#1a1a1a'); for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) rect(g, x + 3 + k * 10, 15 + j * 13, 8, 10, light > 0.5 ? GRAYS[(i + j + k) % 6 + 1] : '#262626'); }
+  rect(g, 187, 18, 34, 40, light > 0.5 ? '#3a3a3a' : '#141414');
+  rect(g, 175, 1, 58, 16, light > 0.5 ? '#ddd' : '#4a4a4a');
+  drawText(g, 'PERSONNEL', 204, 2, '#222', 1, 'center'); drawText(g, 'SOUS-SOL', 204, 10, '#222', 1, 'center');
+  rect(g, 215, 38, 2, 3, '#888');
   if (light > 0.5) { for (let i = 0; i < 9; i++) line(g, 6 + i * 24, 3, 18 + i * 24, 8, '#999'); rect(g, 70, 2, 90, 9, '#ccc'); drawText(g, 'INAUGURATION', 115, 3, '#333', 1, 'center'); }
   for (let y = 60; y < H; y += 14) rect(g, 0, y, W, 1, light > 0.5 ? '#525252' : '#181818');
   for (let i = -6; i <= 6; i++) line(g, 128 + i * 24, 58, 128 + i * 60, H, light > 0.5 ? '#525252' : '#181818');
@@ -1228,17 +1233,17 @@ function vhsSecurity(S) {
     [16, (g, lt, k, S) => {
       const clock = BASE + 184 + lt;
       cctvShop(g, 0);
-      const gl = g.createRadialGradient(237, 8, 2, 237, 8, 90);
+      const gl = g.createRadialGradient(150, 10, 2, 150, 10, 110);
       gl.addColorStop(0, 'rgba(200,200,200,0.35)'); gl.addColorStop(1, 'rgba(200,200,200,0)');
       g.fillStyle = gl; g.fillRect(0, 0, W, H);
-      rect(g, 226, 4, 22, 5, '#bbb');
+      rect(g, 140, 4, 22, 5, '#bbb');
       const items = crowd(g, 0, 16, true, true);
       const p = smooth(clamp((lt - 2) / 10, 0, 1));
-      const gx = lerp(128, 237, p), gy = lerp(140, 58, p), sc = lerp(1, 0.55, p);
+      const gx = lerp(128, 204, p), gy = lerp(140, 58, p), sc = lerp(1, 0.55, p);
       const doorOpen = lt > 11.5 && lt < 14.5;
       if (lt < 13) items.push({ y: gy, f: () => girl(g, gx, gy, sc, { gray: true, walk: lt * 4, face: false }) });
       items.sort((a, b) => a.y - b.y).forEach((it) => it.f());
-      if (doorOpen) rect(g, 224, 14, 26, 44, '#050505');
+      if (doorOpen) rect(g, 187, 18, 34, 40, '#050505');
       scanlines(g, 0.3);
       cctvOsd(g, 'CAM 03 — ROYAUME DU JOUET', clockStr(clock), true, S.t);
     }],

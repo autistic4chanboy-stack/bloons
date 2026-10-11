@@ -5,7 +5,7 @@
 // opts.ctx (facultatif) : { time() → 'HH:MM', night, flags, emit(name, data) } ; opts.notes (notes de Gérard) ;
 // opts.shop (identifiant de boutique, pour varier l'ordinateur de boutique).
 import { makeCanvas, drawNoise, rect } from './util.js';
-import { drawText, drawTextS } from './font.js';
+import { drawText } from './font.js';
 import { BASIC } from './basic.js';
 import { CHANNELS, CHANNEL_BUILDERS } from './channels.js';
 import { VHS_TAPES, VHS_BUILDERS } from './vhs.js';

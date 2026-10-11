@@ -188,7 +188,7 @@ function animateStatic(c) {
     const cyc = Math.floor(t / 9), ph = t % 9;
     if (ph > 6.2 && ph < 6.9 && cyc > 0) { fig = Math.min(5, cyc); const s = 0.6 + fig * 0.25, fx = vx + Math.sin(cyc * 1.7) * 18, fy = vy + 9 + fig * 3; ctx.fillStyle = '#000'; ctx.fillRect(fx - 2.2 * s, fy - 14 * s, 4.4 * s, 14 * s); ctx.beginPath(); ctx.arc(fx, fy - 16 * s, 2.4 * s, 0, 7); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(fx - 1.1 * s, fy - 16.5 * s, 0.7, 0.7); ctx.fillRect(fx + 0.6 * s, fy - 16.5 * s, 0.7, 0.7); }
     ctx.drawImage(noise[Math.floor(t * 20) % noise.length], 0, 0);
-    if (Math.random() < 0.06) { const y = Math.random() * H; ctx.drawImage(c, 0, y, W, 6, (Math.random() - 0.5) * 12, y, W, 6); }
+    if (Math.random() < 0.06) { const y = Math.floor(Math.random() * (H - 8)); try { ctx.drawImage(c, 0, y, W, 6, Math.round((Math.random() - 0.5) * 12), y, W, 6); } catch (e) { /* bande de parasites facultative */ } }
     for (let y = 0; y < H; y += 2) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, y, W, 1); }
     ctx.font = '8px monospace'; ctx.fillStyle = 'rgba(220,235,220,0.85)';
     ctx.fillText('CAM 07 — GALERIE RDC', 8, 12);

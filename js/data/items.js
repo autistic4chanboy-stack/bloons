@@ -417,7 +417,8 @@ d('candle_set', 'Coffret de bougies', 'labelbox', [0.2, 0.1, 0.12], 0xfff3e0, 'c
 d('neon_sign', 'Néon « OPEN »', 'card', [0.6, 0.25, 0.03], 0xff1744, 'glass', 'lamp', { p: { color: 0xff1744 } });
 
 // ───────────────────────── GALAXY ARCADE ─────────────────────────
-for (const g of ['invaders', 'racer', 'glouton', 'blocs', 'platformer', 'oiseau', 'breakout', 'snake', 'simon']) d('arcade_' + g, 'Borne d\'arcade « ' + g + ' »', 'arcade', [0.75, 1.8, 0.8], 0x1a1a2e, 'wood', 'arcade', { fixed: true, p: { game: g }, desc: 'Insérez un jeton (ou une pièce) et jouez (E).' });
+const ARCADE_TITLES = { invaders: 'Envahisseurs', racer: 'Turbo Hélios', glouton: 'Glouton', blocs: 'Blocs', platformer: 'Super Gardien', oiseau: 'L\'Oiseau', breakout: 'Casse-Briques', snake: 'Serpent', simon: 'Simon' };
+for (const g of Object.keys(ARCADE_TITLES)) d('arcade_' + g, 'Borne d\'arcade « ' + ARCADE_TITLES[g] + ' »', 'arcade', [0.75, 1.8, 0.8], 0x1a1a2e, 'wood', 'arcade', { fixed: true, p: { game: g }, desc: 'Insérez un jeton (ou une pièce) et jouez (E).' });
 d('claw_machine', 'Machine à pinces', 'claw', [0.9, 1.9, 0.9], 0xff4081, 'metal', 'claw', { fixed: true, desc: 'Un jeton, une chance. Les peluches gagnées tombent dans le bac.' });
 d('kiddie_ride', 'Manège « Bobby-Mobile »', 'kiddie', [0.8, 1.2, 1.3], 0xffb300, 'plastic', 'kiddie', { fixed: true, desc: 'Une pièce et Bobby vous promène. Il démarre parfois tout seul la nuit.' });
 d('token_machine', 'Distributeur de jetons', 'locker', [0.5, 1.5, 0.4], 0x1e88e5, 'metal', 'token_machine', { fixed: true, desc: 'Pièce de 2 € → 5 jetons.' });
