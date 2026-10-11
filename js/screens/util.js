@@ -167,9 +167,7 @@ export function vhsOverlay(S, t, o = {}) {
     const bh = 3 + i * 2;
     const off = ((hash((S.t * 30 | 0) + i * 11) - 0.5) * 6 * tr) | 0;
     if (off) g.drawImage(S.canvas, 0, by, w, bh, off, by, w, bh);
-    g.globalAlpha = 0.25 * tr;
-    drawNoise(g, w, bh, S.t + i, 1, 0, by);
-    g.globalAlpha = 1;
+    drawNoise(g, w, bh, S.t + i, 0.25 * tr, 0, by);
   }
   // bande de bruit en bas (tête de lecture)
   const nb = 4 + ((hash(S.t * 10 | 0) * 3) | 0);
@@ -192,7 +190,7 @@ export function vhsOverlay(S, t, o = {}) {
 export function filmOverlay(S, o = {}) {
   const { g, w, h } = S;
   const f = (S.t * 24) | 0;
-  g.globalAlpha = 0.12; drawNoise(g, w, h, S.t); g.globalAlpha = 1;
+  drawNoise(g, w, h, S.t, 0.12);
   for (let i = 0; i < 3; i++) {
     if (hash(f * 7 + i) > 0.5) { const x = hash(f * 3 + i * 17) * w; rect(g, x, 0, 1, h, o.dark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.35)'); }
   }
