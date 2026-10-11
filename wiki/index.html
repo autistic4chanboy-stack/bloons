@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wiki — Nuit Blanche</title>
+<meta name="description" content="Wiki des joueurs de NUIT BLANCHE — Centre Commercial Hélios : contrôles, poste de sécurité, nuits, présences, magasins, objets, événements, téléphone, fins et secrets.">
+<meta name="theme-color" content="#06070b">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2306070b'/%3E%3Cpath d='M21 22.5a9 9 0 1 1-6.4-15.3 7 7 0 0 0 6.4 15.3z' fill='none' stroke='%23ff3d8b' stroke-width='2.4'/%3E%3Ccircle cx='24' cy='9' r='2.6' fill='%23ff3b3b'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Oswald:wght@400;500;600&family=Tilt+Neon&family=VT323&display=swap">
+<link rel="stylesheet" href="wiki.css">
+<script type="importmap">{ "imports": { "three": "../vendor/three.module.min.js" } }</script>
+<script type="module" src="wiki.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Aller au contenu</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.6 20h18.8z"/><path d="M12 10v4.4"/><path d="M12 17.4v.1"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.2v13.6L18.8 12z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M15.8 5.5a3.1 3.1 0 0 1 0 6"/><path d="M17.6 14.3c2 .7 3.4 2.6 3.4 5.2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+    <symbol id="i-skull" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M12 2.5c-4.7 0-8.2 3.3-8.2 7.7 0 2.6 1.2 4.6 3.2 5.8v3.2c0 .8.6 1.3 1.3 1.3h1.2v-2.2h1.4v2.2h2.2v-2.2h1.4v2.2h1.2c.7 0 1.3-.5 1.3-1.3V16c2-1.2 3.2-3.2 3.2-5.8 0-4.4-3.5-7.7-8.2-7.7zM8.6 13.6a2.1 2.1 0 1 1 0-4.2 2.1 2.1 0 0 1 0 4.2zm6.8 0a2.1 2.1 0 1 1 0-4.2 2.1 2.1 0 0 1 0 4.2zM12 13.4l1.1 2.1h-2.2z"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6.6 3.5h2.6l1.4 4.2-2 1.3a12 12 0 0 0 6.4 6.4l1.3-2 4.2 1.4v2.6a2 2 0 0 1-2 2A16.5 16.5 0 0 1 4.6 5.5a2 2 0 0 1 2-2z"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z"/></symbol>
+    <symbol id="i-crown" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 8l4 3.5L12 5l4.5 6.5 4-3.5-1.8 10H5.3z"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="16" height="6.5" rx="1.5"/><path d="M8 7.25h.1M8 16.75h.1"/></symbol>
+    <symbol id="i-cat" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M4.5 3.5l3.8 4h7.4l3.8-4v9.2c0 4.2-3.4 7.8-7.5 7.8s-7.5-3.6-7.5-7.8zM9 11.6a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3zm6 0a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3z"/></symbol>
+    <symbol id="i-shadow" viewBox="0 0 24 24"><circle cx="12" cy="6" r="3.3" fill="currentColor"/><path fill="currentColor" d="M6 21.5V15c0-3.4 2.7-6 6-6s6 2.6 6 6v6.5z"/></symbol>
+    <symbol id="i-bear" viewBox="0 0 24 24"><circle cx="6.4" cy="6.4" r="3" fill="currentColor"/><circle cx="17.6" cy="6.4" r="3" fill="currentColor"/><path fill="currentColor" fill-rule="evenodd" d="M12 5.5a7.5 7.5 0 1 1 0 15 7.5 7.5 0 0 1 0-15zM9.3 11a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2zm5.4 0a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2zM12 14.3c-1.1 0-1.8.6-1.8 1.2s.8 1.1 1.8 1.1 1.8-.5 1.8-1.1-.7-1.2-1.8-1.2z"/></symbol>
+    <symbol id="i-mannequin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.6" r="2.4"/><path d="M8.2 8.6h7.6l-1.3 7.6h-5z"/><path d="M12 16.2v5.3M8.6 21.5h6.8"/></symbol>
+    <symbol id="i-vent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M7 9h10M7 12h10M7 15h10"/></symbol>
+    <symbol id="i-mask" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 10.5c3-2.2 6.2-2.6 9.5-.6 3.3-2 6.5-1.6 9.5.6-.6 3.6-3 5.4-6 5.4-1.6 0-2.7-.8-3.5-2-.8 1.2-1.9 2-3.5 2-3 0-5.4-1.8-6-5.4z"/><path d="M6.5 12.2h2.6M14.9 12.2h2.6"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.5c.6 3.3-1.4 5-3 6.8C7.4 11 6 12.8 6 15.3c0 3.6 2.7 6.2 6 6.2s6-2.6 6-6.2c0-2.6-1.3-4.5-2.6-5.9-.2 1.6-.9 2.6-2 3.1.4-3.3-.3-6.2-1.4-8z"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21"/><path d="M3.5 21h17"/><path d="M14.5 12.5h.1"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M20 14.6A8.2 8.2 0 1 1 9.4 4a6.6 6.6 0 0 0 10.6 10.6z"/></symbol>
+  </defs>
+</svg>
+
+<div class="crt" aria-hidden="true"></div>
+
+<header class="topbar">
+  <button class="menu-btn" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="sidebar"><svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
+  <a class="brand" href="#/" aria-label="Wiki Nuit Blanche — accueil">
+    <span class="brand-neon">Nuit <span class="brand-b">Blanche</span></span>
+    <span class="brand-sub">Wiki · Centre Commercial Hélios</span>
+  </a>
+  <div class="search">
+    <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg>
+    <input id="q" type="search" placeholder="Rechercher dans le wiki…" autocomplete="off" spellcheck="false"
+      role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list" aria-label="Rechercher dans le wiki">
+    <kbd class="search-kbd" aria-hidden="true">/</kbd>
+    <div id="search-results" class="search-results" role="listbox" aria-label="Résultats de recherche" hidden></div>
+  </div>
+  <label class="spoil-toggle" title="Afficher ou masquer les spoilers (numéros secrets, lore, fins, easter eggs…)">
+    <input type="checkbox" id="spoilers">
+    <span class="switch" aria-hidden="true"></span>
+    <span class="spoil-lbl"><span class="long">Afficher les spoilers</span><span class="short">Spoilers</span></span>
+  </label>
+  <div class="cctv-clock" aria-hidden="true"><span class="rec-dot"></span>REC <span id="clock">22:00</span></div>
+</header>
+<div id="data-banner" class="data-banner" role="status" hidden></div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar" aria-label="Navigation du wiki">
+    <nav id="nav" aria-label="Sections"></nav>
+    <div class="side-foot">
+      <a class="btn btn-play btn-block" href="../index.html"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg><span>Jouer</span></a>
+      <p class="small muted">Données lues en direct depuis le jeu (<code>js/data</code>).</p>
+    </div>
+  </aside>
+  <div class="nav-backdrop" aria-hidden="true"></div>
+  <main id="main" tabindex="-1">
+    <div class="loading"><span class="rec-dot"></span>Connexion aux caméras du centre…</div>
+    <noscript><p class="notice">Ce wiki lit les données du jeu en JavaScript : activez JavaScript pour l'afficher.</p></noscript>
+  </main>
+</div>
+
+<footer class="foot">
+  <p><span class="brand-mini">NUIT BLANCHE</span> — wiki des joueurs. Toutes les listes (objets, magasins, événements, nuits, numéros…) sont générées à partir des données du jeu.</p>
+  <p class="muted small">Centre Commercial Hélios · inauguré en 1987 · fermeture à 21 h 30. Après, c'est votre affaire.</p>
+</footer>
+</body>
+</html>

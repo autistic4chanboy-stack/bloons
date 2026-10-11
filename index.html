@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuit Blanche — Centre Commercial Hélios</title>
+  <meta name="description" content="Jeu d'horreur : gardien de nuit dans un centre commercial de deux étages. 10 nuits, mode infini, multijoueur.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23070910'/%3E%3Ccircle cx='32' cy='30' r='14' fill='none' stroke='%23ffb300' stroke-width='4'/%3E%3Cpath d='M20 52h24' stroke='%23ff1744' stroke-width='4'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="hud"></div>
+  <div id="menu"></div>
+  <div id="loading" class="hidden"><div class="ld-box"><h2>Ouverture du centre…</h2><div class="ld-bar"><i></i></div><p class="ld-msg"></p><p class="ld-tip"></p></div></div>
+  <noscript>Ce jeu nécessite JavaScript et un navigateur récent (WebGL 2).</noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

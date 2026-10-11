@@ -1,0 +1,34 @@
+# Blueprint Render pour le serveur multijoueur de Nuit Blanche.
+# Render → New → Blueprint → choisir ce dépôt, puis indiquer « multiplayer/render.yaml »
+# comme chemin du Blueprint (ou copier ce fichier à la racine du dépôt).
+# Le serveur lit la variable PORT fournie par Render ; les WebSockets sont acceptés nativement.
+services:
+  - type: web
+    name: nuit-blanche-multijoueur
+    runtime: node
+    region: frankfurt
+    plan: free
+    # Aucune dépendance à installer : le serveur n'utilise que les modules intégrés de Node.js.
+    buildCommand: node --version
+    startCommand: node multiplayer/server.js
+    healthCheckPath: /mp-info.json
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: MAX_PLAYERS
+        value: "4"
+      - key: MAX_ROOMS
+        value: "200"
+    # Variante Docker (à la place de runtime/buildCommand/startCommand ci-dessus) :
+    #   runtime: docker
+    #   dockerfilePath: ./multiplayer/Dockerfile
+    #   dockerContext: .
+    #
+    # Le disque des offres Render est éphémère : les sauvegardes disparaissent à chaque déploiement.
+    # Pour les conserver (offre payante), ajouter un disque persistant et pointer SAVES_DIR dessus :
+    #   disk:
+    #     name: saves
+    #     mountPath: /var/data
+    #     sizeGB: 1
+    #   + envVars: { key: SAVES_DIR, value: /var/data/saves }

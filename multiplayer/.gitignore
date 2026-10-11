@@ -1,0 +1,6 @@
+# Sauvegardes des salons (créées par le serveur, propres à chaque machine)
+saves/
+
+# Au cas où quelqu'un lancerait « npm install » (le serveur n'a aucune dépendance)
+node_modules/
+npm-debug.log*
