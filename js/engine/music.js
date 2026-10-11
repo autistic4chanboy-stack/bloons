@@ -1329,7 +1329,7 @@ const STYLES = {
   },
   // musique de film : ostinato de cordes, cuivres en crescendo, timbales, tension
   cinema_score: {
-    gain: 0.85, hum: 0.006, kit: 'orch', tone: { hp: 30, lp: 12000 }, comp: [-18, 3],
+    gain: 0.85, hum: 0.006, kit: 'orch', tone: { hp: 30, lp: 12000 },
     init(s) {
       const R = s.R; s.bpm = R.int(92, 108); s.key = R.pick([62, 60, 64, 57]); s.sc = SCALE.min;
       const mel = { scale: SCALE.harm, bank: RH.cad4.concat(RH.lyric), lo: -5, hi: 12, leap: 0.5, phrase: 4 };
