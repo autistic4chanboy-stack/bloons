@@ -20,6 +20,10 @@ function mulberry(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+// table de sinus (phase en cycles) : évite Math.sin dans les boucles de synthèse
+const SIN_N = 4096, SIN = new Float32Array(SIN_N + 1);
+for (let i = 0; i <= SIN_N; i++) SIN[i] = Math.sin(TAU * i / SIN_N);
+function fsin(ph) { ph -= Math.floor(ph); const x = ph * SIN_N, i = x | 0; return SIN[i] + (SIN[i + 1] - SIN[i]) * (x - i); }
 function hash(s) { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 const warned = new Set();
@@ -51,20 +55,23 @@ function bqc(c, type, f, q, sr, g) {
   c[0] = b0 / a0; c[1] = b1 / a0; c[2] = b2 / a0; c[3] = a1 / a0; c[4] = a2 / a0;
 }
 
-// Biquad en place. f : nombre ou fonction du temps (s). circ : passe d'amorçage (boucle sans couture).
+// Biquad en place. f : nombre ou fonction du temps (s). circ : amorçage sur la fin du tampon (boucle sans couture).
 function bq(a, sr, type, f, q = 0.707, g = 0, circ = false) {
   const n = a.length; if (!n) return a;
   const fn = typeof f === 'function', c = new Float64Array(5);
-  bqc(c, type, fn ? f(0) : f, q, sr, g);
-  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-  for (let pass = circ ? 0 : 1; pass < 2; pass++) {
-    let b0 = c[0], b1 = c[1], b2 = c[2], a1 = c[3], a2 = c[4];
-    for (let i = 0; i < n; i++) {
-      if (fn && (i & 31) === 0) { bqc(c, type, f(i / sr), q, sr, g); b0 = c[0]; b1 = c[1]; b2 = c[2]; a1 = c[3]; a2 = c[4]; }
-      const x = a[i], y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-      x2 = x1; x1 = x; y2 = y1; y1 = y;
-      if (pass) a[i] = y;
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0, b0, b1, b2, a1, a2;
+  const coef = (t) => { bqc(c, type, t, q, sr, g); b0 = c[0]; b1 = c[1]; b2 = c[2]; a1 = c[3]; a2 = c[4]; };
+  coef(fn ? f(0) : f);
+  if (circ) {
+    for (let i = n - Math.min(n, Math.round(0.3 * sr)); i < n; i++) {
+      if (fn && (i & 31) === 0) coef(f(i / sr));
+      const x = a[i], y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = x; y2 = y1; y1 = y;
     }
+  }
+  for (let i = 0; i < n; i++) {
+    if (fn && (i & 31) === 0) coef(f(i / sr));
+    const x = a[i], y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1; x1 = x; y2 = y1; y1 = y; a[i] = y;
   }
   return a;
 }
@@ -72,26 +79,27 @@ function bq(a, sr, type, f, q = 0.707, g = 0, circ = false) {
 // filtre à un pôle (passe-bas, ou passe-haut si hp)
 function op1(a, sr, f, hp = false, circ = false) {
   const k = 1 - Math.exp(-TAU * f / sr), n = a.length; let s = 0;
-  for (let pass = circ ? 0 : 1; pass < 2; pass++) for (let i = 0; i < n; i++) { const x = a[i]; s += k * (x - s); if (pass) a[i] = hp ? x - s : s; }
+  if (circ) for (let i = n - Math.min(n, Math.round(0.3 * sr)); i < n; i++) s += k * (a[i] - s);
+  for (let i = 0; i < n; i++) { const x = a[i]; s += k * (x - s); a[i] = hp ? x - s : s; }
   return a;
 }
 
 // correction polyBLEP (oscillateurs à bande limitée)
 function blep(t, dt) { if (t < dt) { t /= dt; return t + t - t * t - 1; } if (t > 1 - dt) { t = (t - 1) / dt; return t * t + t + t + 1; } return 0; }
 
-// bruit blanc / rose (Kellet) / brun
+// bruit blanc / rose (Kellet) / brun — xorshift32 en ligne (amorcé par le générateur déterministe du son)
 function noiseFill(a, r, c) {
-  const n = a.length;
+  const n = a.length, K = 4.656612873077393e-10; let x = ((r() * 4294967295) | 0) || 0x9E3779B9;
   if (c === 'p') {
     let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
     for (let i = 0; i < n; i++) {
-      const w = r() * 2 - 1;
+      x ^= x << 13; x ^= x >>> 17; x ^= x << 5; const w = x * K;
       b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852;
       b3 = 0.8665 * b3 + w * 0.3104856; b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
       a[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926;
     }
-  } else if (c === 'b') { let s = 0; for (let i = 0; i < n; i++) { s = (s + 0.02 * (r() * 2 - 1)) / 1.02; a[i] = s * 3.5; } }
-  else for (let i = 0; i < n; i++) a[i] = r() * 2 - 1;
+  } else if (c === 'b') { let s = 0; for (let i = 0; i < n; i++) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; s = (s + 0.02 * x * K) / 1.02; a[i] = s * 3.5; } }
+  else for (let i = 0; i < n; i++) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; a[i] = x * K; }
   return a;
 }
 
@@ -101,7 +109,7 @@ function envl(a, n, sr, o) {
   const att = Math.max(1, (o.att ?? 0.0015) * sr), hold = (o.hold || 0) * sr;
   const rel = Math.max(1, (o.rel ?? Math.min(0.012, n / sr * 0.25)) * sr);
   const k = o.dec ? Math.exp(-1 / (o.dec * sr)) : 1, ac = o.ac || 1, E = o.env, am = o.am, ef = o.ef;
-  let e = 1, ei = 0;
+  let e = 1, ei = 0, f0 = ef ? ef(0) : 1, f1 = f0;
   for (let i = 0; i < n; i++) {
     let g;
     if (E) {
@@ -114,8 +122,8 @@ function envl(a, n, sr, o) {
       g *= e;
     }
     const rr = n - i; if (rr < rel) g *= rr / rel;
-    if (am) g *= 1 - am[1] * (0.5 + 0.5 * Math.sin(TAU * am[0] * i / sr + (am[2] || 0)));
-    if (ef) g *= ef(i / sr);
+    if (am) g *= 1 - am[1] * (0.5 + 0.5 * fsin(am[0] * i / sr + (am[2] || 0) / TAU));
+    if (ef) { const j = i & 7; if (!j) { f0 = f1; f1 = ef((i + 8) / sr); } g *= f0 + (f1 - f0) * j * 0.125; }
     a[i] *= g;
   }
   if (a.length > n) a.fill(0, n);
@@ -123,10 +131,11 @@ function envl(a, n, sr, o) {
 // modulation seule (couches couvrant toute une boucle : ni attaque ni fondu)
 function mulEnv(a, sr, o) {
   const am = o.am, ef = o.ef; if (!am && !ef) return;
+  let f0 = ef ? ef(0) : 1, f1 = f0;
   for (let i = 0; i < a.length; i++) {
     let g = 1;
-    if (am) g *= 1 - am[1] * (0.5 + 0.5 * Math.sin(TAU * am[0] * i / sr + (am[2] || 0)));
-    if (ef) g *= ef(i / sr);
+    if (am) g *= 1 - am[1] * (0.5 + 0.5 * fsin(am[0] * i / sr + (am[2] || 0) / TAU));
+    if (ef) { const j = i & 7; if (!j) { f0 = f1; f1 = ef((i + 8) / sr); } g *= f0 + (f1 - f0) * j * 0.125; } // contrôle tous les 8 échantillons
     a[i] *= g;
   }
 }
@@ -171,7 +180,7 @@ class Buf {
   sg() { return this.r() < 0.5 ? -1 : 1; }
   // fréquence arrondie à un nombre entier de cycles sur la durée (boucles parfaitement périodiques)
   per(f) { return Math.max(1, Math.round(f * this.dur)) / this.dur; }
-  // courbe aléatoire lisse (points de contrôle à `rate` Hz, interpolation cosinus), périodique en boucle
+  // courbe aléatoire lisse (points de contrôle à `rate` Hz, interpolation en S), périodique en boucle
   rnd(rate, lo = 0, hi = 1) {
     const K = Math.max(2, Math.round(this.dur * rate)), P = new Float32Array(K + 1), sc = K / this.dur, loop = this.loop;
     for (let i = 0; i < K; i++) P[i] = lo + (hi - lo) * this.r();
@@ -179,7 +188,7 @@ class Buf {
     return (t) => {
       let x = t * sc;
       if (loop) { x %= K; if (x < 0) x += K; } else x = clamp(x, 0, K - 1e-6);
-      const i = Math.floor(x), w = 0.5 - 0.5 * Math.cos(Math.PI * (x - i));
+      const i = Math.floor(x), u = x - i, w = u * u * (3 - 2 * u);
       return P[i] + (P[i + 1] - P[i]) * w;
     };
   }
@@ -214,7 +223,8 @@ class Buf {
     const a = new Float32Array(full ? n : n + Math.round((o.tail ?? 0) * sr));
     const w = o.w || 'sin', vib = o.vib, du = o.duty ?? 0.5, fm = o.fm, r = this.r, jit = full ? 0 : o.jit || 0;
     let f0 = o.f ?? 440; const f1 = o.f1 ?? f0, gt = o.gt ?? dur, lr = Math.log(f1 / f0);
-    let fe = o.fe || (f1 !== f0 ? (x) => f0 * Math.exp(lr * Math.min(1, x / gt)) : null);
+    let fe = o.fe || (full && f1 !== f0 ? (x) => f0 * Math.exp(lr * Math.min(1, x / gt)) : null);
+    const gl = !fe && f1 !== f0, gk = gl ? Math.exp(lr / Math.max(1, gt * sr)) : 1, gn = Math.round(gt * sr); let fg = f0;
     if (full) { // boucle : nombre entier de cycles sur la durée totale
       if (fe) { let I = 0; for (let i = 0; i < n; i++) I += fe(i / sr); I /= sr; const k = Math.max(1, Math.round(I)) / I, g0 = fe; fe = (x) => g0(x) * k; }
       else f0 = this.per(f0);
@@ -228,18 +238,18 @@ class Buf {
     }
     let ph = o.ph ?? 0, pm = 0, jv = 0;
     for (let i = 0; i < n; i++) {
-      const x = i / sr; let f = fe ? fe(x) : f0;
-      if (vib) f *= 1 + vib[1] * Math.sin(TAU * vib[0] * x + (vib[2] || 0));
+      const x = i / sr; let f = fe ? fe(x) : gl ? (i < gn ? (fg *= gk) : f1) : f0;
+      if (vib) f *= 1 + vib[1] * fsin(vib[0] * x + (vib[2] || 0) / TAU);
       if (jit) { jv += (r() * 2 - 1 - jv) * 0.02; f *= 1 + jit * jv; }
       const dt = f / sr; ph += dt; ph -= Math.floor(ph);
       let v;
-      if (w === 'sin') v = Math.sin(TAU * ph);
+      if (w === 'sin') { const y = ph * SIN_N, j = y | 0; v = SIN[j] + (SIN[j + 1] - SIN[j]) * (y - j); }
       else if (T) { const y = ph * 2048, j = y | 0; v = T[j] + (T[j + 1] - T[j]) * (y - j); }
       else if (w === 'saw') v = 2 * ph - 1 - blep(ph, dt);
       else if (w === 'sqr') v = (ph < du ? 1 : -1) + blep(ph, dt) - blep((ph + 1 - du) % 1, dt);
       else if (w === 'tri') v = 1 - 4 * Math.abs(ph - 0.5);
-      else if (w === 'fm') { pm += f * fm[0] / sr; pm -= Math.floor(pm); v = Math.sin(TAU * ph + fm[1] * (fm[2] ? Math.exp(-x / fm[2]) : 1) * Math.sin(TAU * pm)); }
-      else v = Math.sin(TAU * ph);
+      else if (w === 'fm') { pm += f * fm[0] / sr; pm -= Math.floor(pm); v = fsin(ph + fm[1] * (fm[2] ? Math.exp(-x / fm[2]) : 1) * fsin(pm) / TAU); }
+      else v = fsin(ph);
       a[i] = v;
     }
     if (full) mulEnv(a, sr, o); else envl(a, n, sr, o);
@@ -248,7 +258,7 @@ class Buf {
   }
   // synthèse modale : M = [[f, amp, amortissement (s)], …] ; ct = temps de contact (dureté : plus court = plus brillant)
   modal(t, M, o = {}) {
-    const sr = this.sr, ny = sr * 0.46, ct = o.ct ?? 0.0004, lf = o.lf ?? 6.9;
+    const sr = this.sr, ny = sr * 0.46, ct = o.ct ?? 0.0004, lf = o.lf ?? 5.8;
     let dm = 0; for (const m of M) if (m[2] > dm) dm = m[2];
     let n = Math.round(Math.min(o.len ?? dm * lf, 12) * sr) + 1;
     n = this.loop ? Math.min(n, this.n) : Math.max(1, Math.min(n, this.n - Math.round(t * sr)));
@@ -268,15 +278,13 @@ class Buf {
   // banc de résonateurs excité par un signal x (longueur ≥ n) : équivaut à modal() pour chaque impulsion,
   // mais coûte une seule passe (sonneries à marteau, cloches frappées en rafale)
   res(x, M, a = 1) {
-    const sr = this.sr, n = this.n, d = this.d, ny = sr * 0.46, passes = this.loop ? 2 : 1;
+    const sr = this.sr, n = this.n, d = this.d, ny = sr * 0.46;
     for (const [f, amp, dec] of M) {
       if (!(f > 20 && f < ny) || !(dec > 0)) continue;
       const w = TAU * f / sr, r = Math.exp(-1 / (dec * sr)), c = 2 * r * Math.cos(w), r2 = r * r, k = amp * a * r * Math.sin(w);
       let y1 = 0, y2 = 0, xp = 0;
-      for (let p = 0; p < passes; p++) {
-        const last = p === passes - 1;
-        for (let i = 0; i < n; i++) { const y = c * y1 - r2 * y2 + k * xp; xp = x[i]; y2 = y1; y1 = y; if (last) d[i] += y; }
-      }
+      if (this.loop) for (let i = n - Math.min(n, Math.ceil(dec * 6.9 * sr)); i < n; i++) { const y = c * y1 - r2 * y2 + k * xp; xp = x[i]; y2 = y1; y1 = y; }
+      for (let i = 0; i < n; i++) { const y = c * y1 - r2 * y2 + k * xp; xp = x[i]; y2 = y1; y1 = y; d[i] += y; }
     }
     return this;
   }
@@ -288,7 +296,7 @@ class Buf {
     let ph = 0, e = 1, p = 1;
     for (let i = 0; i < n; i++) {
       ph += (f1 + (f0 - f1) * p) / sr; p *= kk; e *= kd;
-      let v = Math.sin(TAU * ph); if (dr) v = Math.tanh(v * dr) / td;
+      let v = fsin(ph); if (dr) v = Math.tanh(v * dr) / td;
       a[i] = v * e * (i < att ? i / att : 1);
     }
     const rel = Math.min(n, Math.round(0.004 * sr)); for (let i = 0; i < rel; i++) a[n - 1 - i] *= i / rel;
@@ -323,18 +331,19 @@ class Buf {
     const sr = this.sr, n = Math.max(1, Math.round(dur * sr)), a = new Float32Array(n + Math.round(0.04 * sr)), r = this.r;
     const f0 = typeof o.f0 === 'function' ? o.f0 : () => o.f0 || 120;
     const oq = o.oq ?? 0.6, tp = oq * 0.65, tn = oq * 0.35, jit = o.jit ?? 0.012, shim = o.shim ?? 0.12, asp = o.asp, br = o.br ?? 0.04;
-    let ph = 0, jc = 1, amp = 1;
+    const GN = 1024, gt = new Float32Array(GN + 1); // dérivée de l'onde de Rosenberg sur un cycle
+    for (let i = 0; i <= GN; i++) { const p = i / GN; gt[i] = p < tp ? Math.sin(Math.PI * p / tp) * (0.06 * Math.PI / tp) : p < tp + tn ? -Math.sin(0.5 * Math.PI * (p - tp) / tn) * (0.06 * Math.PI / tn) : 0; }
+    let ph = 0, jc = 1, amp = 1, fv = 0, s = 0;
     for (let i = 0; i < n; i++) {
-      const x = i / sr, fv = f0(x), s = asp ? clamp(asp(x), 0, 1) : 0;
+      if ((i & 7) === 0) { const x = i / sr; fv = f0(x); s = asp ? clamp(asp(x), 0, 1) : 0; }
       let g = 0;
       if (fv > 0) {
         ph += fv * jc / sr;
         if (ph >= 1) { ph -= Math.floor(ph); jc = 1 + jit * (r() * 2 - 1); amp = 1 + shim * (r() * 2 - 1); }
-        if (ph < tp) g = Math.sin(Math.PI * ph / tp) * (0.5 * Math.PI / tp);
-        else if (ph < tp + tn) g = -Math.sin(0.5 * Math.PI * (ph - tp) / tn) * (0.5 * Math.PI / tn);
+        const y = ph * GN, j = y | 0; g = gt[j] + (gt[j + 1] - gt[j]) * (y - j);
       }
       const open = fv > 0 && ph < tp + tn ? 1 : 0.3;
-      a[i] = g * 0.12 * amp * (1 - s) + (r() * 2 - 1) * (s * 0.7 + br * open * (1 - s));
+      a[i] = g * amp * (1 - s) + (r() * 2 - 1) * (s * 0.7 + br * open * (1 - s));
     }
     envl(a, n, sr, o);
     const F = typeof o.F === 'function' ? o.F : () => o.F || [500, 1500, 2500, 3500];
@@ -378,22 +387,18 @@ class Buf {
   }
   // réverbération intégrée (Schroeder/Moorer) pour les sons « lointains » ou diffusés (sono, extérieur)
   verb(mix = 0.3, rt = 1.2, damp = 0.4, pre = 0.008) {
-    const sr = this.sr, d = this.d, n = this.n, wet = new Float32Array(n), passes = this.loop ? 2 : 1;
+    const sr = this.sr, d = this.d, n = this.n, wet = new Float32Array(n), w0 = this.loop ? n - Math.min(n, Math.round((rt + 0.1) * sr)) : n;
     const CD = [0.0297, 0.0371, 0.0411, 0.0437, 0.0503, 0.0571]; let gs = 0;
     for (const c0 of CD) {
       const c = c0 + pre, L = Math.max(1, Math.round(c * sr)), g = Math.pow(10, -3 * c / rt), buf = new Float32Array(L); gs += g * g;
       let idx = 0, lp = 0;
-      for (let p = 0; p < passes; p++) {
-        const last = p === passes - 1;
-        for (let i = 0; i < n; i++) { const y = buf[idx]; lp = y + (lp - y) * damp; buf[idx] = d[i] + lp * g; if (++idx >= L) idx = 0; if (last) wet[i] += y; }
-      }
+      for (let i = w0; i < n; i++) { const y = buf[idx]; lp = y + (lp - y) * damp; buf[idx] = d[i] + lp * g; if (++idx >= L) idx = 0; }
+      for (let i = 0; i < n; i++) { const y = buf[idx]; lp = y + (lp - y) * damp; buf[idx] = d[i] + lp * g; if (++idx >= L) idx = 0; wet[i] += y; }
     }
     for (const c of [0.0050, 0.0017]) {
       const L = Math.max(1, Math.round(c * sr)), buf = new Float32Array(L); let idx = 0;
-      for (let p = 0; p < passes; p++) {
-        const last = p === passes - 1;
-        for (let i = 0; i < n; i++) { const x = wet[i], b = buf[idx], y = b - 0.7 * x; buf[idx] = x + 0.7 * y; if (++idx >= L) idx = 0; if (last) wet[i] = y; }
-      }
+      for (let i = this.loop ? n - Math.min(n, L * 4) : n; i < n; i++) { const x = wet[i], y = buf[idx] - 0.7 * x; buf[idx] = x + 0.7 * y; if (++idx >= L) idx = 0; }
+      for (let i = 0; i < n; i++) { const x = wet[i], y = buf[idx] - 0.7 * x; buf[idx] = x + 0.7 * y; if (++idx >= L) idx = 0; wet[i] = y; }
     }
     const k = mix / Math.sqrt(CD.length / Math.max(0.05, 1 - gs / CD.length));
     for (let i = 0; i < n; i++) d[i] = d[i] * (1 - mix * 0.35) + wet[i] * k;
@@ -443,10 +448,21 @@ function bell(B, t, f, a = 1, o = {}) {
   B.modal(t, md, { ct: o.ct ?? 0.0002, a, lf: o.lf });
 }
 // lame de boîte à musique (poutre encastrée : 1, 6.27, 17.55) pincée par un picot
+const TINE = (f, ct = 0.00025) => { const d0 = 2.2 * Math.pow(1000 / f, 0.4), w = (x) => 1 / Math.sqrt(1 + Math.pow(x * ct * 2, 4)); return [[f, 1, d0], [f * 1.0021, 0.22, d0 * 0.8], [f * 6.267, 0.3 * w(f * 6.267), 0.1], [f * 17.55, 0.08 * w(f * 17.55), 0.025]]; };
 function tine(B, t, midi, a = 1, o = {}) {
-  const f = mtof(midi) * (o.det ?? 1), d0 = 2.2 * Math.pow(1000 / f, 0.4) * (o.dm ?? 1);
-  B.modal(t, [[f, 1, d0], [f * 1.0021, 0.22, d0 * 0.8], [f * 6.267, 0.3, 0.1], [f * 17.55, 0.08, 0.025]], { ct: 0.00025, a, lf: 5.5 });
-  B.nz(t, 0.002, { dec: 0.0005, hp: 2500, a: 0.1 * a });
+  const md = TINE(mtof(midi) * (o.det ?? 1)); if (o.dm) for (const m of md) m[2] *= o.dm;
+  B.modal(t, md, { ct: 0.00002, a, lf: 5.5, len: 3.5 });
+  B.nz(t, 0.002, { dec: 0.0005, hp: 2500, a: 0.1 * a, tail: 0.003 });
+}
+// mélodie complète de lames en une passe par hauteur (banc de résonateurs excité à chaque note) : notes [[t, midi, gain], …]
+function tines(B, notes, a = 1) {
+  const by = new Map();
+  for (const [t, m, g] of notes) {
+    let x = by.get(m); if (!x) by.set(m, (x = new Float32Array(B.n)));
+    x[((Math.round(t * B.sr) % B.n) + B.n) % B.n] += g;
+    B.nz(t, 0.002, { dec: 0.0005, hp: 2500, a: 0.1 * g * a, tail: 0.003 });
+  }
+  for (const [m, x] of by) B.res(x, TINE(mtof(m)), a);
 }
 // mélodie « 8 bits » : notes [[midi|0, durée en temps], …]
 function chip(B, t, notes, o = {}) {
@@ -498,16 +514,16 @@ function ftrack(seq, k = 1) {
 function babble(B, t, dur, o = {}) {
   const k = o.k ?? 1, f0b = o.f0 ?? 120, seq = [], st = [], vs = 'aeEioOuy29@A';
   for (let x = 0; x < dur;) { const sd = B.rr(o.syl?.[0] ?? 0.09, o.syl?.[1] ?? 0.22); seq.push([x + sd * 0.45, B.pick(vs)]); st.push([x, sd]); x += sd; }
-  let si = 0; const ph = B.rr(0, 6), acc = B.rnd(3, -1, 1);
-  const ef = (x) => {
+  let si = 0; const ph = B.rr(0, 1), acc = B.rnd(3, -1, 1);
+  const ef = (x) => { // enveloppe syllabique (polynôme : pas de fonction transcendante par échantillon)
     if (x < st[si][0]) si = 0;
     while (si < st.length - 1 && x >= st[si + 1][0]) si++;
-    const u = (x - st[si][0]) / st[si][1];
-    return 0.2 + 0.8 * Math.pow(Math.max(0, Math.sin(Math.PI * clamp(u, 0, 1))), 0.7);
+    const u = clamp((x - st[si][0]) / st[si][1], 0, 1), q = 4 * u * (1 - u);
+    return 0.2 + 0.8 * q * (1.6 - 0.6 * q);
   };
   const wh = o.wh ?? 0.05;
   B.voice(t, dur, {
-    f0: o.whisper ? () => 0 : (x) => f0b * (1.12 - 0.22 * x / dur) * (1 + 0.07 * Math.sin(TAU * 2.3 * x + ph) + 0.05 * acc(t + x)),
+    f0: o.whisper ? () => 0 : (x) => f0b * (1.12 - 0.22 * x / dur) * (1 + 0.07 * fsin(2.3 * x + ph) + 0.05 * acc(t + x)),
     F: ftrack(seq, k), ef, asp: o.whisper ? () => 1 : () => wh, oq: 0.6, jit: 0.02, shim: 0.15, att: 0.03, rel: 0.06,
     bw: [90 * k, 110 * k, 160 * k, 220 * k], a: o.a ?? 1,
   });
@@ -686,15 +702,15 @@ def('glass_crack', { d: 0.6, v: 4, sr: 'H', g: 0.6, r(B) {
   for (let i = 0, t = 0.01; i < B.ri(4, 8); i++, t += B.rr(0.01, 0.06)) { B.nz(t, 0.003, { dec: 0.0007, hp: 3000, a: B.rr(0.3, 0.8) }); shard(B, t, 0.06, 3000, 9000, 0.5); }
   B.fric(0.02, 0.18, { rate: (x) => 900 + 3000 * x, jit: 0.5, av: 0.7, res: [[4200, 6, 1], [6800, 8, 0.6]], att: 0.01, a: 0.1 }); // verre qui travaille
 } });
-def('glass_shatter_big', { d: 5, v: 2, sr: 'H', g: 1, rev: 1.6, ref: 4, md: 90, r(B) {
+def('glass_shatter_big', { d: 5, v: 2, sr: 'M', g: 1, rev: 1.6, ref: 4, md: 90, r(B) {
   B.thump(0.005, { f0: 90, f1: 40, k: 0.03, dec: 0.12, a: 0.9, drive: 1.5 });
   B.nz(0.003, 0.6, { att: 0.001, dec: 0.12, hp: 1500, a: 0.9 }); B.nz(0.003, 0.03, { dec: 0.006, a: 0.8 });
   for (const w of [0, 0.18, 0.5, 0.95, 1.5]) { // la vitrine s'effondre par pans successifs
     B.nz(w + 0.01, 0.4, { dec: 0.1, hp: 2500, lp: 12000, a: 0.35 });
-    const nn = w < 0.6 ? 80 : 45;
+    const nn = w < 0.6 ? 60 : 35;
     for (let i = 0; i < nn; i++) shard(B, w + Math.pow(B.r(), 1.6) * 0.7, B.rr(0.04, 0.25) * (1 - w * 0.3), w ? 1800 : 2500, 9500, w > 0.5 ? 1.3 : 1);
   }
-  for (let i = 0; i < 80; i++) { const t = 1.8 + Math.pow(B.r(), 1.4) * 2.9; shard(B, t, B.rr(0.01, 0.07) * (1 - (t - 1.8) / 3.2), 2500, 9000, 0.8); } // débris qui glissent
+  for (let i = 0; i < 60; i++) { const t = 1.8 + Math.pow(B.r(), 1.4) * 2.9; shard(B, t, B.rr(0.01, 0.07) * (1 - (t - 1.8) / 3.2), 2500, 9000, 0.8); } // débris qui glissent
 } });
 def('bottle_break', { d: 1.3, v: 4, sr: 'H', g: 0.85, rev: 1.2, r(B) {
   const f = B.rr(900, 1400);
@@ -1027,7 +1043,7 @@ def('squeak', { d: 0.55, v: 3, g: 0.55, r(B) { // jouet couineur : on presse, pu
   B.osc(0.24, 0.22, { w: 'tab', harm: [1, 0.45, 0.3, 0.15], f: f * 1.35, f1: f * 0.85, att: 0.015, dec: 0.12, jit: 0.03, a: 0.35 });
   B.nz(0.24, 0.2, { att: 0.02, dec: 0.1, bp: 2200, q: 1.5, a: 0.06 });
 } });
-def('toy_robot', { d: 4, loop: true, g: 0.6, r(B) {
+def('toy_robot', { d: 4, loop: true, o0: 1, g: 0.6, r(B) {
   for (let t = 0; t < 4; t += 0.5) {
     B.osc(t, 0.3, { w: 'saw', f: 260, f1: 300, lp: 2500, att: 0.02, rel: 0.05, a: 0.16 }); // moteur
     B.fric(t, 0.3, { rate: 55, jit: 0.2, res: [[2500, 4, 1], [4000, 5, 0.5]], att: 0.02, rel: 0.03, a: 0.12 }); // engrenages
@@ -1062,8 +1078,8 @@ def('jack_in_box', { d: 2.2, v: 2, g: 0.8, rev: 1.1, r(B) { // derniers tours de
   B.osc(p, 0.6, { f: 190, vib: [13, 0.22], dec: 0.2, a: 0.5 }); B.osc(p, 0.5, { f: 520, vib: [13, 0.15], dec: 0.12, a: 0.15 }); // ressort « boing »
   B.voice(p + 0.12, 0.35, { f0: (x) => 600 - 300 * x, F: ftrack([[0, 'h'], [0.03, 'i']], 1.4), asp: (x) => (x < 0.03 ? 0.9 : 0.1), att: 0.01, dec: 0.2, a: 0.3 });
 } });
-def('jack_music', { d: 48 * 0.15, loop: true, g: 0.6, r(B) { // « Pop Goes the Weasel » à la manivelle
-  let t = 0; for (const [m, d] of WEASEL) { tine(B, t, 84 + m, 0.6); t += d * 0.15; }
+def('jack_music', { d: 48 * 0.15, loop: true, o0: 1, sr: 'L', g: 0.6, r(B) { // « Pop Goes the Weasel » à la manivelle
+  let t = 0; const N = []; for (const [m, d] of WEASEL) { N.push([t, 84 + m, 0.6]); t += d * 0.15; } tines(B, N);
   for (let k = 0; k < 48; k++) B.nz(k * 0.15, 0.004, { dec: 0.001, hp: 1800, lp: 7000, a: 0.06 }); // cliquet
 } });
 def('ball_bounce', { d: 0.25, v: 4, g: 0.6, r(B) {
@@ -1131,14 +1147,14 @@ def('music_box_wrong', { d: 9.5, g: 0.6, rev: 1.3, r(B) { // la comptine se dér
 // sonnerie électromécanique : marteau à ~25 Hz alternant entre deux timbres (banc de résonateurs)
 function ringer(B, t0, dur, rate, fa, fb, a = 1, d = 0.6) {
   const xa = new Float32Array(B.n), xb = new Float32Array(B.n);
-  for (let t = t0, k = 0; t < t0 + dur; t += 1 / rate, k++) { const i = ((Math.round(t * B.sr) % B.n) + B.n) % B.n; (k & 1 ? xb : xa)[i] += B.rr(0.8, 1); B.nz(t, 0.003, { dec: 0.0008, hp: 2500, a: 0.05 * a, tail: 0.004 }); }
+  for (let t = t0, k = 0; t < t0 + dur; t += 1 / rate, k++) { const tj = t + B.rr(-0.0025, 0.0025), i = ((Math.round(tj * B.sr) % B.n) + B.n) % B.n; (k & 1 ? xb : xa)[i] += B.rr(0.8, 1); B.nz(tj, 0.003, { dec: 0.0008, hp: 2500, a: 0.05 * a, tail: 0.004 }); } // le marteau n'est jamais parfaitement régulier
   const md = (f) => { const out = []; [1, 2.32, 4.25, 6.63].forEach((r, i) => { const dd = d * Math.pow(0.6, i), am = [1, 0.55, 0.35, 0.2][i]; out.push([f * r, am, dd], [f * r * 1.002, am * 0.4, dd * 0.9]); }); return out; };
   B.res(xa, md(fa), a); B.res(xb, md(fb), a);
 }
-def('phone_ring', { d: 5, loop: true, g: 0.85, ref: 3, os: 2.2, r(B) { ringer(B, 0, 1.5, 25, 1150, 1340, 1); } }); // cadence 1,5 s / 3,5 s
+def('phone_ring', { d: 5, loop: true, o0: 1, sr: 'L', g: 0.85, ref: 3, os: 2.2, r(B) { ringer(B, 0, 1.5, 25, 1150, 1340, 1); } }); // cadence 1,5 s / 3,5 s
 def('dial_tone', { d: 1, loop: true, sr: 'L', g: 0.5, r(B) { B.osc(0, 1, { w: 'tab', harm: [1, 0.02, 0.015], f: 440, a: 0.8 }); B.osc(0, 1, { f: 50, a: 0.01 }); } }); // 440 Hz continu
-def('busy_tone', { d: 1, loop: true, sr: 'L', g: 0.5, r(B) { B.osc(0, 0.5, { w: 'tab', harm: [1, 0.02, 0.015], f: 440, att: 0.004, rel: 0.004, a: 0.8 }); } }); // 0,5 / 0,5
-def('ringback', { d: 5, loop: true, sr: 'L', g: 0.5, r(B) { B.osc(0, 1.5, { w: 'tab', harm: [1, 0.02, 0.015], f: 440, att: 0.004, rel: 0.004, a: 0.8 }); } }); // 1,5 / 3,5
+def('busy_tone', { d: 1, loop: true, o0: 1, sr: 'L', g: 0.5, r(B) { B.osc(0, 0.5, { w: 'tab', harm: [1, 0.02, 0.015], f: 440, att: 0.004, rel: 0.004, a: 0.8 }); } }); // 0,5 / 0,5
+def('ringback', { d: 5, loop: true, o0: 1, sr: 'L', g: 0.5, r(B) { B.osc(0, 1.5, { w: 'tab', harm: [1, 0.02, 0.015], f: 440, att: 0.004, rel: 0.004, a: 0.8 }); } }); // 1,5 / 3,5
 def('phone_pickup', { d: 0.5, v: 2, g: 0.6, r(B) {
   B.nz(0, 0.01, { dec: 0.003, hp: 400, lp: 4000, a: 0.6 }); B.thump(0, { f0: 220, f1: 140, dec: 0.02, a: 0.4 }); // le combiné quitte le socle
   B.nz(0.03, 0.006, { dec: 0.002, hp: 600, lp: 5000, a: 0.35 });
@@ -1153,7 +1169,7 @@ def('phone_hangup', { d: 0.7, v: 2, g: 0.7, r(B) {
   bell(B, 0.015, 1150, 0.12, { d: 0.4 }); bell(B, 0.02, 1340, 0.08, { d: 0.4 }); // « ting » du timbre
   B.nz(0.03, 0.006, { dec: 0.002, hp: 500, lp: 4000, a: 0.3 });
 } });
-def('mobile_ring', { d: 3.2, loop: true, g: 0.6, r(B) { // sonnerie monophonique rétro (mélodie originale)
+def('mobile_ring', { d: 3.2, loop: true, o0: 1, g: 0.6, r(B) { // sonnerie monophonique rétro (mélodie originale)
   chip(B, 0, [[81, 1], [84, 1], [88, 1], [84, 1], [77, 1], [81, 1], [84, 1], [81, 1], [84, 1], [88, 1], [91, 1], [88, 1], [79, 1], [83, 1], [86, 1], [83, 1], [81, 3]], { beat: 0.105, a: 0.4, leg: 0.8 });
   B.spk(500, 4500, 2500, 6, 1.3);
 } });
@@ -1165,30 +1181,30 @@ def('vibrate', { d: 1.2, v: 2, g: 0.6, r(B) {
 } });
 
 // ── alarmes ──
-def('alarm_siren', { d: 4, loop: true, g: 0.9, ref: 6, md: 120, r(B) { // sirène électronique montante/descendante
+def('alarm_siren', { d: 4, loop: true, o0: 1, g: 0.9, ref: 6, md: 120, r(B) { // sirène électronique montante/descendante
   B.osc(0, 4, { w: 'sqr', fe: (x) => { const u = (x % 2) / 2; return u < 0.6 ? 600 + 700 * (u / 0.6) : 1300 - 700 * ((u - 0.6) / 0.4); }, a: 0.5 });
   B.lp(4500).pk(1400, 0.8, 5).drive(1.6);
 } });
-def('car_alarm', { d: 14, loop: true, sr: 'L', g: 0.85, ref: 6, md: 140, r(B) { // alarme auto années 90 : six motifs enchaînés
-  const seg = (x) => { const m = Math.floor(x / 2.3333); return [m, x - m * 2.3333]; };
+def('car_alarm', { d: 12, loop: true, o0: 1, sr: 'L', g: 0.85, ref: 6, md: 140, r(B) { // alarme auto années 90 : six motifs enchaînés
+  const seg = (x) => { const m = Math.min(5, Math.floor(x / 2)); return [m, x - m * 2]; };
   const fe = (x) => {
     const [m, u] = seg(x);
     if (m === 0) return 700 + 1100 * ((u % 0.2) / 0.2);                                  // « wouip-wouip »
     if (m === 1) return (Math.floor(u * 8) & 1) ? 1600 : 1200;                            // trille
-    if (m === 2) return 600 + 1000 * (0.5 - 0.5 * Math.cos(TAU * (u % 1.1667) / 1.1667)); // sirène lente
+    if (m === 2) return 600 + 1000 * (0.5 - 0.5 * Math.cos(TAU * u)); // sirène lente
     if (m === 3) return 1450;                                                            // mitraillette (hachée)
     if (m === 4) return (Math.floor(u / 0.35) & 1) ? 700 : 1000;                          // « hi-han »
     return 2000 - 1200 * ((u % 0.13) / 0.13);                                            // « piou » descendant
   };
-  B.osc(0, 14, { w: 'sqr', fe, ef: (x) => { const [m, u] = seg(x); return m === 3 ? ((u * 32) % 1 < 0.5 ? 1 : 0.03) : 1; }, a: 0.5 });
+  B.osc(0, 12, { w: 'sqr', fe, ef: (x) => { const [m, u] = seg(x); return m === 3 ? ((u * 32) % 1 < 0.5 ? 1 : 0.03) : 1; }, a: 0.5 });
   B.hp(500).pk(2200, 1, 6).lp(6000).drive(2);
 } });
-def('smoke_alarm', { d: 4, loop: true, sr: 'H', g: 0.75, ref: 4, r(B) { // motif T3 normalisé : trois bips de 0,5 s, pause
+def('smoke_alarm', { d: 4, loop: true, o0: 1, sr: 'H', g: 0.75, ref: 4, r(B) { // motif T3 normalisé : trois bips de 0,5 s, pause
   for (const t of [0, 1, 2]) B.osc(t, 0.5, { w: 'tab', harm: [1, 0.08, 0.25, 0.03, 0.08], f: 3150, vib: [11, 0.004], att: 0.004, rel: 0.006, a: 0.6 });
   B.pk(3150, 2, 4);
 } });
-def('shop_alarm', { d: 2, loop: true, g: 0.95, ref: 8, md: 120, r(B) { // grosse cloche d'alarme + sirène « yelp »
-  const x = new Float32Array(B.n); for (let k = 0; k < 44; k++) x[Math.round(k / 22 * B.sr) % B.n] = B.rr(0.85, 1);
+def('shop_alarm', { d: 2, loop: true, o0: 1, g: 0.95, ref: 8, md: 120, r(B) { // grosse cloche d'alarme + sirène « yelp »
+  const x = new Float32Array(B.n); for (let k = 0; k < 44; k++) x[((Math.round((k / 22 + B.rr(-0.003, 0.003)) * B.sr) % B.n) + B.n) % B.n] += B.rr(0.85, 1);
   B.res(x, [[620, 1, 1.1], [622, 0.4, 1], [1440, 0.6, 0.7], [2635, 0.4, 0.45], [4110, 0.25, 0.3], [5820, 0.15, 0.2]], 1);
   B.osc(0, 2, { w: 'sqr', fe: (t) => 900 + 800 * ((t * 3) % 1), a: 0.08, lp: 5000 });
   B.drive(1.3);
@@ -1203,8 +1219,8 @@ function deuxTons(B, f1, f2, half, a = 0.5) {
   const fe = (t) => { const u = t % (2 * half), hi = u >= half, v = hi ? u - half : u, base = hi ? f2 : f1, prev = hi ? f1 : f2; return base + (prev - base) * Math.exp(-v / 0.018) * 0.6; };
   B.osc(0, B.dur, { w: 'saw', fe, vib: [B.per(5.5), 0.004], a });
 }
-def('police_siren', { d: 4.4, loop: true, g: 0.9, ref: 6, md: 160, r(B) { deuxTons(B, 435, 580, 0.55); B.pk(1100, 1.5, 7).pk(2400, 2, 5).lp(5000).drive(1.4); } });
-def('fire_truck', { d: 5.6, loop: true, g: 0.95, ref: 6, md: 160, r(B) {
+def('police_siren', { d: 4.4, loop: true, sr: 'L', g: 0.9, ref: 6, md: 160, r(B) { deuxTons(B, 435, 580, 0.55); B.pk(1100, 1.5, 7).pk(2400, 2, 5).lp(5000).drive(1.4); } });
+def('fire_truck', { d: 5.6, loop: true, sr: 'L', g: 0.95, ref: 6, md: 160, r(B) {
   deuxTons(B, 435, 580, 0.7, 0.45); B.pk(1000, 1.5, 7).pk(2300, 2, 5).lp(5000).drive(1.3);
   B.osc(0, B.dur, { w: 'tab', f: 28, harm: [1, 0.8, 0.6, 0.5, 0.35, 0.25, 0.15, 0.1], a: 0.25 }); // diesel du camion
   B.nz(0, B.dur, { c: 'p', lp: 700, a: 0.25, am: [B.per(28), 0.6] });
@@ -1303,10 +1319,10 @@ def('escalator', { d: 4, loop: true, g: 0.7, ref: 4, r(B) {
 function drops(B, n, t0, t1, lo = 500, hi = 3000, a = 0.3) {
   for (let i = 0; i < n; i++) { const t = B.rr(t0, t1), f = B.rr(lo, hi); B.osc(t, B.rr(0.015, 0.05), { f, f1: f * B.rr(1.3, 1.9), att: 0.001, dec: B.rr(0.006, 0.02), a: B.rr(0.2, 1) * a }); }
 }
-def('fountain', { d: 4, loop: true, ch: 2, g: 0.7, r(B) {
+def('fountain', { d: 4, loop: true, g: 0.7, r(B) {
   B.nz(0, 4, { c: 'p', hp: 200, lp: 6000, a: 0.6, ef: B.rnd(5, 0.7, 1) });
-  drops(B, 260, 0, 4, 600, 3200, 0.35);
-  for (let i = 0; i < 300; i++) B.nz(B.rr(0, 4), 0.003, { dec: 0.001, bp: B.rr(1000, 4000), q: 1, a: B.rr(0.05, 0.25), tail: 0.004 });
+  drops(B, 180, 0, 4, 600, 3200, 0.35);
+  for (let i = 0; i < 200; i++) B.nz(B.rr(0, 4), 0.003, { dec: 0.001, bp: B.rr(1000, 4000), q: 1, a: B.rr(0.05, 0.25), tail: 0.004 });
 } });
 def('elevator_ding', { d: 2.5, g: 0.6, rev: 1.2, r(B) { const f = 1318.5; B.modal(0.002, [[f, 1, 1.3], [f * 1.001, 0.4, 1.2], [f * 2.76, 0.3, 0.5], [f * 5.4, 0.12, 0.2], [f * 0.5, 0.1, 0.8]], { ct: 0.0004, a: 1 }); } });
 def('water_drip', { d: 0.25, v: 5, g: 0.5, rev: 1.4, r(B) {
@@ -1321,7 +1337,7 @@ def('pipe_knock', { d: 1.4, v: 4, sr: 'L', g: 0.75, rev: 1.3, r(B) { // coup de 
 } });
 
 // ── extérieur, météo ──
-def('wind', { graph: (...a) => gWind(...a), param: { strength: 0.5 }, g: 1, os: 3 });
+def('wind', { graph: (...a) => gWind(...a), param: { strength: 0.5 }, g: 1.8, os: 3 });
 def('rain', { graph: (...a) => gRain(...a), param: { intensity: 0.5 }, g: 0.9, os: 3 });
 def('_rain_wash', { d: 4, loop: true, ch: 2, r(B) { B.nz(0, 4, { c: 'p', hp: 300, lp: 7500, a: 1, ef: B.rnd(4, 0.85, 1) }); B.nz(0, 4, { c: 'b', lp: 250, a: 0.3 }); } });
 def('_rain_drops', { d: 4, loop: true, ch: 2, r(B) {
@@ -1336,11 +1352,11 @@ def('thunder', { d: 8, v: 3, sr: 'V', g: 1, rev: 0.6, r(B) { // tonnerre lointai
   for (let k = 0, n = B.ri(5, 8); k < n; k++) { const d = B.rr(0.9, 2.4); B.nz(t, d, { att: B.rr(0.04, 0.3), dec: B.rr(0.35, 0.9), c: 'b', lp: B.rr(250, 700), a: B.rr(0.5, 1) * (1 - k * 0.08), ef: B.rnd(12, 0.4, 1), tail: 0.05 }); t += B.rr(0.25, 1.1); }
   B.nz(0, 7.5, { att: 0.4, dec: 2.2, c: 'b', lp: 90, a: 0.7, tail: 0.1 });
 } });
-def('distant_traffic', { d: 10, loop: true, ch: 2, sr: 'V', g: 0.7, r(B) {
-  B.nz(0, 10, { c: 'b', lp: 380, a: 0.7, ef: B.rnd(0.6, 0.6, 1) });
-  for (let i = 0; i < 4; i++) { // voitures qui passent au loin
-    const t = B.rr(0, 10), d = B.rr(3, 6), env = [[0, 0], [d * 0.5, 1], [d, 0]];
-    B.nz(t, d, { c: 'p', env, lp: 900, hp: 120, a: B.rr(0.25, 0.5) }); B.nz(t, d, { env, bp: 1300, q: 0.8, a: 0.05 });
+def('distant_traffic', { d: 8, loop: true, ch: 2, sr: 'V', g: 0.7, r(B) {
+  B.nz(0, 8, { c: 'b', lp: 380, a: 0.7, ef: B.rnd(0.6, 0.6, 1) });
+  for (let i = 0; i < 3; i++) { // voitures qui passent au loin (pneus : petite bosse vers 1,3 kHz)
+    const t = B.rr(0, 8), d = B.rr(3, 5);
+    B.nz(t, d, { c: 'p', env: [[0, 0], [d * 0.5, 1], [d, 0]], lp: 1400, hp: 120, pk: [[1300, 0.8, 4]], a: B.rr(0.25, 0.5) });
   }
 } });
 function bark(B, t, a = 1, k = 1) {
@@ -1364,17 +1380,17 @@ def('owl', { d: 3.2, v: 2, sr: 'L', g: 0.55, rev: 0.6, r(B) { // chouette hulott
   hoot(0.05, 0.4); hoot(1.0, 0.12, 1.02); hoot(1.25, 0.12, 1.02); hoot(1.5, 0.9, 1, 16);
   B.lp(1800); B.verb(0.35, 1.4, 0.5, 0.04);
 } });
-def('city_night', { d: 10, loop: true, ch: 2, sr: 'V', g: 0.6, r(B) {
-  B.nz(0, 10, { c: 'b', lp: 300, a: 0.7, ef: B.rnd(0.5, 0.6, 1) });
-  for (let i = 0; i < 2; i++) { const t = B.rr(0, 10), d = B.rr(3, 5); B.nz(t, d, { c: 'p', env: [[0, 0], [d / 2, 1], [d, 0]], lp: 800, hp: 100, a: 0.3 }); }
+def('city_night', { d: 8, loop: true, ch: 2, sr: 'V', g: 0.6, r(B) {
+  B.nz(0, 8, { c: 'b', lp: 300, a: 0.7, ef: B.rnd(0.5, 0.6, 1) });
+  for (let i = 0; i < 2; i++) { const t = B.rr(0, 8), d = B.rr(3, 5); B.nz(t, d, { c: 'p', env: [[0, 0], [d / 2, 1], [d, 0]], lp: 800, hp: 100, a: 0.3 }); }
   if (B.c === 0) { const t = B.rr(1, 6); B.osc(t, 3.5, { fe: (x) => 650 + 250 * Math.sin(TAU * x / 1.6), env: [[0, 0], [1.5, 1], [3.5, 0]], a: 0.04, lp: 1500 }); } // sirène très lointaine
-  B.nz(0, 10, { c: 'p', bp: 500, q: 0.5, a: 0.1, ef: B.rnd(0.8, 0.2, 1) }); // vent
+  B.nz(0, 8, { c: 'p', bp: 500, q: 0.5, a: 0.1, ef: B.rnd(0.8, 0.2, 1) }); // vent
 } });
 
 // ── foule, journée ──
 def('crowd', { graph: (...a) => gCrowd(...a), param: { density: 0.5 }, g: 0.9, os: 3 });
-def('_babble', { d: 6, loop: true, ch: 2, sr: 'V', r(B) { // brouhaha de galerie : voix d'hommes et de femmes inintelligibles
-  for (let v = 0; v < 5; v++) {
+def('_babble', { d: 6, loop: true, sr: 'V', r(B) { // brouhaha de galerie : voix d'hommes et de femmes inintelligibles
+  for (let v = 0; v < 4; v++) {
     const fem = B.ch(0.5), k = fem ? 1.17 : 1, f0 = fem ? B.rr(185, 235) : B.rr(100, 135), a = B.rr(0.35, 1);
     for (let t = B.rr(0, 1.5); t < 6;) { const d = B.rr(0.8, 2.4); babble(B, t, d, { k, f0, a }); t += d + B.rr(0.3, 1.2); }
   }
@@ -1441,7 +1457,7 @@ def('jumpscare', { d: 2.4, v: 2, g: 1, rev: 1.2, r(B) { // accord dissonant brut
   B.fric(0.02, 0.9, { rate: (x) => 700 + 600 * x, jit: 0.05, av: 0.2, res: [[2600, 20, 1], [3900, 25, 0.6]], att: 0.01, dec: 0.4, a: 0.25 }); // crissement
   B.lp(7000).drive(1.6);
 } });
-def('stinger', { d: 3.2, v: 2, g: 0.85, rev: 1.3, r(B) { // coup d'orchestre dissonant
+def('stinger', { d: 3.2, v: 2, sr: 'L', g: 0.85, rev: 1.3, r(B) { // coup d'orchestre dissonant
   for (const m of [43, 44, 50, 55, 56, 62, 63]) B.osc(0, 2.8, { w: 'saw', f: mtof(m) * B.rr(0.996, 1.004), att: 0.03, dec: 1.1, rel: 0.4, vib: [B.rr(4.5, 6.5), 0.008], a: 0.2 });
   for (const m of [31, 32, 38]) { const f = mtof(m); B.modal(0, [1, 2, 3, 4, 5, 6].map((k) => [f * k * (1 + 0.0004 * k * k), 1 / k, 1.6 / (1 + k * 0.3)]), { ct: 0.002, a: 0.4, lf: 4 }); } // cluster de piano grave
   B.nz(0, 3, { att: 0.005, dec: 0.9, c: 'p', lp: 3000, hp: 200, a: 0.25 }); // tam-tam
@@ -1627,7 +1643,7 @@ def('coffee_machine', { d: 4, loop: true, g: 0.65, r(B) {
   drops(B, 40, 0, 4, 250, 900, 0.2); for (let i = 0; i < 12; i++) { const t = B.rr(0, 4), f = B.rr(1200, 2000); B.osc(t, 0.03, { f, f1: f * 1.5, dec: 0.01, a: 0.15 }); }
   B.nz(0, 4, { hp: 2500, a: 0.15, ef: B.rnd(3, 0.3, 1) }); // vapeur
 } });
-def('printer', { d: 4, loop: true, g: 0.6, r(B) { // imprimante matricielle : aiguilles, chariot, saut de ligne
+def('printer', { d: 4, loop: true, o0: 1, g: 0.6, r(B) { // imprimante matricielle : aiguilles, chariot, saut de ligne
   for (const t0 of [0, 2]) {
     B.fric(t0, 1.5, { rate: 820, jit: 0.15, res: [[1800, 2, 1], [3500, 3, 0.6]], ef: (x) => ((x * 14) % 1 < 0.7 ? 1 : 0.05), att: 0.01, rel: 0.02, a: 0.4 });
     B.osc(t0, 1.5, { w: 'saw', f: 420, lp: 1500, att: 0.02, rel: 0.05, a: 0.06 });
@@ -1678,7 +1694,7 @@ def('console_boot', { d: 2.4, g: 0.6, r(B) { // jingle de démarrage (original)
   for (const m of [84, 88, 91]) B.osc(0.45, 1.6, { w: 'tri', f: mtof(m), att: 0.004, dec: 0.6, a: 0.25 });
   B.nz(0.45, 0.5, { att: 0.01, dec: 0.15, bp: (x) => 3000 + 6000 * x, q: 3, a: 0.08 }); // scintillement
 } });
-def('arcade_ambient', { d: 8, loop: true, ch: 2, sr: 'L', g: 0.6, r(B) { // salle d'arcade : bornes en mode démo
+def('arcade_ambient', { d: 8, loop: true, sr: 'L', g: 0.6, r(B) { // salle d'arcade : bornes en mode démo
   for (let m = 0; m < 3; m++) {
     const key = B.ri(57, 69), bt = B.pick([0.1, 0.125, 0.15]), pat = Array.from({ length: 8 }, () => [B.pick([0, 3, 5, 7, 10, 12, 0]) + key, B.pick([1, 1, 2])]);
     for (let t = B.rr(0, 1); t < 8;) t = chip(B, t, pat, { beat: bt, a: 0.08, w: m === 2 ? 'tri' : 'sqr', duty: m ? 0.25 : 0.5 }) + B.rr(0.2, 1.5);
@@ -1728,13 +1744,13 @@ def('projector', { d: 2, loop: true, g: 0.55, r(B) { // projecteur de cinéma : 
   for (let k = 0; k < 48; k++) { const t = k / 24; B.nz(t, 0.003, { dec: 0.001, hp: 1500, a: 0.5, tail: 0.004 }); B.modal(t, [[1800, 1, 0.015], [3100, 0.5, 0.01]], { a: 0.2 }); }
   B.nz(0, 2, { bp: 600, q: 1, a: 0.15, am: [48, 0.5] }); B.nz(0, 2, { c: 'p', lp: 2500, a: 0.2 }); B.osc(0, 2, { w: 'tab', f: 100, harm: [0.3, 0.2], a: 0.05 });
 } });
-def('kiddie_ride', { d: 8, loop: true, sr: 'L', g: 0.6, r(B) { // manège à pièces : « Frère Jacques » à l'orgue bon marché
+def('kiddie_ride', { d: 8, loop: true, o0: 1, sr: 'L', g: 0.6, r(B) { // manège à pièces : « Frère Jacques » à l'orgue bon marché
   let t = 0;
   for (const [m, d] of JACQUES) { const L = d * 0.25; B.osc(t, L * 0.85, { w: 'sqr', duty: 0.3, f: mtof(72 + m), att: 0.004, rel: 0.02, vib: [6, 0.006], a: 0.25 }); B.osc(t, L * 0.85, { w: 'tri', f: mtof(60 + m), att: 0.004, rel: 0.02, a: 0.12 }); t += L; }
   for (let k = 0; k < 5; k++) { const tt = k * 1.6; B.thump(tt, { f0: 110, f1: 70, dec: 0.04, a: 0.25 }); B.fric(tt + 0.2, 0.4, { rate: 35, jit: 0.3, res: [[500, 6, 1]], att: 0.05, rel: 0.1, a: 0.06 }); } // la bascule
   B.osc(0, 8, { w: 'tab', f: 50, harm: [0.3, 0.5, 0.2], a: 0.06 });
 } });
-def('claw_machine', { d: 8, loop: true, sr: 'L', g: 0.55, r(B) { // jingle de la pince + moteurs du portique
+def('claw_machine', { d: 8, loop: true, o0: 1, sr: 'L', g: 0.55, r(B) { // jingle de la pince + moteurs du portique
   const pat = [[72, 1], [76, 1], [79, 1], [84, 1], [79, 1], [76, 1], [77, 1], [81, 1], [84, 1], [89, 1], [84, 1], [81, 1], [79, 1], [83, 1], [86, 1], [91, 1]];
   for (let t = 0; t < 7.9;) t = chip(B, t, pat, { beat: 0.125, a: 0.18, duty: 0.25 });
   for (const [t0, d] of [[2, 1.2], [5.4, 1]]) { B.osc(t0, d, { w: 'saw', f: 180, lp: 1200, att: 0.05, rel: 0.1, a: 0.12 }); B.fric(t0, d, { rate: 90, jit: 0.4, res: [[2200, 5, 1]], att: 0.05, rel: 0.1, a: 0.04 }); }
@@ -1808,7 +1824,7 @@ def('clock_tick', { d: 2, loop: true, g: 0.4, r(B) { // tic… tac (échappement
     B.nz(t + 0.008, 0.002, { dec: 0.0005, hp: 2500, a: 0.25, tail: 0.004 });
   }
 } });
-def('wind_chime', { d: 3, v: 3, sr: 'H', g: 0.5, rev: 1.1, r(B) { // carillon à tubes (barres libres : 1 ; 2,756 ; 5,404)
+def('wind_chime', { d: 3, v: 3, g: 0.5, rev: 1.1, r(B) { // carillon à tubes (barres libres : 1 ; 2,756 ; 5,404)
   const tubes = [84, 86, 88, 91, 93].map(mtof);
   for (let i = 0, n = B.ri(6, 10); i < n; i++) { const f = B.pick(tubes), t = Math.pow(B.r(), 1.3) * 1.6; B.modal(t, [[f, 1, 2], [f * 1.0012, 0.4, 1.8], [f * 2.756, 0.45, 0.9], [f * 5.404, 0.2, 0.4]], { ct: 0.0002, a: B.rr(0.2, 0.6), lf: 5 }); }
 } });
@@ -1895,7 +1911,7 @@ def('_dr_kick', { d: 0.6, v: 3, jit: 0.01, g: 0.9, r(B) { B.thump(0.001, { f0: 1
 def('_dr_snare', { d: 0.5, v: 3, jit: 0.01, g: 0.8, r(B) { B.thump(0.001, { f0: 260, f1: 185, k: 0.015, dec: 0.06, a: 0.6 }); B.osc(0.001, 0.08, { f: 330, dec: 0.03, a: 0.25 }); B.nz(0.001, 0.3, { dec: 0.07, hp: 1200, lp: 10000, a: 0.8 }); } });
 def('_dr_hat', { d: 0.15, v: 3, sr: 'H', jit: 0.01, g: 0.45, r(B) { metal(B, 0.001, 0.12, 0.025, 7000); } });
 def('_dr_tom', { d: 0.7, v: 3, jit: 0.01, g: 0.8, r(B) { B.thump(0.001, { f0: 170, f1: 105, k: 0.05, dec: 0.18, a: 1 }); B.nz(0.001, 0.05, { dec: 0.015, lp: 3000, a: 0.25 }); } });
-def('_dr_crash', { d: 2.4, v: 2, sr: 'H', jit: 0.01, g: 0.6, r(B) { metal(B, 0.001, 2.2, 0.7, 4000, 2.6); B.nz(0.001, 2.2, { dec: 0.6, hp: 5000, a: 0.3 }); } });
+def('_dr_crash', { d: 2.4, v: 2, jit: 0.01, g: 0.6, r(B) { metal(B, 0.001, 2.2, 0.7, 4000, 2.6); B.nz(0.001, 2.2, { dec: 0.6, hp: 5000, a: 0.3 }); } });
 
 // ───────────────────────────── synthèse temps réel (sons paramétrables) ─────────────────────────────
 // Un contrôleur reçoit (E moteur, out entrée de la voix, P paramètres, pitch, V voix, t0 départ) et
@@ -1913,6 +1929,16 @@ class Kit {
     n.start(this.t0, loop ? Math.random() * buf.duration : 0); this.srcs.push(n); this.nodes.push(n); return n;
   }
   noise() { return this.b(this.E.noiseBuf(), true, 1); }
+  // boucle d'un tampon du catalogue, branchée dès que sa synthèse est prête (prise renvoyée tout de suite)
+  bn(name, rate = 1) {
+    const sock = this.g(1);
+    this.E.bufAsync(name, 0, (buf) => {
+      if (this.stopped) return;
+      const n = this.ctx.createBufferSource(); n.buffer = buf; n.loop = true; n.playbackRate.value = rate;
+      n.connect(sock); n.start(Math.max(this.t0, this.ctx.currentTime), Math.random() * buf.duration); this.srcs.push(n); this.nodes.push(n);
+    });
+    return sock;
+  }
   ws(curve) { const n = this.ctx.createWaveShaper(); n.curve = curve; this.nodes.push(n); return n; }
   chain(...ns) { for (let i = 0; i < ns.length - 1; i++) ns[i].connect(ns[i + 1]); return ns[ns.length - 1]; }
   // événement ponctuel programmé (pas, bulles, battements…) : se déconnecte seul
@@ -1933,7 +1959,8 @@ const smooth = (p, v, t, tc) => p.setTargetAtTime(v, t, tc);
 // groupe électrogène diesel : train d'impulsions (explosions) → corps grave ; bruit modulé par les impulsions → cognement
 function gGenerator(E, out, P, pitch, V, t0) {
   const K = new Kit(E, out, t0), rpm = () => clamp(num(+P.rpm, 0.8), 0, 1), fr = () => (9 + 18 * rpm()) * pitch;
-  const m = K.g(0); m.connect(out); m.gain.setTargetAtTime(1, t0, 0.3);
+  const ts = t0 + (P.warm ? 0 : 0.8); // le lanceur (generator_start) couvre la première seconde : le moteur prend ensuite
+  const m = K.g(0); m.connect(out); m.gain.setTargetAtTime(1, ts, 0.35);
   const pulse = K.o(null, fr() * 0.45, E.wave('diesel'));
   const lp = K.f('lowpass', 200 + 250 * rpm(), 1.2), pk = K.f('peaking', 95, 1.5); pk.gain.value = 8;
   K.chain(pulse, lp, pk, K.g(0.9), m);
@@ -1943,8 +1970,8 @@ function gGenerator(E, out, P, pitch, V, t0) {
   const hp = K.f('highpass', 3500), gM = K.g(0); K.chain(nz, hp, gM, m);
   const a2 = K.g(0.12); shp.connect(a2); a2.connect(gM.gain); // claquements des culbuteurs
   K.chain(K.o('sine', 100 * pitch), K.g(0.05), m); // alternateur
-  pulse.frequency.setTargetAtTime(fr(), t0 + 0.1, 0.5); // montée en régime
-  let next = t0 + 0.15;
+  pulse.frequency.setTargetAtTime(fr(), ts + 0.1, 0.5); // montée en régime
+  let next = ts + 0.15;
   return K.ctl({
     set(k) {
       if (k !== 'rpm') return; const t = E.ctx.currentTime;
@@ -1952,7 +1979,7 @@ function gGenerator(E, out, P, pitch, V, t0) {
     },
     tick(now, until) { // irrégularités d'un vieux diesel, quelques ratés au démarrage
       if (next < now) next = now;
-      while (next < until) { const st = next - t0 < 2 && Math.random() < 0.3; smooth(pulse.frequency, fr() * (st ? 0.75 : 1 + (Math.random() - 0.5) * 0.03), next, st ? 0.03 : 0.06); next += st ? 0.12 : 0.1 + Math.random() * 0.08; }
+      while (next < until) { const st = next - ts < 2 && Math.random() < 0.3; smooth(pulse.frequency, fr() * (st ? 0.75 : 1 + (Math.random() - 0.5) * 0.03), next, st ? 0.03 : 0.06); next += st ? 0.12 : 0.1 + Math.random() * 0.08; }
     },
   });
 }
@@ -2032,9 +2059,9 @@ function gWind(E, out, P, pitch, V, t0) {
         const s = S(), t = next;
         if (t >= nt) { tgt = clamp(0.15 + Math.random() * (0.5 + 0.5 * s), 0, 1); nt = t + 1 + Math.random() * (4 - 2.5 * s); }
         x = clamp(x + (tgt - x) * 0.12 + (Math.random() - 0.5) * 0.05 * s, 0, 1);
-        smooth(gA.gain, (0.3 + 0.7 * s) * (0.35 + 0.65 * x), t, 0.25); smooth(bA.frequency, (250 + 900 * x * (0.5 + s)) * pitch, t, 0.3);
-        smooth(gB.gain, 4 * s * s * x * x, t, 0.3); smooth(bB.frequency, (600 + 1000 * x + 150 * Math.sin(t * 1.7)) * pitch, t, 0.4);
-        smooth(gC.gain, 3 * (0.25 + 0.6 * x) * (0.4 + 0.6 * s), t, 0.3);
+        smooth(gA.gain, 6 * (0.3 + 0.7 * s) * (0.35 + 0.65 * x), t, 0.25); smooth(bA.frequency, (250 + 900 * x * (0.5 + s)) * pitch, t, 0.3);
+        smooth(gB.gain, 20 * s * s * x * x, t, 0.3); smooth(bB.frequency, (600 + 1000 * x + 150 * Math.sin(t * 1.7)) * pitch, t, 0.4);
+        smooth(gC.gain, 12 * (0.25 + 0.6 * x) * (0.4 + 0.6 * s), t, 0.3);
         next += 0.15;
       }
     },
@@ -2044,9 +2071,9 @@ function gWind(E, out, P, pitch, V, t0) {
 function gRain(E, out, P, pitch, V, t0) {
   const K = new Kit(E, out, t0), I = () => clamp(num(+P.intensity, 0.5), 0, 1);
   const m = K.g(0); m.connect(out); m.gain.setTargetAtTime(1, t0, 0.5);
-  const w = K.b(E.buf('_rain_wash'), true, pitch), d = K.b(E.buf('_rain_drops'), true, pitch);
+  const w = K.bn('_rain_wash', pitch), d = K.bn('_rain_drops', pitch);
   const lw = K.f('lowpass', 5000), gW = K.g(0), gD = K.g(0); K.chain(w, lw, gW, m); K.chain(d, gD, m);
-  const apply = (t, tc = 0.6) => { const i = I(); smooth(gW.gain, 0.2 + 0.8 * i, t, tc); smooth(lw.frequency, 1800 + 7000 * i, t, tc); smooth(gD.gain, 0.75 - 0.25 * i + 0.3 * i * i, t, tc); smooth(d.playbackRate, (0.92 + 0.2 * i) * pitch, t, tc); };
+  const apply = (t, tc = 0.6) => { const i = I(); smooth(gW.gain, 2 * (0.2 + 0.8 * i), t, tc); smooth(lw.frequency, 1800 + 7000 * i, t, tc); smooth(gD.gain, 2 * (0.75 - 0.25 * i + 0.3 * i * i), t, tc); };
   apply(t0, 0.01);
   return K.ctl({ set(k) { if (k === 'intensity') apply(E.ctx.currentTime); } });
 }
@@ -2055,7 +2082,7 @@ function gFire(E, out, P, pitch, V, t0) {
   const K = new Kit(E, out, t0), S = () => clamp(num(+P.size, 0.5), 0, 1);
   const m = K.g(0); m.connect(out); m.gain.setTargetAtTime(1, t0, 0.3);
   const lp = K.f('lowpass', 600), gR = K.g(0), gC = K.g(0);
-  K.chain(K.b(E.buf('_fire_roar'), true, pitch), lp, gR, m); K.chain(K.b(E.buf('_fire_crk'), true, pitch), gC, m);
+  K.chain(K.bn('_fire_roar', pitch), lp, gR, m); K.chain(K.bn('_fire_crk', pitch), gC, m);
   const apply = (t, tc = 0.4) => { const s = S(); smooth(gR.gain, 0.15 + 0.85 * s, t, tc); smooth(lp.frequency, 250 + 1500 * s, t, tc); smooth(gC.gain, 0.35 + 0.65 * Math.sqrt(s), t, tc); };
   apply(t0, 0.01);
   let next = t0 + 0.2;
@@ -2063,19 +2090,19 @@ function gFire(E, out, P, pitch, V, t0) {
     set(k) { if (k === 'size') apply(E.ctx.currentTime); },
     tick(now, until) {
       if (next < now) next = now;
-      while (next < until) { const s = S(); K.shot(E.buf('_fire_pop', (Math.random() * 4) | 0), next, (0.3 + 0.7 * Math.random()) * (0.3 + 0.7 * s), pitch * (0.8 + Math.random() * 0.4), m); next += -Math.log(1 - Math.random() * 0.999) / (0.4 + 3 * s); }
+      while (next < until) { const s = S(); K.shot(E.bufIfReady('_fire_pop', (Math.random() * 4) | 0), next, (0.3 + 0.7 * Math.random()) * (0.3 + 0.7 * s), pitch * (0.8 + Math.random() * 0.4), m); next += -Math.log(1 - Math.random() * 0.999) / (0.4 + 3 * s); }
     },
   });
 }
 // foule de galerie marchande : brouhaha (deux lectures décorrélées) + événements épars (rires, talons, caisse…)
 const CROWD_FX = [['laugh', 3], ['step_heels', 6], ['step_sneakers', 3], ['coins', 1], ['cash_register_ding', 1], ['giggle', 0.6], ['baby_cry', 0.3], ['bell_shop', 0.5]];
 function gCrowd(E, out, P, pitch, V, t0) {
-  const K = new Kit(E, out, t0), D = () => clamp(num(+P.density, 0.5), 0, 1), bab = E.buf('_babble');
+  const K = new Kit(E, out, t0), D = () => clamp(num(+P.density, 0.5), 0, 1);
   const m = K.g(0); m.connect(out); m.gain.setTargetAtTime(1, t0, 0.8);
-  const lp = K.f('lowpass', 2500), gA = K.g(0), gB = K.g(0);
-  K.chain(K.b(bab, true, 0.97 * pitch), gA, lp); K.chain(K.b(bab, true, 1.03 * pitch), gB, lp); lp.connect(m);
+  const lp = K.f('lowpass', 2500), gA = K.g(0), gB = K.g(0), sp = (v) => { const n = E.ctx.createStereoPanner ? E.ctx.createStereoPanner() : E.ctx.createGain(); if (n.pan) n.pan.value = v; K.nodes.push(n); return n; };
+  K.chain(K.bn('_babble', 0.97 * pitch), gA, sp(-0.65), lp); K.chain(K.bn('_babble', 1.03 * pitch), gB, sp(0.65), lp); lp.connect(m);
   const ev = K.f('lowpass', 3500); ev.connect(m);
-  const apply = (t, tc = 0.8) => { const d = D(); smooth(gA.gain, 0.25 + 0.75 * Math.min(1, d * 1.6), t, tc); smooth(gB.gain, Math.max(0, d - 0.35) * 1.4, t, tc); smooth(lp.frequency, 1600 + 2400 * d, t, tc); };
+  const apply = (t, tc = 0.8) => { const d = D(); smooth(gA.gain, 2.4 * (0.25 + 0.75 * Math.min(1, d * 1.6)), t, tc); smooth(gB.gain, 2.4 * (0.15 + 0.85 * Math.min(1, d * 1.3)), t, tc); smooth(lp.frequency, 1600 + 2400 * d, t, tc); };
   apply(t0, 0.01);
   const tot = CROWD_FX.reduce((s, x) => s + x[1], 0);
   let next = t0 + 1;
@@ -2089,7 +2116,7 @@ function gCrowd(E, out, P, pitch, V, t0) {
           let r = Math.random() * tot, nm = CROWD_FX[0][0];
           for (const [n, w] of CROWD_FX) { r -= w; if (r <= 0) { nm = n; break; } }
           const def = SND[nm];
-          K.shot(E.buf(nm, (Math.random() * (def.v || 1)) | 0), next, (0.08 + 0.25 * Math.random()) * (def.g || 0.7), (0.95 + Math.random() * 0.1) * pitch, ev, Math.random() * 1.6 - 0.8);
+          K.shot(E.bufIfReady(nm, (Math.random() * (def.v || 1)) | 0), next, (0.15 + 0.4 * Math.random()) * (def.g || 0.7), (0.95 + Math.random() * 0.1) * pitch, ev, Math.random() * 1.6 - 0.8);
         }
         next += (0.4 + Math.random() * 2.5) / (0.2 + d * 1.5);
       }
@@ -2098,28 +2125,30 @@ function gCrowd(E, out, P, pitch, V, t0) {
 }
 // cœur : « lub-dub », l'intervalle systolique raccourcit quand le rythme s'accélère
 function gHeart(E, out, P, pitch, V, t0) {
-  const K = new Kit(E, out, t0), lub = E.buf('_lub'), dub = E.buf('_dub');
+  const K = new Kit(E, out, t0), lub = () => E.bufIfReady('_lub') || E.buf('_lub'), dub = () => E.bufIfReady('_dub') || E.buf('_dub');
   let next = t0 + 0.05;
   return K.ctl({
     tick(now, until) {
       if (next < now) next = now + 0.02;
-      while (next < until) { const T = 60 / clamp(num(+P.bpm, 72), 30, 220) * (1 + (Math.random() - 0.5) * 0.03); K.shot(lub, next, 1, pitch); K.shot(dub, next + 0.32 * Math.sqrt(T), 0.65, pitch); next += T; }
+      while (next < until) { const T = 60 / clamp(num(+P.bpm, 72), 30, 220) * (1 + (Math.random() - 0.5) * 0.03); K.shot(lub(), next, 1, pitch); K.shot(dub(), next + 0.32 * Math.sqrt(T), 0.65, pitch); next += T; }
     },
   });
 }
 // boîte à musique : « Au clair de la lune », tempo 0..2 (0 = ressort arrêté)
 function gMusicBox(E, out, P, pitch, V, t0) {
-  const K = new Kit(E, out, t0), note = (m) => E.dyn('_mb' + m, () => ({ d: 3, g: 1, jit: 0, r(B) { tine(B, 0.002, m, 1); } }));
-  let next = t0 + 0.1, i = 0;
+  const K = new Kit(E, out, t0);
+  for (const [s, d] of CLAIR) { E.bufIfReady('_mb' + (84 + s)); if (d >= 2) E.bufIfReady('_mb' + (72 + s)); }
+  let next = t0 + 0.12, i = 0;
   return K.ctl({
     tick(now, until) {
       const tp = clamp(num(+P.tempo, 1), 0, 2);
-      if (tp < 0.05) { next = Math.max(next, until); return; }
+      if (tp < 0.05) { next = Math.max(next, until); return; } // ressort arrêté
       if (next < now) next = now + 0.02;
       while (next < until) {
-        const [s, d] = CLAIR[i], beat = 0.55 / tp, mm = 84 + s;
-        K.shot(note(mm), next + (Math.random() - 0.5) * 0.012, 0.8, pitch);
-        if (d >= 2) K.shot(note(mm - 12), next + 0.004, 0.3, pitch); // basse sur les notes longues
+        const [s, d] = CLAIR[i], beat = 0.55 / tp, b = E.bufIfReady('_mb' + (84 + s));
+        if (!b) { next = Math.max(next, now + 0.05); break; } // lame pas encore synthétisée : on attend
+        K.shot(b, next + (Math.random() - 0.5) * 0.012, 0.8, pitch);
+        if (d >= 2) K.shot(E.bufIfReady('_mb' + (72 + s)), next + 0.004, 0.3, pitch); // basse sur les notes longues
         next += d * beat; if (++i >= CLAIR.length) { i = 0; next += 2 * beat; }
       }
     },
@@ -2133,7 +2162,9 @@ function gRepeat(E, out, P, pitch, V, t0, name) {
     tick(now, until) {
       if (next < now - 0.5) next = now;
       while (next < until) {
-        const buf = E.buf(name, (Math.random() * (def.v || 1)) | 0), r = pitch * (1 + (Math.random() - 0.5) * 2 * (def.jit ?? 0.03)), gp = def.gap || [0.3, 1.6];
+        const buf = E.bufIfReady(name, (Math.random() * (def.v || 1)) | 0) || E.bufIfReady(name, 0);
+        if (!buf) { next = Math.max(next, now + 0.05); break; } // première synthèse en cours
+        const r = pitch * (1 + (Math.random() - 0.5) * 2 * (def.jit ?? 0.03)), gp = def.gap || [0.3, 1.6];
         K.shot(buf, next, 0.85 + Math.random() * 0.3, r);
         next += buf.duration / r + gp[0] + Math.random() * (gp[1] - gp[0]);
       }
@@ -2159,6 +2190,7 @@ function gSynth(E, out, P, pitch, V, t0) {
   g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.35, t0 + 0.01); g.gain.setTargetAtTime(0.22, t0 + 0.01, 0.1); g.gain.setTargetAtTime(0, t0 + dur, 0.08);
   return K.ctl({ dur: dur + 0.5 });
 }
+for (const m of [67, 69, 72, 74, 76, 79, 81, 83, 84, 86, 88]) def('_mb' + m, { d: 3, sr: 'L', g: 1, jit: 0, r(B) { tine(B, 0.002, m, 1); } }); // lames de la boîte à musique
 def('toy_car', { graph: (...a) => gToyCar(...a), param: { speed: null }, g: 0.6, os: 2 });
 def('music_box', { graph: (...a) => gMusicBox(...a), param: { tempo: 1 }, g: 0.6, rev: 1.2, os: 4 });
 
@@ -2187,14 +2219,15 @@ const ZONES = {
 // Réponse impulsionnelle stéréo : queue de bruit à décroissance exponentielle dont les aigus s'éteignent plus
 // vite (passe-bas dont la coupure baisse), graves prolongés, densité qui s'installe, réflexions précoces,
 // écho flottant entre murs parallèles, résonances de conduit, échos de façade. Énergie normalisée.
-function makeIR(ctx, z, seed) {
-  const sr = ctx.sampleRate, len = Math.min(4.5, z.pre + z.rt * 1.15 + 0.06 + (z.slap ? 0.4 : 0)), n = Math.max(256, Math.round(len * sr));
-  const ir = ctx.createBuffer(2, n, sr), r = mulberry(seed);
+// Fonction pure (canaux Float32Array) : calculable dans le worker de synthèse.
+function irData(z, seed, sr) {
+  const len = Math.min(4.5, z.pre + z.rt * 1.15 + 0.06 + (z.slap ? 0.4 : 0)), n = Math.max(256, Math.round(len * sr));
+  const ch = [new Float32Array(n), new Float32Array(n)], r = mulberry(seed);
   const kM = Math.exp(-6.9078 / (z.rt * sr)), kL = Math.exp(-6.9078 / (z.rt * (z.lo || 1) * sr)), aLo = 1 - Math.exp(-TAU * 220 / sr);
   const pre = Math.round(z.pre * sr), build = Math.max(1, Math.round(Math.min(0.08, z.rt * 0.06 + 0.004) * sr));
   let E = 0;
   for (let c = 0; c < 2; c++) {
-    const d = ir.getChannelData(c);
+    const d = ch[c];
     let eM = 1, eL = 1, lp = 0, l1 = 0, l2 = 0, a = 1;
     for (let i = pre; i < n; i++) {
       const j = i - pre;
@@ -2231,8 +2264,31 @@ function makeIR(ctx, z, seed) {
     for (let i = 0; i < n; i++) E += d[i] * d[i];
   }
   const g = E > 0 ? 1 / Math.sqrt(E / 2) : 0;
-  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < n; i++) d[i] *= g; }
-  return ir;
+  for (const d of ch) for (let i = 0; i < n; i++) d[i] *= g;
+  return ch;
+}
+
+// ───────────────────────────── synthèse d'une variante ─────────────────────────────
+// Canaux normalisés (crête pour les ponctuels, niveau efficace pour les boucles). Fonction pure :
+// exécutée par le worker de synthèse, ou sur le fil principal en repli.
+function synth(name, def, k, sr) {
+  const ch = def.ch || 1, loop = !!def.loop, dur = typeof def.d === 'function' ? def.d(k) : def.d || 1, data = [];
+  for (let c = 0; c < ch; c++) {
+    const B = new Buf(sr, dur, (hash(name) ^ Math.imul(k + 1, 0x9E3779B1) ^ Math.imul(c + 1, 0x85EBCA6B)) >>> 0, loop);
+    B.v = k; B.c = c;
+    try { def.r(B, def); } catch (e) { warnOnce('r:' + name, 'synthèse impossible :', name, e); }
+    data.push(B.d);
+  }
+  const n = data[0].length; let pk = 0, ss = 0;
+  for (const d of data) {
+    op1(d, sr, 15, true, loop); // composante continue, infrasons
+    if (!loop) { const f = Math.min(n, Math.round(0.004 * sr)); for (let i = 0; i < f; i++) d[n - 1 - i] *= i / f; }
+    for (let i = 0; i < n; i++) { const x = d[i]; if (x !== x) { d[i] = 0; continue; } const ax = x < 0 ? -x : x; if (ax > pk) pk = ax; ss += x * x; }
+  }
+  const rms = Math.sqrt(ss / (n * ch));
+  const gn = pk > 1e-9 ? (loop ? Math.min(0.95 / pk, (def.rms ?? 0.22) / Math.max(rms, 1e-9)) : (def.pk ?? 0.9) / pk) : 0;
+  for (const d of data) for (let i = 0; i < n; i++) d[i] *= gn;
+  return data;
 }
 
 // ───────────────────────────── moteur ─────────────────────────────
@@ -2250,20 +2306,19 @@ const PREWARM = ['step_tile', 'step_concrete', 'step_carpet', 'step_metal', 'ste
   'switch', 'button', 'beep', 'flashlight_click', 'cloth', 'paper', 'camera_switch', 'relay', 'pickup', 'drop', 'throw', 'tick',
   'hit_plastic', 'hit_metal', 'hit_wood', 'hit_glass', 'hit_cardboard', 'hit_soft', 'hit_paper', 'hit_can', 'hit_ceramic', 'hit_body',
   'door_open', 'door_close', 'door_slam', 'door_creak', 'eat_soft', 'eat_crunch', 'hvac', 'fluorescent_buzz', 'electric_hum', '_lub', '_dub', 'breath'];
-const PREWARM2 = ['error', 'success', 'static_burst', 'phone_ring', 'dial_tone', 'phone_pickup', 'phone_hangup', 'knock', 'knock_triple', 'creak', 'whisper', 'thud', 'jumpscare', 'stinger',
-  'low_boom', 'neon_flicker', 'vent_grate', 'footstep_heavy', 'glass_break', 'scream', 'giggle', 'metal_screech', 'vent_bang', 'door_locked', 'door_rattle', 'building_creak',
-  '_fire_roar', '_fire_crk', '_fire_pop', '_rain_wash', '_rain_drops', 'thunder', 'distant_traffic', 'power_down', 'power_up', 'breaker', 'pa_chime', '_babble', 'glass_shatter_big'];
+const CORE = new Set(PREWARM);
+const PREWARM2 = ['_mb84', '_mb86', '_mb88', '_mb83', '_mb81', '_mb79', '_mb76', '_mb74', '_mb72', '_mb69', '_mb67', 'error', 'success', 'static_burst',
+  'phone_pickup', 'phone_hangup', 'phone_ring', 'dial_tone', 'ringback', 'busy_tone', 'knock', 'knock_triple', 'creak', 'whisper', 'thud', 'jumpscare', 'stinger', 'low_boom',
+  'neon_flicker', 'vent_grate', 'footstep_heavy', 'glass_break', 'scream', 'giggle', 'vent_bang', 'door_locked', 'breaker', 'power_down', 'power_up', '_fire_pop', 'escalator'];
 
 const dummy = () => ({ playing: false, setPos() { }, setVolume() { }, setParam() { }, stop() { } });
 const mkGain = (ctx, v) => { const g = ctx.createGain(); g.gain.value = v; return g; };
-function hold(p, t) { if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(t); else { const v = p.value; p.cancelScheduledValues(t); p.setValueAtTime(v, t); } }
-function fadeTo(p, v, t, d) { // fondu à puissance constante (réverbérations décorrélées)
-  hold(p, t);
-  if (d < 0.03) { p.setValueAtTime(v, t + 0.005); return; }
-  const v0 = p.value, N = 16, c = new Float32Array(N);
-  for (let i = 0; i < N; i++) { const u = i / (N - 1); c[i] = v > v0 ? v0 + (v - v0) * Math.sin(u * Math.PI / 2) : v + (v0 - v) * Math.cos(u * Math.PI / 2); }
-  try { p.setValueCurveAtTime(c, t + 0.01, d); } catch (e) { p.linearRampToValueAtTime(v, t + d); }
+function hold(p, t) { // fige la valeur courante (annule les automatismes futurs)
+  try { if (p.cancelAndHoldAtTime) { p.cancelAndHoldAtTime(t); return; } } catch (e) { /* repli ci-dessous */ }
+  const v = p.value; p.cancelScheduledValues(t); p.setValueAtTime(v, t);
 }
+// fondu exponentiel : un nouvel appel reprend simplement depuis la valeur courante (aucun conflit d'automatismes)
+function fadeTo(p, v, t, d) { p.setTargetAtTime(v, t, Math.max(0.005, d / 3)); }
 function setPannerPos(p, v) { if (p.positionX) { p.positionX.value = v.x; p.positionY.value = v.y; p.positionZ.value = v.z; } else p.setPosition(v.x, v.y, v.z); }
 function wallCut(w) { if (w <= 0) return 20000; if (w >= 3) return 400; const i = Math.floor(w), f = w - i; return Math.exp(Math.log(OCC_CUT[i]) * (1 - f) + Math.log(OCC_CUT[i + 1]) * f); }
 
@@ -2348,7 +2403,10 @@ class Voice {
   }
   setParam(k, v) {
     if (!this.alive) return;
-    if (this.P) { if (this.P[k] === v) return; this.P[k] = v; try { this.ctl && this.ctl.set(k, v); } catch (e) { warnOnce('set:' + this.name, 'paramètre refusé', this.name, k, e); } }
+    if (this.P) {
+      const old = this.P[k];
+      if (old === v || (typeof v === 'number' && typeof old === 'number' && Math.abs(v - old) < Math.max(0.005, Math.abs(old) * 0.005))) return; // dérive infime : ignorée
+      this.P[k] = v; try { this.ctl && this.ctl.set(k, v); } catch (e) { warnOnce('set:' + this.name, 'paramètre refusé', this.name, k, e); } }
     else if ((k === 'pitch' || k === 'rate') && this.src && this.src.loop) smooth(this.src.playbackRate, clamp(num(+v, 1), 0.1, 8), this.E.ctx.currentTime, 0.05);
   }
   stop(fade = 0.2) {
@@ -2362,7 +2420,7 @@ class Voice {
   }
   end() {
     if (!this.alive) return; this.alive = false; this.stopping = true;
-    if (this.src) this.src.onended = null;
+    if (this.src) { this.src.onended = null; try { this.src.stop(); } catch (e) { /* déjà arrêtée */ } }
     for (const n of [this.src, this.g, this.f, this.d, this.p, this.s]) if (n) try { n.disconnect(); } catch (e) { /* */ }
     try { this.ctl && this.ctl.dispose(); } catch (e) { /* */ }
     if (this.hr) { this.E.hrtf--; this.hr = false; }
@@ -2384,7 +2442,7 @@ class Engine {
     const ctx = this.ctx = opts.context || new AC({ latencyHint: 'interactive' });
     this.sr = ctx.sampleRate;
     this.voices = new Set(); this.spatial = []; this.rr = 0; this.budget = OCC_BUDGET; this.occFn = null; this.occCache = new Map(); this.occQ = [];
-    this.cache = new Map(); this.mem = 0; this.hrtf = 0; this.shots = 0; this.last = new Map(); this.lastK = new Map();
+    this.cache = new Map(); this.mem = 0; this.hrtf = 0; this.shots = 0; this.last = new Map(); this.lastK = new Map(); this.bg = []; this.queued = new Set(); this.bgBusy = false; this.waiters = new Map(); this.inflight = new Map(); this.wseq = 0; this.worker = null;
     this.lis = { x: 0, y: 0, z: 0, set: false }; this.lo = [0, 0, -1, 0, 1, 0]; this.waves = new Map(); this.curves = new Map(); this.irs = new Map();
     // chaîne maître : bus → (monde → étouffement) → maître → limiteur doux → sortie
     const comp = this.comp = ctx.createDynamicsCompressor();
@@ -2393,81 +2451,83 @@ class Engine {
     this.master = mkGain(ctx, 1); this.master.connect(comp);
     this.muffle = ctx.createBiquadFilter(); this.muffle.type = 'lowpass'; this.muffle.frequency.value = 20000; this.muffle.Q.value = 0.6; this.muffle.connect(this.master);
     this.world = mkGain(ctx, 1); this.world.connect(this.muffle);
-    // réverbération : deux convolueurs en fondu enchaîné lors des changements de lieu
-    this.revIn = mkGain(ctx, 1);
-    this.rv = [0, 1].map(() => { const conv = ctx.createConvolver(); conv.normalize = false; const g = mkGain(ctx, 0); conv.connect(g); g.connect(this.world); return { conv, g, type: null, on: false, fadeEnd: 0, timer: 0 }; });
-    this.act = 0; this.zone = null;
+    // réverbération : un convolueur par lieu récent (LRU), fondus enchaînés entre lieux
+    this.revIn = mkGain(ctx, 1); this.revs = new Map(); this.zone = null; this.active = null;
     this.bus = {};
     for (const b of BUSES) {
       const d2 = mkGain(ctx, 1), sp = mkGain(ctx, 1), rv = mkGain(ctx, 1);
       d2.connect(WORLD_2D[b] ? this.world : this.master); sp.connect(this.world); rv.connect(this.revIn);
       this.bus[b] = { d2, sp, rv };
     }
-    this.setZone('corridor', 0);
-    this.pumpT = setInterval(() => { try { this.pump(); } catch (e) { /* */ } }, 50);
+    this.pumpT = setInterval(() => { try { this.pump(); this.watchdog(); } catch (e) { /* */ } }, 50);
+    this.startWorker();
     this.prewarm();
   }
-  resume() {
+  resume() { // les navigateurs suspendent l'audio tant qu'il n'y a pas eu de geste : on réessaie à chaque interaction
     const ctx = this.ctx;
     if (!ctx.resume || (typeof OfflineAudioContext !== 'undefined' && ctx instanceof OfflineAudioContext)) return;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => { });
+    const go = () => { try { const p = ctx.resume(); if (p && p.catch) p.catch(() => { }); } catch (e) { /* */ } };
+    if (ctx.state === 'suspended') go();
     if (this.listening || typeof window === 'undefined') return;
     this.listening = true;
     const evs = ['pointerdown', 'keydown', 'touchstart'];
-    const h = () => { if (ctx.state === 'running') { for (const e of evs) window.removeEventListener(e, h, true); this.listening = false; return; } ctx.resume().catch(() => { }); };
+    const h = () => { if (ctx.state === 'running') { for (const e of evs) window.removeEventListener(e, h, true); this.listening = false; return; } go(); };
     for (const e of evs) window.addEventListener(e, h, true);
   }
 
-  // ── tampons : synthèse paresseuse, cache LRU borné en mémoire ──
+  // ── tampons : synthèse paresseuse (worker de synthèse si possible), cache LRU borné en mémoire ──
   srOf(def) { return def.sr === 'H' ? this.sr : Math.min(this.sr, RATES[def.sr] || RATES.M); }
-  buf(name, k = 0) {
-    const def = SND[name]; if (!def || def.graph) return this.silence();
+  cached(name, k) { const e = this.cache.get(name), b = e && e.b[k]; if (b) e.t = perfNow(); return b || null; }
+  store(name, k, b) {
     let e = this.cache.get(name);
     if (!e) { e = { b: [], bytes: 0, t: 0 }; this.cache.set(name, e); }
-    e.t = perfNow();
-    k = clamp(k | 0, 0, (def.v || 1) - 1);
-    let b = e.b[k];
-    if (!b) {
-      b = e.b[k] = this.render(name, def, k);
+    if (!e.b[k]) {
+      e.b[k] = b; e.t = perfNow();
       const by = b.length * b.numberOfChannels * 4; e.bytes += by; this.mem += by;
       if (this.mem > MEM_LIMIT) this.evict(name);
     }
-    return b;
+    this.done(name + '|' + k, e.b[k]);
+    return e.b[k];
   }
-  dyn(name, mk) { if (!SND[name]) SND[name] = mk(); return this.buf(name, 0); }
+  buf(name, k = 0) { // synchrone (sons ponctuels : latence nulle ; ils sont courts)
+    const def = SND[name]; if (!def || def.graph) return this.silence();
+    k = clamp(k | 0, 0, (def.v || 1) - 1);
+    const b = this.cached(name, k); if (b) return b;
+    const sr = this.srOf(def); return this.store(name, k, this.toBuffer(synth(name, def, k, sr), sr));
+  }
+  bufAsync(name, k, cb) { // asynchrone (boucles, graphes) : rien ne bloque le jeu quand le worker est là
+    const def = SND[name]; if (!def || def.graph) return;
+    k = clamp(k | 0, 0, (def.v || 1) - 1);
+    const b = this.cached(name, k); if (b) { cb(b); return; }
+    if (!this.worker) { cb(this.buf(name, k)); return; }
+    const key = name + '|' + k; let w = this.waiters.get(key); if (!w) this.waiters.set(key, (w = [])); w.push(cb);
+    this.queue(key, true);
+  }
+  bufIfReady(name, k = 0) { // prêt, sinon demandé en priorité (jamais de blocage dans un séquenceur)
+    const def = SND[name]; if (!def || def.graph) return null;
+    k = clamp(k | 0, 0, (def.v || 1) - 1);
+    const b = this.cached(name, k); if (b) return b;
+    this.queue(name + '|' + k, true); return null;
+  }
+  done(key, b) { const w = this.waiters.get(key); if (!w) return; this.waiters.delete(key); for (const cb of w) { try { cb(b); } catch (e) { warnOnce('cb:' + key, e); } } }
   silence() { return this._sil || (this._sil = this.ctx.createBuffer(1, 128, this.sr)); }
-  evict(keep) {
-    const list = [...this.cache.entries()].filter(([n]) => n !== keep).sort((a, b) => a[1].t - b[1].t);
+  evict(keep) { // les sons essentiels (pas, impacts, interface) ne sont jamais évincés
+    const list = [...this.cache.entries()].filter(([n]) => n !== keep && !CORE.has(n)).sort((a, b) => a[1].t - b[1].t);
     for (const [n, e] of list) { if (this.mem <= MEM_LIMIT * 0.75) break; this.mem -= e.bytes; this.cache.delete(n); }
   }
-  render(name, def, k) {
-    const sr = this.srOf(def), ch = def.ch || 1, loop = !!def.loop, dur = typeof def.d === 'function' ? def.d(k) : def.d || 1, data = [];
-    for (let c = 0; c < ch; c++) {
-      const B = new Buf(sr, dur, (hash(name) ^ Math.imul(k + 1, 0x9E3779B1) ^ Math.imul(c + 1, 0x85EBCA6B)) >>> 0, loop);
-      B.v = k; B.c = c;
-      try { def.r(B, def); } catch (e) { warnOnce('r:' + name, 'synthèse impossible :', name, e); }
-      data.push(B.d);
-    }
-    const n = data[0].length; let pk = 0, ss = 0;
-    for (const d of data) {
-      op1(d, sr, 15, true, loop); // composante continue, infrasons
-      if (!loop) { const f = Math.min(n, Math.round(0.004 * sr)); for (let i = 0; i < f; i++) d[n - 1 - i] *= i / f; }
-      for (let i = 0; i < n; i++) { const x = d[i]; if (x !== x) { d[i] = 0; continue; } const ax = x < 0 ? -x : x; if (ax > pk) pk = ax; ss += x * x; }
-    }
-    const rms = Math.sqrt(ss / (n * ch));
-    // ponctuels : normalisés en crête ; boucles : en niveau efficace (crête bornée)
-    const gn = pk > 1e-9 ? (loop ? Math.min(0.95 / pk, (def.rms ?? 0.22) / Math.max(rms, 1e-9)) : (def.pk ?? 0.9) / pk) : 0;
-    let buf;
+  toBuffer(data, sr) {
+    const ch = data.length, n = data[0].length;
     try {
-      buf = this.ctx.createBuffer(ch, n, sr);
-      for (let c = 0; c < ch; c++) { const d = data[c]; for (let i = 0; i < n; i++) d[i] *= gn; buf.getChannelData(c).set(d); }
+      const buf = this.ctx.createBuffer(ch, n, sr);
+      for (let c = 0; c < ch; c++) buf.getChannelData(c).set(data[c]);
+      return buf;
     } catch (e) { // cadence refusée par le navigateur : rééchantillonnage linéaire
-      const q = this.sr / sr, m = Math.max(1, Math.round(n * q)); buf = this.ctx.createBuffer(ch, m, this.sr);
-      for (let c = 0; c < ch; c++) { const d = data[c], o = buf.getChannelData(c); for (let i = 0; i < m; i++) { const x = i / q, j = Math.floor(x), f = x - j; o[i] = ((d[j] || 0) * (1 - f) + (d[j + 1] || 0) * f) * gn; } }
+      const q = this.sr / sr, m = Math.max(1, Math.round(n * q)), buf = this.ctx.createBuffer(ch, m, this.sr);
+      for (let c = 0; c < ch; c++) { const d = data[c], o = buf.getChannelData(c); for (let i = 0; i < m; i++) { const x = i / q, j = Math.floor(x), f = x - j; o[i] = (d[j] || 0) * (1 - f) + (d[j + 1] || 0) * f; } }
+      return buf;
     }
-    return buf;
   }
-  noiseBuf() { // bruit blanc stéréo partagé par les graphes temps réel
+  noiseBuf() { // bruit blanc stéréo partagé par les graphes temps réel (normalement livré par le worker)
     if (this._nz) return this._nz;
     const n = Math.round(4 * this.sr), b = this.ctx.createBuffer(2, n, this.sr), r = mulberry(0xC0FFEE);
     for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (r() * 2 - 1) * 0.7; }
@@ -2486,20 +2546,79 @@ class Engine {
     for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = name === 'peaks' ? Math.pow(Math.max(0, x), 4) : Math.tanh(x * 2.5) / Math.tanh(2.5); }
     this.curves.set(name, c); return c;
   }
-  ir(type) { let b = this.irs.get(type); if (!b) { b = makeIR(this.ctx, ZONES[type], hash('ir:' + type)); this.irs.set(type, b); } return b; }
-  prewarm() {
-    const q = [], add = (list, all) => { for (const n of list) { const d = SND[n]; if (!d || d.graph) continue; for (let k = all ? 1 : 0; k < (all ? d.v || 1 : 1); k++) q.push(n + '|' + k); } };
-    add(PREWARM, false); add(PREWARM, true); for (const z in ZONES) q.push('#' + z); add(PREWARM2, false); add(PREWARM2, true);
+  ir(type) { let b = this.irs.get(type); if (!b) { b = this.toBuffer(irData(ZONES[type], hash('ir:' + type), this.sr), this.sr); this.irs.set(type, b); } return b; }
+  // ── synthèse de fond : worker dédié (même module), sinon temps morts du fil principal ──
+  startWorker() {
+    if (typeof Worker === 'undefined' || this.noWorker) return;
+    try {
+      const w = new Worker(new URL(import.meta.url), { type: 'module', name: 'synthese-audio' });
+      w.onmessage = (e) => this.fromWorker(e.data || {});
+      w.onerror = (e) => { try { e.preventDefault(); } catch (x) { /* */ } this.killWorker('erreur'); };
+      this.worker = w;
+    } catch (e) { this.worker = null; }
+  }
+  killWorker(why) {
+    if (!this.worker) return;
+    try { this.worker.terminate(); } catch (e) { /* */ }
+    this.worker = null; this.noWorker = true;
+    warnOnce('worker', 'worker de synthèse indisponible (' + why + ') : calcul sur le fil principal');
+    for (const x of this.inflight.values()) { this.queued.add(x.it); this.bg.unshift(x.it); }
+    this.inflight.clear(); this.bgBusy = false; this.kick();
+  }
+  watchdog() { // worker muet trop longtemps : repli sur le fil principal (sans compter les moments où c'est le jeu qui bloquait)
+    const t = perfNow(), gap = t - (this.lastWd || t); this.lastWd = t;
+    if (gap > 500) { for (const x of this.inflight.values()) x.t += gap; return; }
+    for (const x of this.inflight.values()) if (t - x.t > 8000) { this.killWorker('délai dépassé'); return; }
+  }
+  fromWorker(m) {
+    const x = this.inflight.get(m.id); if (!x) return; this.inflight.delete(m.id);
+    const it = x.it;
+    try {
+      if (it === '#noise') { if (!this._nz && m.data) this._nz = this.toBuffer(m.data, m.sr); }
+      else if (it[0] === '#') { const z = it.slice(1); if (!this.irs.has(z)) this.irs.set(z, m.data ? this.toBuffer(m.data, m.sr) : this.toBuffer(irData(ZONES[z], hash('ir:' + z), this.sr), this.sr)); this.done(it, this.irs.get(z)); }
+      else { const j = it.lastIndexOf('|'), name = it.slice(0, j), k = +it.slice(j + 1); if (m.data && !this.cached(name, k)) this.store(name, k, this.toBuffer(m.data, m.sr)); else this.buf(name, k); }
+    } catch (e) { warnOnce('wmsg', 'réponse du worker inutilisable', e); }
+    this.kick();
+  }
+  queue(item, front = false) {
+    if (this.queued.has(item)) { if (front) { const i = this.bg.indexOf(item); if (i > 0) { this.bg.splice(i, 1); this.bg.unshift(item); } } return; }
+    this.queued.add(item); if (front) this.bg.unshift(item); else this.bg.push(item);
+    this.kick();
+  }
+  run(it) { if (it === '#noise') this.noiseBuf(); else if (it[0] === '#') this.done(it, this.ir(it.slice(1))); else { const j = it.lastIndexOf('|'); this.buf(it.slice(0, j), +it.slice(j + 1)); } }
+  kick() {
+    if (this.worker) {
+      while (this.inflight.size < 2 && this.bg.length) {
+        const it = this.bg.shift(); this.queued.delete(it);
+        let name = it, k = 0, sr = this.sr;
+        if (it === '#noise') { if (this._nz) continue; }
+        else if (it[0] === '#') { const z = it.slice(1); if (this.irs.has(z)) { this.done(it, this.irs.get(z)); continue; } }
+        else {
+          const j = it.lastIndexOf('|'); name = it.slice(0, j); k = +it.slice(j + 1);
+          const def = SND[name], b = this.cached(name, k);
+          if (b) { this.done(it, b); continue; }
+          if (!def || def.graph) continue;
+          sr = this.srOf(def);
+        }
+        const id = ++this.wseq; this.inflight.set(id, { it, t: perfNow() });
+        try { this.worker.postMessage({ id, name, k, sr }); } catch (e) { this.killWorker('envoi'); return; }
+      }
+      return;
+    }
+    if (this.bgBusy || !this.bg.length) return; this.bgBusy = true;
     const step = (dl) => {
       const t0 = perfNow(), budget = dl && !dl.didTimeout && dl.timeRemaining ? Math.max(2, dl.timeRemaining() - 1) : 8;
-      do {
-        const it = q.shift();
-        try { if (it[0] === '#') this.ir(it.slice(1)); else { const [n, k] = it.split('|'); this.buf(n, +k); } } catch (e) { /* tant pis : synthèse à la demande */ }
-      } while (q.length && perfNow() - t0 < budget);
-      if (q.length) sched();
+      do { const it = this.bg.shift(); this.queued.delete(it); try { this.run(it); } catch (e) { /* synthèse à la demande */ } } while (this.bg.length && perfNow() - t0 < budget);
+      if (this.bg.length) sched(); else this.bgBusy = false;
     };
-    const sched = () => (typeof requestIdleCallback === 'function' ? requestIdleCallback(step, { timeout: 1500 }) : setTimeout(step, 40));
-    setTimeout(sched, 60);
+    const sched = () => (typeof requestIdleCallback === 'function' ? requestIdleCallback(step, { timeout: 1000 }) : setTimeout(step, 30));
+    setTimeout(sched, 30);
+  }
+  prewarm() {
+    const add = (list, all) => { for (const n of list) { const d = SND[n]; if (!d || d.graph) continue; for (let k = all ? 1 : 0; k < (all ? d.v || 1 : 1); k++) this.queue(n + '|' + k); } };
+    this.queue('#corridor'); this.queue('#noise'); add(PREWARM, false);
+    for (const z in ZONES) this.queue('#' + z);
+    add(PREWARM, true); add(PREWARM2, false); add(PREWARM2, true);
   }
 
   // ── lecture ──
@@ -2536,21 +2655,30 @@ class Engine {
         v.fadeIn(when, 0.02);
         if (!loop) v.stopAt(when + (v.ctl.dur ?? def.os ?? 2.5), 0.4);
       } else if (def.loop) {
-        const buf = this.buf(name, 0);
-        v.startBuf(buf, pitch, true, Math.random() * buf.duration, when);
-        v.fadeIn(when, loop ? 0.03 : 0.01);
-        if (def.start) { const s = ctx.createBufferSource(); s.buffer = this.buf(def.start, 0); s.playbackRate.value = pitch; s.connect(v.g); s.start(when); s.onended = () => { try { s.disconnect(); } catch (e) { /* */ } }; }
-        if (!loop) v.stopAt(when + (def.os ?? 2.5), 0.3);
+        const go = (buf, at) => {
+          if (!v.alive || v.stopping) return;
+          v.startBuf(buf, pitch, true, def.o0 ? 0 : Math.random() * buf.duration, at); // cadences, mélodies : depuis le début
+          v.fadeIn(at, loop ? 0.03 : 0.01);
+          if (def.start) { const s = ctx.createBufferSource(); s.buffer = this.buf(def.start, 0); s.playbackRate.value = pitch; s.connect(v.g); s.start(at); s.onended = () => { try { s.disconnect(); } catch (e) { /* */ } }; }
+          if (!loop) v.stopAt(at + (def.os ?? 2.5), 0.3);
+        };
+        const b = this.cached(name, 0);
+        if (b) go(b, when); else { v.endAt = loop ? 0 : when + 12; this.bufAsync(name, 0, (buf) => go(buf, Math.max(when, ctx.currentTime))); }
       } else if (loop) {
         v.ctl = gRepeat(this, v.g, {}, pitch, v, when, name);
         v.fadeIn(when, 0.02);
       } else {
-        const buf = this.buf(name, this.pickVariant(def, name, v.it)), jit = def.jit ?? ((def.v || 1) > 1 ? 0.035 : 0.015);
+        const k = this.pickVariant(def, name, v.it), b = this.cached(name, k), jit = def.jit ?? ((def.v || 1) > 1 ? 0.035 : 0.015);
+        const rate = pitch * (1 + (Math.random() * 2 - 1) * jit);
         v.rg = jit === 0 ? 1 : 0.84 + Math.random() * 0.3; // ±1,5 dB : deux pas ne sonnent jamais pareil
         v.g.gain.value = v.vol * v.base * v.rg;
-        v.startBuf(buf, pitch * (1 + (Math.random() * 2 - 1) * jit), false, 0, when);
         v.shot = true; this.shots++;
-        if (o._dur > 0) v.stopAt(when + o._dur, 0.25);
+        const go = (buf, at) => { v.startBuf(buf, rate, false, 0, at); if (o._dur > 0) v.stopAt(at + o._dur, 0.25); };
+        if (b || !this.worker) go(b || this.buf(name, k), when);
+        else { // pas encore synthétisé : le worker le calcule (≈10-40 ms), joué dès réception plutôt qu'un gel de l'image
+          const t0 = Math.max(when, ctx.currentTime); v.endAt = t0 + 3;
+          this.bufAsync(name, k, (buf) => { if (!v.alive || v.stopping) return; const at = Math.max(when, ctx.currentTime); if (at - t0 > 0.6) { v.end(); return; } go(buf, at); });
+        }
       }
     } catch (e) { warnOnce('play:' + name, 'échec de lecture :', name, e); v.end(); return dummy(); }
     this.voices.add(v); if (v.sp) this.spatial.push(v);
@@ -2626,22 +2754,35 @@ class Engine {
     type = ZONES[type] ? type : 'corridor';
     if (type === this.zone) return;
     this.zone = type; fade = clamp(num(+fade, 1.5), 0, 10);
-    const A = this.rv[this.act], B = this.rv[1 - this.act];
-    if (B.type === type && B.on) { this.xfade(B, A, fade); this.act = 1 - this.act; return; } // retour au lieu précédent
-    const go = () => {
-      if (this.zone !== type || this.rv[1 - this.act] !== B) return;
-      try { B.conv.buffer = this.ir(type); } catch (e) { warnOnce('conv', 'réverbération indisponible', e); return; }
-      B.type = type; if (!B.on) { this.revIn.connect(B.conv); B.on = true; }
-      this.xfade(B, A, fade); this.act = 1 - this.act;
-    };
-    if (B.on && this.ctx.currentTime < B.fadeEnd) { hold(B.g.gain, this.ctx.currentTime); B.g.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.05); B.fadeEnd = 0; setTimeout(go, 70); } // convolueur encore audible : on le coupe d'abord
-    else go();
+    if (this.irs.has(type) || this.revs.has(type) || !this.worker) { this.applyZone(type, fade); return; }
+    const key = '#' + type; let w = this.waiters.get(key); if (!w) this.waiters.set(key, (w = []));
+    w.push(() => { if (this.zone === type) this.applyZone(type, fade); }); // réponse impulsionnelle en cours de calcul : on bascule à sa livraison
+    this.queue(key, true);
   }
-  xfade(inS, outS, fade) {
-    const t = this.ctx.currentTime;
-    fadeTo(inS.g.gain, ZONES[inS.type].wet, t, fade); fadeTo(outS.g.gain, 0, t, fade);
-    outS.fadeEnd = t + fade + 0.05; inS.fadeEnd = 0; clearTimeout(inS.timer); clearTimeout(outS.timer);
-    outS.timer = setTimeout(() => { if (this.rv[this.act] !== outS && outS.on) { try { this.revIn.disconnect(outS.conv); } catch (e) { /* */ } outS.on = false; } }, (fade + 0.6) * 1000);
+  applyZone(type, fade) {
+    if (type === this.active) return;
+    this.active = type;
+    const ctx = this.ctx, t = ctx.currentTime;
+    let R = this.revs.get(type);
+    if (!R) {
+      const conv = ctx.createConvolver(); conv.normalize = false;
+      try { conv.buffer = this.ir(type); } catch (e) { warnOnce('conv', 'réverbération indisponible', e); return; }
+      const g = mkGain(ctx, 0); conv.connect(g); g.connect(this.world);
+      R = { conv, g, on: false, timer: 0, t: 0 }; this.revs.set(type, R);
+    }
+    R.t = perfNow(); clearTimeout(R.timer);
+    if (!R.on) { this.revIn.connect(R.conv); R.on = true; }
+    fadeTo(R.g.gain, ZONES[type].wet, t, fade);
+    for (const [k, X] of this.revs) { // les autres lieux s'éteignent puis sont déconnectés (plus aucun calcul)
+      if (X === R || !X.on) continue;
+      fadeTo(X.g.gain, 0, t, fade); clearTimeout(X.timer);
+      X.timer = setTimeout(() => { if (this.active !== k && X.on) { try { this.revIn.disconnect(X.conv); } catch (e) { /* */ } X.on = false; this.trimRevs(); } }, (fade + 0.8) * 1000);
+    }
+  }
+  trimRevs() { // au plus quatre convolueurs gardés prêts (les lieux récents)
+    if (this.revs.size <= 4) return;
+    const idle = [...this.revs.entries()].filter(([, X]) => !X.on).sort((a, b) => a[1].t - b[1].t);
+    while (this.revs.size > 4 && idle.length) { const [k, X] = idle.shift(); try { X.conv.disconnect(); X.g.disconnect(); } catch (e) { /* */ } this.revs.delete(k); }
   }
   setBusVolume(b, v) {
     v = clamp(num(+v, 1), 0, 4); const t = this.ctx.currentTime;
@@ -2654,6 +2795,7 @@ class Engine {
   }
   update() {
     const t = this.ctx.currentTime; this.budget = OCC_BUDGET;
+    if (!this.zone) this.setZone('corridor', 0.3);
     while (this.occQ.length && this.budget > 0) { const v = this.occQ.shift(); if (!v.alive) continue; const w = this.occlude(v.pos); if (w == null) { this.occQ.unshift(v); break; } v.walls = w; v.occT = t; }
     const S = this.spatial, n = S.length;
     if (n) {
@@ -2671,7 +2813,7 @@ class Engine {
     const until = t + (typeof document !== 'undefined' && document.hidden ? 1.2 : 0.3);
     for (const v of this.voices) if (v.alive && v.ctl && v.ctl.tick) { try { v.ctl.tick(t, until); } catch (e) { warnOnce('tick:' + v.name, 'erreur de séquenceur :', v.name, e); } }
   }
-  stats() { let loops = 0; for (const v of this.voices) if (!v.shot) loops++; return { voices: this.voices.size, shots: this.shots, loops, spatial: this.spatial.length, hrtf: this.hrtf, cacheMB: +(this.mem / 1e6).toFixed(2), zone: this.zone, state: this.ctx.state }; }
+  stats() { let loops = 0; for (const v of this.voices) if (!v.shot) loops++; return { voices: this.voices.size, shots: this.shots, loops, spatial: this.spatial.length, hrtf: this.hrtf, cacheMB: +(this.mem / 1e6).toFixed(2), zone: this.active, worker: !!this.worker, queue: this.bg.length + this.inflight.size, state: this.ctx.state }; }
 }
 
 // ───────────────────────────── façade publique ─────────────────────────────
@@ -2716,3 +2858,21 @@ export const Audio = {
   stats() { return E ? E.stats() : null; },
   render(name, variant = 0) { return E ? safe('render', () => E.buf(String(name), variant), null) : null; },
 };
+
+// ───────────────────────────── worker de synthèse ─────────────────────────────
+// Chargé comme module Web Worker, ce même fichier calcule tampons et réponses impulsionnelles hors du fil
+// principal : le préchargement et le démarrage des boucles ne provoquent aucune saccade.
+if (typeof window === 'undefined' && typeof document === 'undefined' && typeof self !== 'undefined' && typeof self.postMessage === 'function') {
+  self.onmessage = (e) => {
+    const m = e.data || {};
+    try {
+      let data;
+      if (m.name === '#noise') { const r = mulberry(0xC0FFEE), n = Math.round(4 * m.sr); data = [new Float32Array(n), new Float32Array(n)]; for (const d of data) for (let i = 0; i < n; i++) d[i] = (r() * 2 - 1) * 0.7; }
+      else if (m.name[0] === '#') data = irData(ZONES[m.name.slice(1)], hash('ir:' + m.name.slice(1)), m.sr);
+      else {
+        if (!SND[m.name] && m.name.startsWith('_n_')) { const p = m.name.split('_'); SND[m.name] = noteDef(p[2], +p[3]); } // note d'instrument créée à la volée
+        const def = SND[m.name]; if (!def || def.graph) throw new Error('son inconnu du worker'); data = synth(m.name, def, m.k, m.sr); }
+      self.postMessage({ id: m.id, sr: m.sr, data }, data.map((d) => d.buffer));
+    } catch (err) { self.postMessage({ id: m.id, err: String((err && err.message) || err) }); }
+  };
+}
