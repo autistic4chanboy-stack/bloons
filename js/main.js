@@ -156,16 +156,46 @@ async function launch(opts) {
   }
 }
 
+// Fond de l'écran titre : bande de vidéosurveillance d'une galerie déserte (horodatage, REC, silhouette furtive)
 function animateStatic(c) {
-  if (!c) return; const ctx = c.getContext('2d'); let t = 0;
-  const draw = () => {
+  if (!c) return;
+  const W = 320, H = 180; c.width = W; c.height = H; const ctx = c.getContext('2d');
+  // décor fixe : galerie en perspective vers un point de fuite
+  const bg = document.createElement('canvas'); bg.width = W; bg.height = H; const b = bg.getContext('2d');
+  const vx = W * 0.52, vy = H * 0.46;
+  b.fillStyle = '#0b0d0e'; b.fillRect(0, 0, W, H);
+  const quad = (pts, col) => { b.fillStyle = col; b.beginPath(); b.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) b.lineTo(pts[i], pts[i + 1]); b.closePath(); b.fill(); };
+  quad([0, H, W, H, vx + 14, vy + 8, vx - 14, vy + 8], '#1b1e1f'); // sol
+  quad([0, 0, W, 0, vx + 14, vy - 8, vx - 14, vy - 8], '#121415'); // plafond
+  for (let k = 0; k < 9; k++) { // vitrines et néons
+    const t0 = Math.pow(k / 9, 1.6), t1 = Math.pow((k + 0.8) / 9, 1.6);
+    const lx = (t) => vx - 14 - (vx - 14) * (1 - t), rx = (t) => vx + 14 + (W - vx - 14) * (1 - t);
+    const yT = (t) => vy - 8 - (vy - 8) * (1 - t) * 0.92, yB = (t) => vy + 8 + (H - vy - 8) * (1 - t) * 0.78;
+    const shade = 20 + k * 3;
+    quad([lx(t0), yT(t0), lx(t1), yT(t1), lx(t1), yB(t1), lx(t0), yB(t0)], `rgb(${shade},${shade + 2},${shade + 3})`);
+    quad([rx(t0), yT(t0), rx(t1), yT(t1), rx(t1), yB(t1), rx(t0), yB(t0)], `rgb(${shade - 4},${shade - 2},${shade})`);
+    if (k % 2 === 0) { const cy = yT(t0) + (vy - yT(t0)) * 0.25; b.fillStyle = 'rgba(190,200,190,0.10)'; b.fillRect(vx - (vx - lx(t0)) * 0.3, cy, (vx - lx(t0)) * 0.6, 2); }
+  }
+  const noise = []; for (let f = 0; f < 6; f++) { const im = ctx.createImageData(W, H); for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = Math.random() < 0.5 ? 18 : 0; } const nc = document.createElement('canvas'); nc.width = W; nc.height = H; nc.getContext('2d').putImageData(im, 0, 0); noise.push(nc); }
+  const t0 = performance.now(); let last = 0, fig = 0;
+  const draw = (now) => {
     if (!document.body.contains(c)) return;
-    c.width = 160; c.height = 90; const img = ctx.createImageData(160, 90);
-    for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 40; img.data[i] = v; img.data[i + 1] = v * 1.05; img.data[i + 2] = v * 1.2; img.data[i + 3] = 255; }
-    ctx.putImageData(img, 0, 0);
-    t++; requestAnimationFrame(draw);
+    requestAnimationFrame(draw);
+    if (now - last < 50) return; last = now; // ~20 images/s, comme une vieille caméra
+    const t = (now - t0) / 1000;
+    ctx.drawImage(bg, 0, 0);
+    // silhouette au bout de la galerie, quelques instants toutes les ~9 s, un peu plus près à chaque fois
+    const cyc = Math.floor(t / 9), ph = t % 9;
+    if (ph > 6.2 && ph < 6.9 && cyc > 0) { fig = Math.min(5, cyc); const s = 0.6 + fig * 0.25, fx = vx + Math.sin(cyc * 1.7) * 18, fy = vy + 9 + fig * 3; ctx.fillStyle = '#000'; ctx.fillRect(fx - 2.2 * s, fy - 14 * s, 4.4 * s, 14 * s); ctx.beginPath(); ctx.arc(fx, fy - 16 * s, 2.4 * s, 0, 7); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(fx - 1.1 * s, fy - 16.5 * s, 0.7, 0.7); ctx.fillRect(fx + 0.6 * s, fy - 16.5 * s, 0.7, 0.7); }
+    ctx.drawImage(noise[Math.floor(t * 20) % noise.length], 0, 0);
+    if (Math.random() < 0.06) { const y = Math.random() * H; ctx.drawImage(c, 0, y, W, 6, (Math.random() - 0.5) * 12, y, W, 6); }
+    for (let y = 0; y < H; y += 2) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, y, W, 1); }
+    ctx.font = '8px monospace'; ctx.fillStyle = 'rgba(220,235,220,0.85)';
+    ctx.fillText('CAM 07 — GALERIE RDC', 8, 12);
+    const sec = Math.floor(t); ctx.fillText('14/11/87  03:' + String(33 + Math.floor(sec / 60) % 27).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'), 8, H - 8);
+    if (Math.floor(t * 1.4) % 2 === 0) { ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(W - 34, 9, 3, 0, 7); ctx.fill(); ctx.fillStyle = 'rgba(220,235,220,0.85)'; ctx.fillText('REC', W - 28, 12); }
   };
-  draw();
+  requestAnimationFrame(draw);
 }
 let _actx = null;
 function clickSound() { try { _actx = _actx || new (window.AudioContext || window.webkitAudioContext)(); const o = _actx.createOscillator(), g = _actx.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.05, _actx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, _actx.currentTime + 0.08); o.connect(g).connect(_actx.destination); o.start(); o.stop(_actx.currentTime + 0.1); } catch (e) { /* */ } }

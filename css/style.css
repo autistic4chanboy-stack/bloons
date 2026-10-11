@@ -18,7 +18,8 @@ code { font-family: var(--mono); background: #0b0f16; padding: 0 4px; border-rad
 
 /* ── Menu ── */
 #menu { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background: radial-gradient(ellipse at 50% 30%, #121a28 0%, #05070b 70%); }
-.title-bg { position: fixed; inset: 0; opacity: 0.18; pointer-events: none; }
+.title-bg { position: fixed; inset: 0; opacity: 0.55; pointer-events: none; filter: contrast(1.15) brightness(0.9); }
+.title-bg::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, rgba(5, 7, 11, 0.15) 0%, rgba(5, 7, 11, 0.85) 75%); }
 .title-bg canvas { width: 100%; height: 100%; image-rendering: pixelated; }
 .title { position: relative; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px; gap: 28px; }
 .logo { text-align: center; }

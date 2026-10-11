@@ -653,7 +653,10 @@ export class Security {
     const g = this.game; const p = g.player;
     if (!p.alive || p.mode !== 'walk' || this.mode) return;
     this.mode = 'desk';
-    p.mode = 'desk'; p.body.pos = [DESK_SEAT.x, DESK_SEAT.y, DESK_SEAT.z]; p.body.vel = [0, 0, 0]; p.yaw = Math.PI / 2; p.pitch = 0;
+    // multijoueur : place libre au bureau (le bureau fait plus de cinq mètres de long)
+    this.seat = DESK_SEAT.clone();
+    for (const dz of [0, 1.3, -1.3, 2.2]) { const c = DESK_SEAT.clone().add(new THREE.Vector3(0, 0, dz)); if (!g.allPlayers().some(o => o !== p && o.mode === 'desk' && o.pos.distanceTo(c) < 0.6)) { this.seat = c; break; } }
+    p.mode = 'desk'; p.body.pos = [this.seat.x, this.seat.y, this.seat.z]; p.body.vel = [0, 0, 0]; p.yaw = Math.PI / 2; p.pitch = 0;
     this.lockPlayer('desk');
     this.fullscreen = this.powered('security') && this.list().length > 0;
     this.deskLook = { yaw: 0, pitch: -0.05 };
@@ -666,7 +669,7 @@ export class Security {
     const g = this.game; const p = g.player;
     if (this.rcLocal) g.sim.do('rc_stop', {});
     this.playback = null;
-    if (this.mode === 'desk') { p.mode = 'walk'; p.body.pos = [DESK_SEAT.x + 0.75, DESK_SEAT.y, DESK_SEAT.z]; p.yaw = Math.PI / 2; p.pitch = 0; p.updateCamera?.(0); }
+    if (this.mode === 'desk') { const st = this.seat || DESK_SEAT; p.mode = 'walk'; p.body.pos = [st.x + 0.75, st.y, st.z]; p.yaw = Math.PI / 2; p.pitch = 0; p.updateCamera?.(0); }
     if (this.mode === 'spectate') { this.mode = null; this.fullscreen = false; this.hideUI(); return; }
     this.mode = null; this.fullscreen = false;
     this.unlockPlayer(); this.hideUI();
@@ -997,12 +1000,12 @@ export class Security {
     // caméra du joueur assis au poste (vue « pièce »)
     if (this.mode === 'desk') {
       if (!p.alive) { this.exitMode(); return; }
-      p.body.pos = [DESK_SEAT.x, DESK_SEAT.y, DESK_SEAT.z];
+      const st = this.seat || DESK_SEAT; p.body.pos = [st.x, st.y, st.z];
       const mx = this.mouseXY ? this.mouseXY[0] / window.innerWidth : 0.5, my = this.mouseXY ? this.mouseXY[1] / window.innerHeight : 0.5;
       const ty = this.fullscreen ? 0 : (0.5 - mx) * 2.4, tp = this.fullscreen ? -0.05 : (0.5 - my) * 0.9 - 0.02;
       this.deskLook.yaw += (ty - this.deskLook.yaw) * Math.min(1, dt * 5); this.deskLook.pitch += (tp - this.deskLook.pitch) * Math.min(1, dt * 5);
       p.yaw = Math.PI / 2 + this.deskLook.yaw; p.pitch = this.deskLook.pitch;
-      g.camera.position.set(DESK_SEAT.x, DESK_SEAT.y + 1.22, DESK_SEAT.z); g.camera.rotation.set(p.pitch, p.yaw, 0, 'YXZ');
+      g.camera.position.set(st.x, st.y + 1.22, st.z); g.camera.rotation.set(p.pitch, p.yaw, 0, 'YXZ');
     }
     if (this.mode === 'tablet' && (!p.alive || !p.hasItem('tablet'))) this.exitMode();
     if (this.mode === 'spectate' && p.alive) this.exitMode();
