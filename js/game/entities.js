@@ -83,7 +83,7 @@ export class Entities {
   constructor(game) {
     this.game = game; this.world = game.world; this.nav = game.world.nav;
     this.list = new Map(); this.counter = 0; this.levels = {}; this.mode = 'story'; this.night = 1; this.day = false;
-    this.snapT = 0; this.pending = []; this.ignore = new Map(); this.catHater = new Set();
+    this.snapT = 0; this.pending = []; this.ignore = new Map(); this.catHater = new Set(); this.struck = new Set();
     const S = game.sim;
     S.effect('ent+', (p) => this.add(p.id, p.type, p.o));
     S.effect('ent-', (p) => this.remove(p.id));
@@ -115,7 +115,7 @@ export class Entities {
     this.mode = mode; this.night = n; this.day = day;
     if (mode === 'story') this.levels = { ...(NIGHTS[Math.min(10, n)].entities || {}) };
     else { const L = Math.min(1, 0.25 + n * 0.08); this.levels = { cat: 0.5, shadow: n >= 2 ? L * 0.8 : 0, bobby: n >= 2 ? L : 0, mannequin: n >= 3 ? L : 0, crawler: n >= 4 ? L : 0 }; }
-    this.pending = []; this.ignore.clear(); this.catHater.clear(); this.robbery = null; this.huntUntil = 0;
+    this.pending = []; this.ignore.clear(); this.catHater.clear(); this.robbery = null; this.huntUntil = 0; this.struck = new Set();
   }
   reset() {
     for (const id of [...this.list.keys()]) this.remove(id);
@@ -268,7 +268,13 @@ export class Entities {
     if (p.scare) pl.scare(p.scare);
     if (p.shake) pl.shake(p.shake, 0.4);
   }
-  hurt(pl, o) { this.game.sim.emit('ehit', { to: pl.id, ...o }); }
+  hurt(pl, o) {
+    // le premier contact de chaque présence, chaque nuit, blesse gravement au lieu de tuer : on a été prévenu
+    if (o.kill && o.by) { const k = pl.id + ':' + o.by; if (!this.struck.has(k)) { this.struck.add(k); o = { ...o, kill: false, dmg: Math.max(o.dmg || 0, 55), scare: 45, shake: 0.4 }; } }
+    this.game.sim.emit('ehit', { to: pl.id, ...o });
+  }
+  // agressivité effective : elle monte pendant les quatre premières heures de la nuit
+  effL(e, def = 0.4) { const nm = this.game.env?.nightMinutes ?? 240; return (e.L || def) * (0.6 + 0.4 * Math.min(1, Math.max(0, nm) / 240)); }
 
   // ───────────────────────── perception ─────────────────────────
   eyeOf(pl) { if (pl === this.game.player) return this.game.camera.position.clone(); return pl.pos.clone().add(V(0, pl.crouching ? 1.0 : 1.6, 0)); }
@@ -685,7 +691,7 @@ export class Entities {
 
   // ───────────────────────── IA : Bobby ─────────────────────────
   ai_bobby(e, dt) {
-    const g = this.game; const L = e.L || 0.4;
+    const g = this.game; const L = this.effL(e, 0.4);
     if (e.state === 'display' || e.state === 'glimpse') { e.speed = 0; e.pose = 'idle'; return; }
     // le miel le distrait (il s'assoit et mange)
     const honey = this.honey && this.honey.state.where === 'world' ? this.honey : null;
@@ -727,7 +733,7 @@ export class Entities {
     if (r === 'blocked') this.atBlockedDoor(e, dt);
   }
   bobbyAttack(e, tg) {
-    const g = this.game; const L = e.L || 0.4;
+    const g = this.game; const L = this.effL(e, 0.4);
     this.hurt(tg, { kill: L >= 0.45, dmg: 45, by: 'bobby', scr: 'bear', scare: 40 });
     g.sim.emit('fx', { s: 'jumpscare', pos: e.chest.toArray(), v: 1 });
     // retour à la réserve
@@ -744,7 +750,7 @@ export class Entities {
 
   // ───────────────────────── IA : mannequins ─────────────────────────
   ai_mannequin(e, dt) {
-    const g = this.game; const L = e.L || 0.4;
+    const g = this.game; const L = this.effL(e, 0.4);
     if (e.state === 'down') { e.t -= dt; e.pose = 'lie'; e.speed = 0; if (e.t <= 0 && !this.observed(e)) { e.state = 'stalk'; e.pose = 'm0'; } return; }
     const obs = this.observed(e);
     if (obs || this.flashOn(e, 20, 0.9) || this.litAt(e.pos)) { e.speed = 0; if (!e.frozenPose) e.frozenPose = 'm' + Math.floor(R() * 5); e.pose = e.frozenPose; return; }
@@ -775,7 +781,7 @@ export class Entities {
 
   // ───────────────────────── IA : l'Ombre ─────────────────────────
   ai_shadow(e, dt) {
-    const g = this.game; const L = e.L || 0.3; const hunt = e.state === 'hunt' && g.env.nightMinutes < this.huntUntil;
+    const g = this.game; const L = this.effL(e, 0.3); const hunt = e.state === 'hunt' && g.env.nightMinutes < this.huntUntil;
     if (e.reveal > 0) { e.reveal -= dt; if (e.reveal <= 0 && !e.camOnly) this.setFlags(e, { camOnly: true }); }
     // la lumière la chasse
     const lit = this.litAt(e.pos); const fl = this.flashOn(e, 14, 0.93);
@@ -822,7 +828,7 @@ export class Entities {
 
   // ───────────────────────── IA : la chose des conduits ─────────────────────────
   ai_crawler(e, dt) {
-    const g = this.game; const L = e.L || 0.5;
+    const g = this.game; const L = this.effL(e, 0.5);
     e.canVent = true;
     // son de reptation dans les conduits (boucle locale à tous les pairs : gérée par l'effet loopfx ponctuel)
     e.sndT = (e.sndT || 0) - dt;
@@ -831,10 +837,11 @@ export class Entities {
     if (fl && !e.inVent) { e.flee = 6; e.path = null; g.sim.emit('fx', { s: 'scream', pos: e.chest.toArray(), v: 0.5 }); }
     if (e.flee > 0) { e.flee -= dt; if (!e.path || e.pi >= e.path.length) { const vn = this.nearestNode(e.pos, { vent: true }); if (vn) this.goTo(e, vn.id); } this.follow(e, dt, 4); e.pose = 'crawl'; return; }
     if (e.wait > 0) { e.wait -= dt; e.speed = 0; e.pose = 'crawl'; return; }
-    const tg = this.nearestTarget(e, 60);
-    if (!tg) { if (!e.path || e.pi >= e.path.length) { const vs = [...this.nav.nodes.values()].filter(n => n.vent); this.goTo(e, pick(vs).id); } this.follow(e, dt, 1.2); e.pose = 'crawl'; return; }
+    // après une attaque, il se terre dans les conduits un long moment
+    const tg = (e.rest && g.time < e.rest) ? null : this.nearestTarget(e, 60);
+    if (!tg) { if (!e.path || e.pi >= e.path.length) { const vs = [...this.nav.nodes.values()].filter(n => n.vent); this.goTo(e, pick(vs).id, { vent: true }); } this.follow(e, dt, 1.2); e.pose = 'crawl'; return; }
     const d = tg.pos.distanceTo(e.pos);
-    if (d < 1.2 && Math.abs(tg.pos.y - e.pos.y) < 1.4) { this.hurt(tg, { kill: L >= 0.55, dmg: 40, by: 'crawler', scr: 'face', scare: 40 }); g.sim.emit('fx', { s: 'scream', pos: e.chest.toArray(), v: 1 }); e.flee = 10; e.path = null; return; }
+    if (d < 1.2 && Math.abs(tg.pos.y - e.pos.y) < 1.4) { this.hurt(tg, { kill: L >= 0.55, dmg: 40, by: 'crawler', scr: 'face', scare: 40 }); g.sim.emit('fx', { s: 'scream', pos: e.chest.toArray(), v: 1 }); e.flee = 10; e.path = null; e.rest = g.time + 60 + R() * 40; return; }
     if ((e.repath -= dt) <= 0 || !e.path) {
       e.repath = 2;
       if (!this.goTo(e, tg.pos, { vent: tg.inVent ? true : undefined })) {

@@ -147,7 +147,7 @@ export class Player {
     if (this.wear.head === 'helmet' && cause === 'fall') n *= 0.7;
     this.stats.health -= n; this.game.ui?.damageFlash(Math.min(1, n / 30));
     this.game.sfx('hit_body', null, { volume: 0.6, bus: 'ui' });
-    if (this.stats.health <= 0) this.kill(cause);
+    if (this.stats.health <= 0) this.kill(cause, ['bobby', 'mannequin', 'shadow', 'crawler', 'robbers', 'thing'].includes(cause) ? cause : undefined);
   }
   kill(cause, by) {
     if (!this.alive) return;
