@@ -85,15 +85,15 @@ export class Particles {
         void main(){ vec3 p = position; p.x += sin(time * 0.13 * seed + seed * 10.0) * 0.6; p.y += sin(time * 0.07 * seed + seed * 3.0) * 0.4; p.z += cos(time * 0.11 * seed) * 0.6;
           vec3 w = center + mod(p - center + 8.0, 16.0) - 8.0; w.y = center.y + mod(p.y + 4.0, 8.0) - 4.0;
           vec3 d = w - fpos; float dist = length(d); float c = dot(d / max(dist, 0.001), fdir);
-          float inCone = smoothstep(fcos - 0.02, fcos + 0.05, c) * smoothstep(9.0, 0.5, dist) * smoothstep(0.2, 0.8, dist);
+          float inCone = smoothstep(fcos - 0.02, fcos + 0.05, c) * smoothstep(9.0, 0.5, dist) * smoothstep(0.7, 1.8, dist);
           vA = inCone * fint * (0.4 + 0.6 * seed);
-          vec4 mv = modelViewMatrix * vec4(w, 1.0); gl_PointSize = 2.2 * seed * 30.0 / max(0.2, -mv.z); gl_Position = projectionMatrix * mv; }`,
+          vec4 mv = modelViewMatrix * vec4(w, 1.0); gl_PointSize = min(6.0, seed * 22.0 / max(0.3, -mv.z)); gl_Position = projectionMatrix * mv; }`,
       fragmentShader: `uniform vec3 color; varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; float r = length(d); if (r > 0.5 || vA < 0.01) discard; gl_FragColor = vec4(color * vA * smoothstep(0.5, 0.0, r), 1.0); }`,
     });
     const pts = new THREE.Points(g, m); pts.frustumCulled = false; pts.renderOrder = 7; return pts;
   }
   setFlash(pos, dir, angle, intensity) {
-    const U = this.motes.material.uniforms; U.fpos.value.copy(pos); U.fdir.value.copy(dir); U.fcos.value = Math.cos(angle); U.fint.value = Math.min(1, intensity / 40) * 0.5; U.center.value.copy(this.game.camera.position);
+    const U = this.motes.material.uniforms; U.fpos.value.copy(pos); U.fdir.value.copy(dir); U.fcos.value = Math.cos(angle); U.fint.value = Math.min(1, intensity / 14) * 0.6; U.center.value.copy(this.game.camera.position);
   }
 
   // ── émetteurs ──

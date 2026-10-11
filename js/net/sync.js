@@ -106,7 +106,7 @@ export class Sync {
     this.game = game; this.remotes = new Map(); this.sendT = 0; this.stateT = 0; this.joinedToast = new Set();
     // lampes des autres joueurs : pré-allouées (pas de recompilation des shaders quand quelqu'un rejoint)
     this.lights = [];
-    for (let i = 0; i < MAX_REMOTE_LIGHTS; i++) { const l = new THREE.SpotLight(0xfff1d6, 0, 22, 0.42, 0.45, 2); l.castShadow = false; game.scene.add(l); game.scene.add(l.target); this.lights.push(l); }
+    for (let i = 0; i < MAX_REMOTE_LIGHTS; i++) { const l = new THREE.SpotLight(0xfff1d6, 0, 22, 0.42, 0.45, 1.25); l.castShadow = false; game.scene.add(l); game.scene.add(l.target); this.lights.push(l); }
     const S = game.sim;
     S.effect('sstate', (p) => this.applyStoryState(p));
     Net.on('ps', (m) => this.onPlayerState(m));
@@ -261,7 +261,7 @@ export class Sync {
       if (!r) { l.intensity = 0; return; }
       const e = r.eyePos(); const f = r.forward();
       l.position.copy(e).addScaledVector(f, 0.25); l.target.position.copy(e).addScaledVector(f, 6); l.target.updateMatrixWorld();
-      l.intensity = 30; l.distance = 22;
+      l.intensity = 11; l.distance = 22;
     });
   }
 }

@@ -14,11 +14,11 @@ export const COSTUMES = {
 
 export const FLASHLIGHTS = {
   none: { name: 'Aucune', intensity: 0, angle: 0.4, range: 0, drain: 0, color: 0xffffff },
-  basic: { name: 'Lampe de Gérard', intensity: 38, angle: 0.42, range: 26, drain: 1 / 240, color: 0xfff1d6 },
-  tactical: { name: 'Lampe tactique', intensity: 75, angle: 0.55, range: 40, drain: 1 / 120, color: 0xf4f8ff },
-  uv: { name: 'Lampe UV', intensity: 20, angle: 0.38, range: 16, drain: 1 / 200, color: 0x7b3cff, uv: true },
-  headlamp: { name: 'Lampe frontale', intensity: 26, angle: 0.33, range: 20, drain: 1 / 300, color: 0xfff6e0, head: true },
-  cheap: { name: 'Lampe bon marché', intensity: 22, angle: 0.45, range: 16, drain: 1 / 150, color: 0xffe0a0, flicker: true },
-  phone: { name: 'Lampe du téléphone', intensity: 12, angle: 0.6, range: 10, drain: 1 / 400, color: 0xf0f4ff },
-  lighter: { name: 'Briquet', intensity: 3, angle: 1.5, range: 6, drain: 0, color: 0xffa040, point: true },
+  basic: { name: 'Lampe de Gérard', intensity: 13.3, angle: 0.42, range: 26, drain: 1 / 240, color: 0xfff1d6 },
+  tactical: { name: 'Lampe tactique', intensity: 26.2, angle: 0.55, range: 40, drain: 1 / 120, color: 0xf4f8ff },
+  uv: { name: 'Lampe UV', intensity: 7, angle: 0.38, range: 16, drain: 1 / 200, color: 0x7b3cff, uv: true },
+  headlamp: { name: 'Lampe frontale', intensity: 9.1, angle: 0.33, range: 20, drain: 1 / 300, color: 0xfff6e0, head: true },
+  cheap: { name: 'Lampe bon marché', intensity: 7.7, angle: 0.45, range: 16, drain: 1 / 150, color: 0xffe0a0, flicker: true },
+  phone: { name: 'Lampe du téléphone', intensity: 4.2, angle: 0.6, range: 10, drain: 1 / 400, color: 0xf0f4ff },
+  lighter: { name: 'Briquet', intensity: 1, angle: 1.5, range: 6, drain: 0, color: 0xffa040, point: true },
 };

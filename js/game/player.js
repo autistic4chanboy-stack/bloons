@@ -61,7 +61,7 @@ export class Player {
     this.cart = null; this.zoom = 1; this.lean = 0;
     const cam = game.camera; this.camera = cam;
     // lampe torche
-    const sl = new THREE.SpotLight(0xfff1d6, 0, 26, 0.42, 0.45, 2);
+    const sl = new THREE.SpotLight(0xfff1d6, 0, 26, 0.42, 0.45, 1.25); // atténuation adoucie : pas de sol brûlé à un mètre
     sl.castShadow = game.settings.shadows !== false;
     sl.shadow.mapSize.set(game.settings.quality === 'low' ? 512 : 1024, game.settings.quality === 'low' ? 512 : 1024);
     sl.shadow.camera.near = 0.15; sl.shadow.camera.far = 30; sl.shadow.bias = -0.0004; sl.shadow.normalBias = 0.03;
@@ -384,8 +384,9 @@ export class Player {
     const fwd = this.forward();
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
     const off = kindDef.head ? new THREE.Vector3(0, 0.08, 0) : right.clone().multiplyScalar(0.2).add(new THREE.Vector3(0, -0.18, 0));
-    this.flashPos.copy(cam.position).add(off);
     this.flashDir.lerp(fwd, Math.min(1, dt * (kindDef.head ? 30 : 14))).normalize();
+    // la source est placée juste devant la lentille : la lampe tenue en main ne s'éclaire pas elle-même
+    this.flashPos.copy(cam.position).add(off).addScaledVector(this.flashDir, kindDef.head ? 0.12 : 0.38);
     sl.position.copy(this.flashPos);
     sl.target.position.copy(this.flashPos).addScaledVector(this.flashDir, 5);
     sl.intensity = I; sl.angle = kindDef.angle; sl.distance = kindDef.range || 1; sl.color.set(kindDef.color); sl.penumbra = this.flashKind === 'lighter' ? 1 : 0.45;
@@ -397,7 +398,7 @@ export class Player {
       this.beam.position.copy(this.flashPos).addScaledVector(this.flashDir, 0.15);
       this.beam.lookAt(this.flashPos.clone().addScaledVector(this.flashDir, -1));
       const r = Math.tan(kindDef.angle * 0.8) * len; this.beam.scale.set(r, r, len);
-      this.beam.material.uniforms.strength.value = (I / 38) * 0.05 * (g.isDay ? 0.2 : 1);
+      this.beam.material.uniforms.strength.value = (I / 13) * 0.05 * (g.isDay ? 0.2 : 1);
       this.beam.material.uniforms.color.value.set(kindDef.color);
     }
     // UV
