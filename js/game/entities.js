@@ -383,7 +383,8 @@ export class Entities {
         if (!e.canForce) { e.blockedBy = d; return false; }
         e.forceT = (e.forceT || 0) + dt;
         if (!e._forceFx || g.time - e._forceFx > 1.4) { e._forceFx = g.time; g.sim.emit('fx', { s: e.type === 'thing' ? 'low_boom' : e.forceT > 2 ? 'metal_screech' : 'door_rattle', pos: d.pos.toArray(), v: 1 }); g.noise(d.pos, 0.7, 'force'); }
-        if (e.forceT > (e.forceTime || 5)) { e.forceT = 0; d.set({ locked: false, padlock: 0, sealed: false, open: 1, broken: true }); g.hooks.emit('door_forced', { door: d, actor: null, by: e.type }); return true; }
+        const pad = d.state.padlock === 2 ? 5 : d.state.padlock === 1 ? 2.5 : 1;
+        if (e.forceT > (e.forceTime || 5) * pad) { e.forceT = 0; d.set({ locked: false, padlock: 0, sealed: false, open: 1, broken: true }); g.hooks.emit('door_forced', { door: d, actor: null, by: e.type }); return true; }
         return false;
       }
       if (e.opensDoors || e.canForce) { d.forceOpen(1); if (e.type === 'bobby' || e.type === 'thing') g.sim.emit('fx', { s: 'door_creak', pos: d.pos.toArray(), v: 0.8 }); return false; }
@@ -420,7 +421,7 @@ export class Entities {
     for (const p of this.pending) if (!p.done && g.env.nightMinutes >= p.at && g.story.phase === 'night') { p.done = true; this.activate(p.type, p.action || 'activate', p.opts || {}); }
     this.updateRobbery(dt);
     this.scanT = (this.scanT || 0) - dt;
-    if (this.scanT <= 0) { this.scanT = 1; this.musicBox = g.props.find('music_box', { any: true }).find(p => p.data.on && p.state.where !== 'gone') || null; this.catFood = g.props.find('cat_food').find(p => p.state.where === 'world' && p.data.placed) || null; if (this.robbery && this.robbery.state !== 'planned') this.checkRobberyEnd(); }
+    if (this.scanT <= 0) { this.scanT = 1; this.musicBox = g.props.find('music_box', { any: true }).find(p => p.data.on && p.state.where !== 'gone') || null; this.catFood = g.props.find(p => p.state.where === 'world' && ((p.defId === 'cat_food' && p.data.placed) || p.defId === 'cheese' || p.defId === 'saucisson' || (p.defId === 'pet_bowl' && p.data.placed))) || null; this.petBed = g.props.find(p => p.defId === 'pet_bed' && p.state.where === 'world')[0] || null; this.catPlush = g.props.find(p => p.defId === 'cat_plush' && p.state.where === 'world'); this.honey = g.props.find(p => p.defId === 'honey' && (p.state.where === 'world' || p.state.where === 'home')).filter(p => p.state.where === 'world')[0] || null; if (this.robbery && this.robbery.state !== 'planned') this.checkRobberyEnd(); }
     for (const e of [...this.list.values()]) {
       if (!this.list.has(e.id)) continue;
       if (e.life > 0) { e.life -= dt; if (e.life <= 0) { this.despawn(e); continue; } }
@@ -522,6 +523,11 @@ export class Entities {
       this.pending.push({ type, at: 15 + R() * 70, opts: { level: L } });
     }
     if (!this.find('cat') && this.levels.cat) this.spawnCat();
+    // le costume de Bobby trône à l'entrée du Royaume du Jouet (à partir de son retour en rayon, nuit 3)
+    if ((this.levels.bobby || (this.mode === 'story' && this.night >= 3)) && !this.find('bobby')) {
+      const n = this.node('jouets_in'), c = this.node('jouets_c');
+      if (n && c) { const p = V(n.x, n.y, n.z).lerp(V(c.x, c.y, c.z), 0.35); const e = this.spawn('bobby', { p: p.toArray(), yaw: Math.atan2(n.x - c.x, n.z - c.z) }); if (e) { e.state = 'display'; e.L = this.levels.bobby || 0.3; e.home = 'jouets_c'; } }
+    }
     let dayFolks = false;
     for (const e of [...this.list.values()]) if (e.type === 'shopper' || e.type === 'keeper' || e.type === 'gerard') { this.despawn(e); dayFolks = true; }
     if (dayFolks || this.day) this.setEntrance(false);
@@ -536,7 +542,7 @@ export class Entities {
     const L = this.level(type, opts);
     switch (type) {
       case 'robbers': return this.planRobbery(opts);
-      case 'bobby': { if (this.find('bobby')) { this.find('bobby').L = Math.max(this.find('bobby').L, L); return; } const c = this.node('jouets_bk') || this.node('jouets_c'); const e = this.spawn('bobby', { p: [c.x, c.y, c.z], yaw: 0 }); e.L = L; e.state = 'rest'; e.wait = 10 + R() * 20; e.opensDoors = true; e.canForce = L >= 0.45; e.forceTime = 32 - L * 16; e.home = c.id; g.sim.emit('fx', { s: 'music_box_wrong', pos: [c.x, c.y + 1, c.z], v: 0.6 }); return; }
+      case 'bobby': { const cur = this.find('bobby'); if (cur) { cur.L = Math.max(cur.L || 0, L); if (cur.state === 'display') { cur.state = 'rest'; cur.wait = 6 + R() * 10; cur.opensDoors = true; cur.canForce = cur.L >= 0.45; cur.forceTime = 32 - cur.L * 16; cur.home = cur.home || 'jouets_c'; g.sim.emit('fx', { s: 'music_box_wrong', pos: cur.chest.toArray(), v: 0.6 }); } return; } const c = this.node('jouets_bk') || this.node('jouets_c'); const e = this.spawn('bobby', { p: [c.x, c.y, c.z], yaw: 0 }); e.L = L; e.state = 'rest'; e.wait = 10 + R() * 20; e.opensDoors = true; e.canForce = L >= 0.45; e.forceTime = 32 - L * 16; e.home = c.id; g.sim.emit('fx', { s: 'music_box_wrong', pos: [c.x, c.y + 1, c.z], v: 0.6 }); return; }
       case 'mannequin': {
         const n = opts.count || 1;
         const devs = g.devices.kind('mannequin').filter(d => !d.state.away).sort((a, b) => (a.zone === 'mode' ? -1 : 1) - (b.zone === 'mode' ? -1 : 1));
@@ -620,6 +626,8 @@ export class Entities {
   ai_cat(e, dt) {
     const g = this.game; e.canVent = true; e.ignoreShutters = true; e.canForce = false; e.opensDoors = false; e.catDoors = true;
     if (e.flee > 0) { e.flee -= dt; const r = this.follow(e, dt, 4.2); e.pose = 'run'; if (r !== 'moving') e.flee = 0; return; }
+    // la peluche de chat : il la déteste
+    for (const cp of this.catPlush || []) { const cpp = V(...cp.state.pos); if (cpp.distanceTo(e.pos) < 3.5) { e.flee = 4; g.sim.emit('fx', { s: 'hiss', pos: e.pos.toArray(), v: 0.8 }); this.goTo(e, e.pos.clone().add(e.pos.clone().sub(cpp).setY(0).normalize().multiplyScalar(10))); return; } }
     // nourriture posée
     const food = this.catFood && this.catFood.state.where === 'world' ? this.catFood : null;
     if (food && e.state !== 'eat') { const fp = V(...food.state.pos); if (e.state !== 'food') { e.state = 'food'; this.goTo(e, fp); } }
@@ -633,7 +641,7 @@ export class Entities {
     if (e.state === 'eat') {
       e.speed = 0; e.pose = 'sit'; e.t -= dt;
       if (R() < dt * 0.4) g.sim.emit('fx', { s: 'eat_crunch', pos: e.pos.toArray(), v: 0.3 });
-      if (e.t <= 0) { const f = g.props.get(e.food); if (f) f.set({ where: 'gone' }); g.flagSet('cat_fed_tonight', true); g.sim.emit('fx', { s: 'purr', pos: e.pos.toArray(), v: 0.6 }); g.sim.emit('toast', { text: 'Le chat a mangé. Il vous regarde avec reconnaissance.' }); e.state = 'idle'; e.friend = true; }
+      if (e.t <= 0) { const f = g.props.get(e.food); if (f) { if (f.defId === 'pet_bowl') f.set({ data: { ...f.data, placed: false } }); else f.set({ where: 'gone' }); } g.flagSet('cat_fed_tonight', true); g.sim.emit('fx', { s: 'purr', pos: e.pos.toArray(), v: 0.6 }); g.sim.emit('toast', { text: 'Le chat a mangé. Il vous regarde avec reconnaissance.' }); e.state = 'idle'; e.friend = true; }
       return;
     }
     // costume de chat (ou chat nourri) : il suit le joueur et le prévient
@@ -646,14 +654,15 @@ export class Entities {
       if (e.warnT <= 0) { e.warnT = 4; for (const h of this.list.values()) if (HOSTILE.has(h.type) && h.pos.distanceTo(friend.pos) < 14) { e.warnT = 12; g.sim.emit('fx', { s: 'hiss', pos: e.pos.toArray(), v: 0.9 }); g.sim.emit('toast', { text: 'Le chat feule, le poil hérissé, vers ' + (this.world.zoneAt(h.pos.x, h.pos.y + 0.5, h.pos.z)?.name || 'l\'obscurité') + '.' }, { to: friend.id }); break; } }
       return;
     }
-    if (e.state === 'play') { e.t -= dt; if (e.playPos && e.pos.distanceTo(e.playPos) > 0.6) { this.follow(e, dt, 3.5); e.pose = 'run'; } else { e.speed = 0; e.pose = R() < 0.5 ? 'sit' : 'lie'; e.yaw += dt * 3; } if (e.t <= 0) e.state = 'idle'; return; }
+    if (e.state === 'play') { e.t -= dt; if (e.playPos && e.pos.distanceTo(e.playPos) > 0.6) { this.follow(e, dt, 3.5); e.pose = 'run'; } else { e.speed = 0; e.pose = R() < 0.5 ? 'sit' : 'lie'; e.yaw += dt * 3; } if (e.t <= 0) { e.state = 'idle'; e.friend = true; } return; }
     if (e.state === 'sleep') { e.speed = 0; e.pose = 'lie'; e.t -= dt; if (R() < dt * 0.03) g.sim.emit('fx', { s: 'purr', pos: e.pos.toArray(), v: 0.4 }); if (e.t <= 0) e.state = 'idle'; return; }
     if (e.wait > 0) { e.wait -= dt; e.speed = 0; e.pose = 'sit'; if (R() < dt * 0.05) g.sim.emit('fx', { s: 'meow', pos: e.pos.toArray(), v: 0.5 }); return; }
     if (!e.path || e.pi >= e.path.length) {
       // arrivé : peut-être faire tomber un objet
       const z = this.world.zoneAt(e.pos.x, e.pos.y + 0.3, e.pos.z);
       if (z?.shop && R() < 0.35) { g.props.knock(z.id, 1); }
-      if (R() < 0.2) { e.state = 'sleep'; e.t = 40 + R() * 80; return; }
+      if (this.petBed && e.pos.distanceTo(V(...this.petBed.state.pos)) > 1) { if (R() < 0.35) { this.goTo(e, V(...this.petBed.state.pos)); e.toBed = true; return; } }
+      if (R() < 0.2 || (e.toBed && this.petBed)) { e.toBed = false; e.state = 'sleep'; e.t = 40 + R() * 80; return; }
       e.wait = 4 + R() * 12;
       const cands = [...this.nav.nodes.values()].filter(n => !n.vent && !n.tags?.includes('outside') && n.zone !== 'b13');
       const near = cands.filter(n => Math.hypot(n.x - e.pos.x, n.z - e.pos.z) < 40 && Math.abs(n.y - e.pos.y) < 6);
@@ -677,6 +686,17 @@ export class Entities {
   // ───────────────────────── IA : Bobby ─────────────────────────
   ai_bobby(e, dt) {
     const g = this.game; const L = e.L || 0.4;
+    if (e.state === 'display' || e.state === 'glimpse') { e.speed = 0; e.pose = 'idle'; return; }
+    // le miel le distrait (il s'assoit et mange)
+    const honey = this.honey && this.honey.state.where === 'world' ? this.honey : null;
+    if (honey && !this.observed(e)) {
+      const hp = V(...honey.state.pos);
+      if (e.pos.distanceTo(hp) < 25) {
+        if (e.pos.distanceTo(hp) < 1.2) { e.speed = 0; e.pose = 'sit'; e.honeyT = (e.honeyT || 0) + dt; if (e.honeyT > 40) { honey.set({ where: 'gone' }); e.honeyT = 0; e.wait = 20; g.sim.emit('fx', { s: 'squeak', pos: e.chest.toArray(), v: 0.5 }); } return; }
+        if ((e.repath -= dt) <= 0 || !e.path) { e.repath = 3; this.goTo(e, hp); }
+        this.follow(e, dt, 1.3); e.pose = 'walk'; return;
+      }
+    }
     // la boîte à musique l'attire (et le calme)
     const mb = this.musicBox;
     const mbPos = mb ? (mb.state.where === 'held' ? g.playerById(mb.state.owner)?.pos : V(...mb.state.pos)) : null;
@@ -692,14 +712,16 @@ export class Entities {
       if ((e.repath -= dt) <= 0) { e.repath = 3; this.goTo(e, mbPos); }
       this.follow(e, dt, 1.4); e.pose = 'walk'; return;
     }
-    // chasse : par à-coups, seulement quand personne ne regarde
+    // chasse : par à-coups, seulement quand personne ne regarde ; il marche vers le poste de sécurité,
+    // sauf si un gardien est tout près
     const tg = this.nearestTarget(e);
-    if (!tg) { e.speed = 0; e.pose = 'idle'; return; }
-    const d = tg.pos.distanceTo(e.pos);
-    if (d < 1.3 && Math.abs(tg.pos.y - e.pos.y) < 1.5) { this.bobbyAttack(e, tg); return; }
+    const d = tg ? tg.pos.distanceTo(e.pos) : 1e9;
+    if (tg && d < 1.3 && Math.abs(tg.pos.y - e.pos.y) < 1.5) { this.bobbyAttack(e, tg); return; }
     e.burst = (e.burst ?? 4) - dt;
     if (e.burst <= 0) { e.burst = 3 + R() * 4 + L * 3; e.wait = (14 - L * 9) * (0.6 + R() * 0.8); return; }
-    if ((e.repath -= dt) <= 0 || !e.path) { e.repath = 2.5; if (!this.goTo(e, tg.pos)) { e.wait = 6; return; } }
+    const chase = tg && d < 20;
+    if ((e.repath -= dt) <= 0 || !e.path) { e.repath = 2.5; if (!(chase ? this.goTo(e, tg.pos) : this.goTo(e, tg && tg.pos.distanceTo(this.world.points.securityInside || tg.pos) < 6 ? 'sec_in' : 'sec_out'))) { e.wait = 6; return; } }
+    if (!tg) { const r0 = this.follow(e, dt, 1.2 + L * 1.3); e.pose = 'walk'; if (r0 === 'blocked') this.atBlockedDoor(e, dt); return; }
     if (d < 5 && this.los(e.chest, tg.pos.clone().add(V(0, 1.2, 0)))) { e.path = null; this.stepTo(e, tg.pos, dt, 1.7 + L); e.speed = 1.7 + L; e.pose = 'walk'; return; }
     const r = this.follow(e, dt, 1.2 + L * 1.3); e.pose = 'walk';
     if (r === 'blocked') this.atBlockedDoor(e, dt);
@@ -725,7 +747,7 @@ export class Entities {
     const g = this.game; const L = e.L || 0.4;
     if (e.state === 'down') { e.t -= dt; e.pose = 'lie'; e.speed = 0; if (e.t <= 0 && !this.observed(e)) { e.state = 'stalk'; e.pose = 'm0'; } return; }
     const obs = this.observed(e);
-    if (obs || this.flashOn(e, 20, 0.9)) { e.speed = 0; if (!e.frozenPose) e.frozenPose = 'm' + Math.floor(R() * 5); e.pose = e.frozenPose; return; }
+    if (obs || this.flashOn(e, 20, 0.9) || this.litAt(e.pos)) { e.speed = 0; if (!e.frozenPose) e.frozenPose = 'm' + Math.floor(R() * 5); e.pose = e.frozenPose; return; }
     e.frozenPose = null;
     if (e.wait > 0) { e.wait -= dt; e.speed = 0; return; }
     const tg = this.nearestTarget(e);
@@ -918,6 +940,7 @@ export class Entities {
             const ctl = g.world.shops[T]; const zid = typeof ctl?.zone === 'string' ? ctl.zone : ctl?.zone?.id || T;
             const galleryLit = this.world.zones.some(z => (z.area === 'gallery0' || z.area === 'gallery1') && z.circuit === 'gallery' && (z._level || 0) > 0.5 && z.distTo(ctl.x0 ?? 0, ctl.y ?? 0, ctl.zF ?? 0) < 2);
             if (g.lighting.isLit(zid) || galleryLit || this.all('police').length) { this.abortRobbery('Trop de lumière. On annule, on reviendra.'); return; }
+            if (g.power.state.alarms?.[T]) { this.abortRobbery('L\'alarme de la boutique est armée. On laisse tomber.'); return; }
             Rb.state = 'inside';
           }
           e.state = 'tocase'; e.path = null;
@@ -1147,7 +1170,7 @@ export class Entities {
     if (!Net.isHost) return;
     for (const e of this.list.values()) {
       const d = e.pos.distanceTo(pos);
-      if (e.type === 'cat' && loud > 0.6 && d < 15 && kind !== 'rc') { e.flee = 3; e.path = null; this.goTo(e, e.pos.clone().add(e.pos.clone().sub(pos).setY(0).normalize().multiplyScalar(10))); }
+      if (e.type === 'cat' && ((loud > 0.6 && d < 15 && kind !== 'rc') || (kind === 'vacuum' && d < 8))) { e.flee = 3; e.path = null; this.goTo(e, e.pos.clone().add(e.pos.clone().sub(pos).setY(0).normalize().multiplyScalar(10))); }
       if ((e.type === 'bobby' || e.type === 'thing' || e.type === 'crawler') && d < loud * 35 && !e.flee) { e.repath = 0; e.heard = pos.clone(); if (e.type !== 'crawler' || !e.inVent) this.goTo(e, pos); }
       if (e.type === 'robber' && d < loud * 25 && e.state === 'steal' && loud > 0.6) e.t = Math.min(e.t, 2);
     }

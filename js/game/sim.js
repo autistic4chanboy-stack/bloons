@@ -24,7 +24,7 @@ export class Sim {
 
   _exec(name, payload, actor) {
     const fn = this.actions.get(name);
-    if (!fn) { console.warn('[sim] action inconnue', name); return; }
+    if (!fn) { if (this.game.ready) console.warn('[sim] action inconnue', name); return; }
     try { fn(payload || {}, actor, this); } catch (e) { console.error('[sim] action', name, e); }
   }
 
@@ -38,7 +38,7 @@ export class Sim {
 
   _apply(name, payload) {
     const fn = this.effects.get(name);
-    if (!fn) { console.warn('[sim] effet inconnu', name); return; }
+    if (!fn) { if (this.game.ready) console.warn('[sim] effet inconnu', name); return; } // pendant le chargement : l'état complet suivra
     try { fn(payload || {}); } catch (e) { console.error('[sim] effet', name, e); }
   }
 }

@@ -141,6 +141,7 @@ export class Game {
     // événements émis par les écrans (ordinateurs, jeux)
     this.hooks.on('screen:discover', (d) => { if (d?.kind && d?.id) this.discover(d.kind, d.id); });
     this.hooks.on('screen:fragment', (d) => { if (d?.id) this.discover('fragment', d.id); });
+    this.ready = true;
     return this;
   }
 

@@ -1,0 +1,38 @@
+# Publication de la version navigateur (solo, sauvegarde locale) sur GitHub Pages.
+# Activer une fois : Settings → Pages → Build and deployment → Source : « GitHub Actions ».
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      # Aucun build : le jeu est en modules ES natifs. On publie seulement les fichiers utiles.
+      - name: Préparer le site
+        run: |
+          mkdir -p _site
+          cp -r index.html .nojekyll css js vendor wiki _site/
+          cp -r docs _site/ 2>/dev/null || true
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

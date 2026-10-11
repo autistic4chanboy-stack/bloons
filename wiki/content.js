@@ -37,10 +37,19 @@ export const CONTROLS = [
     { keys: ['Échap'], action: 'Pause' },
   ] },
   { group: 'Au bureau de sécurité', rows: [
-    { keys: ['Clic'], action: 'Appuyer sur les boutons de la console' },
+    { keys: ['Clic'], action: 'Appuyer sur les boutons de la console, choisir une caméra, cliquer sur un écran ou un objet du bureau' },
     { keys: ['←', '→', '1 – 9'], or: true, action: 'Changer de caméra' },
-    { keys: ['Espace'], action: 'Vision infrarouge' },
-    { keys: ['Échap'], action: 'Se lever du bureau' },
+    { keys: ['Espace'], action: 'Infrarouge : automatique → forcé → coupé' },
+    { keys: ['Glisser', 'Molette'], or: true, action: 'Orienter la caméra motorisée / zoomer' },
+    { keys: ['L'], action: 'Allumer ou éteindre la zone filmée' },
+    { keys: ['R'], action: 'Démarrer / arrêter l\'enregistrement (REC)' },
+    { keys: ['Tab'], action: 'Baisser / relever les écrans (regarder la pièce)' },
+    { keys: ['Échap'], action: 'Revenir à la pièce, puis se lever du bureau' },
+  ] },
+  { group: 'Voiture radiocommandée', rows: [
+    { keys: { azerty: ['Z', 'Q', 'S', 'D'], qwerty: ['W', 'A', 'S', 'D'] }, action: 'Piloter (télécommande en main, ou onglet RC de la console si une caméra est fixée dessus)' },
+    { keys: ['Espace'], action: 'Klaxon' },
+    { keys: ['Échap'], action: 'Arrêter de piloter' },
   ] },
 ];
 
@@ -242,7 +251,7 @@ export const ENTITIES = [
       '**S\'ils vous voient, ils tirent.** Ne jouez pas au héros.',
     ],
     counters: [
-      'Appelez le **[[num:police]]** dès que vous les voyez : la police arrive en **4 minutes** environ. Déverrouillez l\'entrée principale depuis la console pour qu\'elle puisse entrer.',
+      'Appelez le **[[num:police]]** dès que vous les voyez : pendant un braquage, la police arrive en **une minute à une minute et demie** (réelles), sinon en deux minutes environ. Déverrouillez l\'entrée principale depuis la console pour qu\'elle puisse entrer — sinon elle finit par forcer la porte, ou repart.',
       'Enregistrez-les (REC) : les images servent de preuves.',
     ],
     items: ['padlock', 'chain', 'costume_police'] },
@@ -259,7 +268,7 @@ export const ENTITIES = [
       'Un feu qui s\'étend trop loin fait échouer la nuit.',
     ],
     counters: [
-      'Appelez le **[[num:pompiers]]** : les pompiers sont à 5 minutes.',
+      'Appelez le **[[num:pompiers]]** : quand un feu est déclaré, ils arrivent en une minute et demie environ (le détecteur de fumée les prévient aussi automatiquement).',
       'Videz les [[item:extinguisher|extincteurs]] à la base des flammes (clic gauche maintenu) — pas d\'eau sur un feu électrique.',
     ],
     items: ['extinguisher', 'extinguisher_box', 'fire_alarm', 'smoke_detector'] },
@@ -445,8 +454,8 @@ export const FAQ = [
 
 // ───────────────────────── TÉLÉPHONE : services d'urgence ─────────────────────────
 export const EMERGENCY_INFO = {
-  police: 'La police arrive en 4 minutes environ. Déverrouillez l\'entrée principale depuis la console pour la laisser entrer.',
-  pompiers: 'Les pompiers sont à 5 minutes de la caserne. En attendant : extincteurs et disjoncteurs.',
+  police: 'Pendant un braquage, la police arrive en une minute à une minute et demie (sinon deux minutes environ). Déverrouillez l\'entrée principale depuis la console pour la laisser entrer.',
+  pompiers: 'Les pompiers arrivent en une minute et demie environ quand un feu est déclaré. En attendant : extincteurs et disjoncteurs.',
   samu: 'Pour une blessure grave. En attendant, une trousse de secours fait des merveilles.',
   tri: 'Le numéro d\'urgence européen vous oriente vers le bon service.',
 };
