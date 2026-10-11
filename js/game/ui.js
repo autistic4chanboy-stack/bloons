@@ -98,6 +98,7 @@ export class UI {
     n.addEventListener('click', () => this.closeModal());
     this.openModal('text', n);
     this.game.sfx('paper', null, { volume: 0.4, bus: 'ui' });
+    this.game.hooks.emit('text_read', text);
   }
   keypad(title, digits, cb) {
     const g = this.game;

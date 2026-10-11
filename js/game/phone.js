@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { PHONE_NUMBERS, PHONE_EASTER_LINES, normalizeNumber, formatNumber, findNumber } from '../data/phone.js';
 import { Audio } from '../engine/audio.js';
 import { Net } from '../net/net.js';
+import { LORE } from '../data/lore.js';
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -51,7 +52,17 @@ export class Phone {
     S.action('call', (p, actor) => this.hostCall(p, actor));
     S.action('answer', (p, actor) => { if (this.ringingHost) { const c = this.ringingHost; this.ringingHost = null; game.sim.emit('ring', { on: false }); game.sim.emit('phoneline', { caller: c.caller, data: c.data }, { to: actor }); } });
     S.effect('phoneline', (p) => this.playIncoming(p.caller, p.data));
-    game.hooks.on('discover', (k, id) => { if (k === 'number') this.knownExtra.add(id); });
+    game.hooks.on('discover', (k, id) => { if (k === 'number') this.knownExtra.add(id); if (k === 'lore' && LORE[id]?.text) this.scanNumbers(LORE[id].text); });
+    game.hooks.on('text_read', (t) => this.scanNumbers(t));
+  }
+  // Les numéros lus quelque part (panneau d'affichage, post-it, e-mail…) s'ajoutent au répertoire
+  scanNumbers(text) {
+    const g = this.game; let added = 0;
+    for (const m of String(text || '').matchAll(/\d(?:[\s.]?\d){3,9}/g)) {
+      const e = findNumber(m[0]);
+      if (e && !e.known && !g.discovered['number:' + e.num]) { g.discover('number', e.num); added++; }
+    }
+    if (added) g.toast(added > 1 ? added + ' numéros ajoutés au répertoire du téléphone.' : 'Numéro ajouté au répertoire du téléphone.', 3);
   }
   reset() { this.stopRing(); this.ringingHost = null; this.dispatches = []; if (this.ui) this.close(); }
 

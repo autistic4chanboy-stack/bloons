@@ -102,6 +102,7 @@ export class Security {
     g.hooks.on('power_back', () => { if (g.story?.phase === 'night') this.addLog('Retour du secteur', ''); });
     g.lighting.addSource({ getLight: () => this.wallLight() });
     this.escLoops = [];
+    this.uvMeshes = new Map(); this.refreshUV();
   }
 
   // ───────────────────────── construction ─────────────────────────
@@ -1051,6 +1052,42 @@ export class Security {
       const lo = Math.min(xb, xt) - 0.6, hi = Math.max(xb, xt) + 0.6;
       if (x < lo || x > hi || z < z0 || z > z1) continue;
       const s = Math.sign(xt - xb) * dir; b.pos[0] += s * 0.55 * dt; return;
+    }
+  }
+
+  // Inscriptions invisibles, révélées par le cône d'une lampe UV
+  refreshUV() {
+    const g = this.game;
+    for (const w of g.world.uvWritings || []) {
+      const key = w.text + '|' + w.pos.x.toFixed(2) + '|' + w.pos.y.toFixed(2) + '|' + w.pos.z.toFixed(2);
+      if (this.uvMeshes.has(key)) continue;
+      const c = document.createElement('canvas'); c.width = 512; c.height = 128; const x = c.getContext('2d');
+      let fs = 64; const fam = '"Comic Sans MS", "Segoe Print", cursive';
+      do { x.font = 'bold ' + fs + 'px ' + fam; fs -= 4; } while (fs > 20 && x.measureText(w.text).width > 470);
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillStyle = '#fff'; x.shadowColor = '#fff'; x.shadowBlur = 6; x.fillText(w.text, 256, 60);
+      // coulures
+      for (let i = 0; i < 14; i++) { const px = 60 + Math.random() * 392; x.fillRect(px, 70 + Math.random() * 10, 2 + Math.random() * 2, 10 + Math.random() * 40); }
+      const tex = new THREE.CanvasTexture(c);
+      const U = GLOBAL_UNIFORMS;
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        uniforms: { map: { value: tex }, uvPos: U.uvPos, uvDir: U.uvDir, uvCos: U.uvCos, uvOn: U.uvOn },
+        vertexShader: 'varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+        fragmentShader: 'uniform sampler2D map; uniform vec3 uvPos, uvDir; uniform float uvCos, uvOn; varying vec2 vUv; varying vec3 vW; void main(){ float t = texture2D(map, vUv).a; vec3 d = vW - uvPos; float dist = length(d); float c = dot(d / max(dist, 0.001), uvDir); float cone = smoothstep(uvCos, mix(uvCos, 1.0, 0.4), c); float fall = clamp(1.0 - dist / 9.0, 0.0, 1.0); float a = t * cone * fall * uvOn; gl_FragColor = vec4(vec3(0.7, 0.45, 1.0) * 2.4 * a, a); }',
+      });
+      const len = Math.max(1.2, w.text.length * 0.16);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(len, len / 4), mat);
+      m.position.copy(w.pos); m.rotation.y = w.ry || 0; m.renderOrder = 6; m.frustumCulled = true;
+      // recale l'inscription à 1,5 cm de la surface du mur (les coordonnées peuvent tomber dans l'épaisseur)
+      const nrm = new THREE.Vector3(Math.sin(w.ry || 0), 0, Math.cos(w.ry || 0));
+      for (const back of [0.6, 1.2]) {
+        const st = w.pos.clone().addScaledVector(nrm, back);
+        const hit = g.world.physics.raycast(st.x, st.y, st.z, -nrm.x, 0, -nrm.z, back + 0.8, LAYER.WALL | LAYER.FURN | LAYER.DOOR);
+        if (hit && hit.t > 0.02) { m.position.copy(st).addScaledVector(nrm, -hit.t + 0.015); break; }
+      }
+      (w.zone && g.world.zone(w.zone)?.group || g.world.root).add(m);
+      this.uvMeshes.set(key, m);
     }
   }
 

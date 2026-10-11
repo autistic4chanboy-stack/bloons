@@ -266,6 +266,11 @@ const HANDLERS = {
   wand(g, p, pr, v) { if (v !== 'primary') return; g.particles.sparkle(fwdPoint(p, 0.6)); sfx(g, p, 'wind_chime', 0.5); g.sim.do('wand', { pos: p.pos.toArray() }); return true; },
   lighter(g, p, pr, v) { if (v !== 'primary') return; if (pr.def.p?.matches) { const n = pr.data.matches ?? pr.def.p.matches; if (n <= 0) { g.toast('Plus d\'allumettes.'); return true; } g.sim.do('propdata', { id: pr.id, data: { matches: n - 1 } }); } p.flashOn = !p.flashOn || p.flashKind !== 'lighter'; p.flashKind = 'lighter'; sfx(g, p, 'switch', 0.4); const t = g.interaction.target; if (t && t.kind === 'prop' && t.def.use === 'candle' && !t.data.lit) g.sim.do('interact', { id: t.id, verb: 'alt' }); return true; },
   candle(g, p, pr, v) { if (v !== 'primary') return; placeOnAim(g, p, pr, 3); g.toast('Bougie posée. R en la visant pour l\'allumer (briquet).'); return true; },
+  wd40(g, p, pr, v) { if (v !== 'primary') return; const t = g.interaction.target; sfx(g, p, 'spray', 0.6); if (t && t.kind === 'door') { g.sim.do('door_oil', { id: t.id }); g.toast(t.state.oiled ? 'Déjà dégrippée.' : 'Gonds dégrippés : cette porte ne grincera plus.'); } else g.toast('Visez une porte qui grince.'); return true; },
+  toaster(g, p, pr, v) { if (v !== 'primary') return; const on = !pr.data.on; g.sim.do('propdata', { id: pr.id, data: { on, t0: on ? g.time : null, jam: on && Math.random() < (g.mode === 'infinite' ? 0.12 : 0.05) } }); sfx(g, p, 'switch', 0.5); if (on) g.toast('Grille-pain en marche. Posez-le et attendez le « ding ».'); return true; },
+  kettle(g, p, pr, v) { if (v !== 'primary') return; const on = !pr.data.on; g.sim.do('propdata', { id: pr.id, data: { on, t0: on ? g.time : null } }); sfx(g, p, 'switch', 0.5); return true; },
+  fan(g, p, pr, v) { if (v !== 'primary') return; g.sim.do('propdata', { id: pr.id, data: { on: !pr.data.on } }); sfx(g, p, 'switch', 0.5); if (!pr.data.on) g.toast('Ventilateur en marche : il souffle ce qui est léger… et attise les flammes.'); return true; },
+  wig_head(g, p, pr, v) { if (v !== 'primary') return; const night = !g.isDay; const lines = ['Ses yeux peints suivent les vôtres.', 'Elle a une petite mèche de vrais cheveux collée sur la tempe.', 'Une étiquette : « Salon Tif — modèle Josiane, 1987 ».']; if (night && Math.random() < 0.08) { g.say('Tête à perruque', 'Coiffe-moi…', { pitch: 1.4, voice: false }); p.scare(12); } else g.toast(lines[Math.floor(Math.random() * lines.length)]); return true; },
   loopdevice(g, p, pr, v, dt) {
     const P = pr.def.p || {};
     if (P.hold) { if (v === 'primary') { p._dev = g.loop(P.sound, null, { volume: 0.7 }); noise(g, p, 0.5, 'device'); return true; } if (v === 'release') { if (p._dev) { p._dev.stop(0.2); p._dev = null; } return true; } if (v === 'hold') { if (P.tool === 'drill') { const t = g.interaction.target; if (t && t.kind === 'door' && t.state.padlock) { p._drill = (p._drill || 0) + dt; if (p._drill > 3) { p._drill = 0; g.sim.do('drill_padlock', { door: t.id }); } } } if (P.blow) g.sim.do('blow', { o: p.camera.position.toArray(), d: p.forward().toArray() }); return true; } }
@@ -308,6 +313,7 @@ const HANDLERS = {
 export function registerBehaviorActions(g) {
   const S = g.sim;
   S.action('walker', (p) => { const pr = g.props.get(p.id); if (!pr) return; pr.set({ data: { ...pr.data, walk: p.kind, wyaw: p.yaw || 0, t: p.kind === 'spin' ? 8 : 20, speed: p.speed || 0.25 } }); });
+  S.action('door_oil', (p) => { const d = g.world.get(p.id); if (d && d.kind === 'door') { d.set({ oiled: true }); g.sim.emit('fx', { s: 'spray', pos: d.pos.toArray(), v: 0.5 }); } });
   S.action('padlock', (p, actor) => { const d = g.world.get(p.door); const pr = g.props.get(p.prop); if (!d || !pr || d.state.open) return; pr.set({ where: 'gone' }); d.set({ padlock: p.strong ? 2 : 1 }); g.hooks.emit('padlocked', { door: d, actor }); });
   S.action('drill_padlock', (p) => { const d = g.world.get(p.door); if (d && d.state.padlock) { d.set({ padlock: 0 }); g.sim.emit('fx', { s: 'metal_screech', pos: d.pos.toArray() }); } });
   S.action('tape', (p) => { const gr = g.world.get(p.grate); const pr = g.props.get(p.prop); if (!gr || !pr) return; gr.set({ taped: true }); const u = (pr.data.uses ?? pr.def.p.uses) - 1; if (u <= 0) pr.set({ where: 'gone' }); else pr.set({ data: { ...pr.data, uses: u } }); g.sim.emit('fx', { s: 'sticker', pos: gr.pos.toArray() }); });
@@ -395,7 +401,7 @@ export class ActiveProps {
     const pos = this.posOf(pr);
     const g = this.game;
     // sons
-    const want = def.use === 'music_box' && d.on ? ['music_box_m', 'music_box'] : def.use === 'radio' && d.on ? ['radio_m', RADIO_STATIONS[d.station || 0]] : def.use === 'loopdevice' && d.on ? ['loop', def.p?.sound || 'fan'] : def.use === 'top' && d.on ? ['loop', 'clock_tick'] : d.walk === 'walk' ? ['loop', 'toy_robot'] : d.walk === 'spin' ? ['loop', 'spinning_top'] : d.walk === 'roll' ? ['loop', def.p?.sound || 'toy_car'] : d.lit ? ['loop', 'fire_crackle'] : null;
+    const want = def.use === 'music_box' && d.on ? ['music_box_m', 'music_box'] : def.use === 'radio' && d.on ? ['radio_m', RADIO_STATIONS[d.station || 0]] : def.use === 'loopdevice' && d.on ? ['loop', def.p?.sound || 'fan'] : def.use === 'toaster' && d.on ? ['loop', 'toaster_tick'] : def.use === 'kettle' && d.on ? ['loop', 'kettle'] : def.use === 'fan' && d.on ? ['loop', 'fan'] : def.use === 'top' && d.on ? ['loop', 'clock_tick'] : d.walk === 'walk' ? ['loop', 'toy_robot'] : d.walk === 'spin' ? ['loop', 'spinning_top'] : d.walk === 'roll' ? ['loop', def.p?.sound || 'toy_car'] : d.lit ? ['loop', 'fire_crackle'] : null;
     const key = want ? want.join(':') : null;
     if (e.key !== key) {
       e.loop?.stop(0.2); e.music?.stop(0.4); e.loop = e.music = null; e.key = key;
@@ -410,6 +416,27 @@ export class ActiveProps {
     if (lightCol && (d.on || d.lit) && !e.light) { e.light = { getLight: () => ({ pos: this.posOf(pr).add(new THREE.Vector3(0, 0.2, 0)), color: [lightCol.r, lightCol.g, lightCol.b], intensity: d.lit ? 0.9 + Math.random() * 0.3 : def.use === 'disco' ? 2 + Math.sin(performance.now() * 0.01) : 1.6, distance: d.lit ? 5 : 6, priority: 1.8 }) }; g.lighting.addSource(e.light); }
     if (e.light && !(d.on || d.lit)) { g.lighting.removeSource(e.light); e.light = null; }
   }
+  appliance(pr, pos, dt) {
+    const g = this.game; const d = pr.data; const el = g.time - (d.t0 ?? g.time);
+    if (pr.def.use === 'toaster') {
+      if (!d.jam && el > 25) { pr.set({ data: { ...d, on: false } }); g.sim.emit('fx', { s: 'toaster_pop', pos: pos.toArray(), v: 0.8 }); g.sim.emit('toast', { text: '« Ding ! » Le grille-pain a fini.' }); return; }
+      if (d.jam && el > 40 && !d.smoke) { pr.set({ data: { ...d, smoke: true } }); g.sim.emit('sparks', { pos: pos.toArray() }); }
+      if (d.jam && el > 40 && Math.random() < dt * 2) g.particles.smokeAt(pos.clone().add(new THREE.Vector3(0, 0.2, 0)), 1, 0.1, 40);
+      if (d.jam && el > 70) { pr.set({ data: { ...d, on: false, jam: false } }); g.fire.ignite(pos.clone(), 'grille-pain oublié'); }
+    } else if (pr.def.use === 'kettle') {
+      if (el > 22 && !d.whistle) { pr.set({ data: { ...d, whistle: true } }); g.sim.emit('loopfx', { s: 'kettle_whistle', pos: pos.toArray(), v: 0.8, dur: 5 }); }
+      if (el > 27) pr.set({ data: { ...d, on: false, whistle: false } });
+    } else if (pr.def.use === 'fan') {
+      this._fanT = (this._fanT || 0) + dt; if (this._fanT < 0.5) return; this._fanT = 0;
+      const q = new THREE.Quaternion(...(pr.state.quat || [0, 0, 0, 1])); const dir = new THREE.Vector3(0, 0, 1).applyQuaternion(q).setY(0).normalize();
+      if (pr.state.where === 'held') { const pl = g.playerById(pr.state.owner); if (pl?.forward) dir.copy(pl.forward()).setY(0).normalize(); }
+      g.fire.blow(pos, dir);
+      for (const o of g.props.find(x => x !== pr && x.state.where === 'world' && ((x.def.mass ?? 0.5) < 0.25 || x.def.p?.light))) {
+        const op = new THREE.Vector3(...o.state.pos); const to = op.clone().sub(pos); const dist = to.length(); if (dist > 2.5 || dist < 0.05) continue;
+        if (to.normalize().dot(dir) > 0.75) g.props.push(o, [dir.x * 1.6, 0.4, dir.z * 1.6]);
+      }
+    }
+  }
   posOf(pr) {
     if (pr.state.where === 'held') { const pl = this.game.playerById(pr.state.owner); if (pl) return pl.pos.clone().add(new THREE.Vector3(0, 1.2, 0)); }
     return new THREE.Vector3(...pr.state.pos);
@@ -420,6 +447,8 @@ export class ActiveProps {
       const pr = e.pr; if (!g.world.objects.has(id)) { this.kill(id); continue; }
       const pos = this.posOf(pr);
       e.loop?.setPos(pos); e.music?.setPos?.(pos);
+      // appareils posés (hôte) : grille-pain, bouilloire, ventilateur
+      if (Net.isHost && pr.data.on && (pr.def.use === 'toaster' || pr.def.use === 'kettle' || pr.def.use === 'fan')) this.appliance(pr, pos, dt);
       // robots / toupies (hôte)
       if (Net.isHost && pr.data.walk) {
         const d = pr.data; d.t -= dt;
