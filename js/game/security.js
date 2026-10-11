@@ -273,11 +273,11 @@ export class Security {
       for (const c of g.world.cameras) { if (!unlocked.has(c.id)) continue; n++; c.kind = 'fixed'; c.short = 'CAM ' + String(n).padStart(2, '0'); out.push(c); }
     }
     let pn = 0;
-    for (const pr of g.props.find('portable_cam')) {
+    for (const pr of g.props.find(x => x.def.use === 'place_cam')) {
       if (!pr.data.cam || pr.state.where !== 'world') continue; pn++;
       const pos = new THREE.Vector3(...pr.state.pos).add(new THREE.Vector3(0, 0.05, 0));
       const z = g.world.zoneAt(pos.x, pos.y + 0.2, pos.z);
-      out.push({ id: 'pc:' + pr.id, name: 'Caméra portative ' + pn + (z ? ' (' + z.name + ')' : ''), short: 'PORT ' + pn, kind: 'portable', pos, yaw: pr.data.yaw || 0, pitch: Math.max(-0.7, Math.min(0.4, pr.data.pitch || 0)), fov: 72, zone: z?.id, prop: pr });
+      out.push({ id: 'pc:' + pr.id, name: (pr.defId === 'webcam' ? 'Webcam ' : 'Caméra portative ') + pn + (z ? ' (' + z.name + ')' : ''), short: 'PORT ' + pn, kind: 'portable', pos, yaw: pr.data.yaw || 0, pitch: Math.max(-0.7, Math.min(0.4, pr.data.pitch || 0)), fov: 72, zone: z?.id, prop: pr });
     }
     for (const pr of g.props.find('rc_car')) {
       if (!pr.data.camMounted || pr.state.where !== 'world') continue;

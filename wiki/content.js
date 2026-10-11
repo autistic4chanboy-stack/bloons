@@ -73,7 +73,9 @@ export const QUICK_TIPS = [
 // ───────────────────────── POSTE DE SÉCURITÉ & SYSTÈMES ─────────────────────────
 export const SECURITY_SECTIONS = [
   { id: 'bureau', title: 'Le bureau', paras: [
-    'Le poste de sécurité se trouve à l\'extrémité ouest du rez-de-chaussée, juste à côté du [[shop:cafe]]. Appuyez sur [[key:E]] face aux écrans pour vous asseoir au bureau : la souris sert alors à cliquer sur les boutons de la console, [[key:←]] / [[key:→]] ou [[key:1]]–[[key:9]] changent de caméra, [[key:Espace]] active la vision infrarouge et [[key:Échap]] vous relève.',
+    'Le poste de sécurité se trouve à l\'extrémité ouest du rez-de-chaussée, juste à côté du [[shop:cafe]]. Appuyez sur [[key:E]] face au mur d\'écrans pour vous asseoir au bureau : l\'image d\'une caméra passe en plein écran. [[key:←]] / [[key:→]] ou [[key:1]]–[[key:9]] changent de caméra, [[key:Espace]] règle l\'infrarouge (automatique, forcé, coupé), glisser la souris oriente les caméras motorisées et la molette zoome. [[key:L]] allume la zone filmée, [[key:R]] lance l\'enregistrement.',
+    '[[key:Tab]] (ou [[key:Échap]]) baisse les écrans : vous voyez alors la pièce depuis votre fauteuil — bougez la souris pour regarder autour de vous, cliquez sur un écran pour l\'afficher en grand ou sur un objet du bureau (téléphone, radio…). [[key:Échap]] une seconde fois vous relève.',
+    'Le mur de quinze moniteurs cathodiques fait défiler toutes les caméras reliées (une image toutes les quelques secondes, comme un vrai séquenceur) : un coup d\'œil en entrant dans le poste suffit souvent.',
     'Sur le bureau : les écrans CCTV, l\'enregistreur, le téléphone et son post-it, la radio, la machine à café, et chaque soir une note de Gérard.',
   ] },
   { id: 'cameras', title: 'Caméras', feature: 'cameras', paras: [
@@ -81,7 +83,8 @@ export const SECURITY_SECTIONS = [
     'Une caméra affichée « regarde » vraiment : ce qui ne bouge que lorsqu\'on ne l\'observe pas reste figé tant qu\'elle est à l\'écran.',
   ] },
   { id: 'recorder', title: 'Enregistreur (REC)', feature: 'recorder', paras: [
-    'Le bouton **REC** lance l\'enregistrement caméra par caméra. Les enregistrements servent de **preuves** pour la police (un braquage filmé, par exemple).',
+    'Le bouton **REC** enregistre toutes les caméras reliées : une image toutes les quelques secondes, plus souvent quand quelque chose bouge. L\'onglet **Enregistrements** permet de relire la bande caméra par caméra et de sauter directement aux mouvements détectés.',
+    'On peut **effacer** l\'enregistrement d\'une caméra… mais un trou dans la bande pendant une nuit où il manque de l\'argent, ça se remarque.',
     'Mais attention : si une caméra qui enregistre vous filme en train de voler, **le directeur verra la cassette**. {{sp}}Assez d\'indices de vol et c\'est la fin « Licencié ».{{/sp}}',
   ] },
   { id: 'sensors', title: 'Détecteurs de mouvement', feature: 'sensors', paras: [
@@ -94,7 +97,7 @@ export const SECURITY_SECTIONS = [
     'La [[item:rc_car]] du Royaume du Jouet, équipée d\'une caméra, se pilote depuis l\'onglet **RC** de la console (ou avec la [[item:rc_remote]]). Parfaite pour aller voir ce qui a fait du bruit sans quitter le poste.',
   ] },
   { id: 'door', title: 'Porte blindée', feature: 'door', paras: [
-    'Les boutons **FERMER / OUVRIR** de la console commandent la porte blindée du poste. Fermée, rien n\'entre — mais elle **consomme de l\'énergie** tant qu\'elle reste fermée. Fermez au bon moment, rouvrez dès que possible.',
+    'Le bouton **PORTE** de la console commande la porte blindée du poste (de l\'extérieur, votre trousseau sert de badge). Fermée, rien n\'entre — mais son verrou magnétique **consomme de l\'énergie** : sur le groupe électrogène, le carburant fond plus vite. Et si le courant du poste tombe, **le verrou lâche** : la porte se rouvre.',
   ] },
   { id: 'hatch', title: 'Trappe d\'aération', feature: 'hatch', paras: [
     'À partir de la nuit 8, le bouton **TRAPPE** ferme une trappe blindée sur le conduit qui passe au-dessus du poste. Si ça gratte au plafond, fermez-la.',

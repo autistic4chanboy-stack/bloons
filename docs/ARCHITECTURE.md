@@ -82,8 +82,10 @@ const s = createScreen(kind, opts); // -> {canvas, w, h, update(dt), key(code, d
 `s.key(code, down)` reçoit `KeyboardEvent.code` quand le joueur « utilise » l'écran (mode jeu). `s.wantsInput` vrai pour
 les jeux et l'ordinateur. Les jeux gèrent leur propre score, game over, et appellent `opts.ctx.emit('highscore', {...})`.
 VHS : `vhs:<id>` jouent une séquence animée (dessin procédural) ; certaines sont des indices de l'histoire.
-`js/screens/lockpick.js` : `startLockpick({difficulty:1..5, onDone(success:boolean, quality:0..1)})` — overlay DOM.
-`js/screens/keypad.js` : `startKeypad({title, onDone(code|null)})` — saisie de code.
+`js/screens/lockpick.js` : `startLockpick({difficulty:1..5, sound(name), onDone(success:boolean, quality:0..1, cancelled)})` — overlay DOM.
+`js/screens/keypad.js` : `startKeypad({title, digits, sound(name), onDone(code|null)})` — saisie de code.
+Événements supplémentaires émis par les écrans : `emit('discover', {kind, id})` (numéro de téléphone, lore),
+`emit('claw_win', {prize})`, `emit('fragment', {id})`. `opts.notes` (notes de Gérard), `opts.shop` (PC d'un magasin).
 
 ## Contrat : données (`js/data/*.js`)
 Modules sans dépendance, exportent des objets. Utilisés par le jeu et par le wiki (`wiki/` les importe directement).
@@ -94,3 +96,42 @@ Modules sans dépendance, exportent des objets. Utilisés par le jeu et par le w
 - `story.js` : `NIGHTS` (1..10), `ENDINGS`
 - `costumes.js` : `COSTUMES`, `FLASHLIGHTS`
 - `lore.js` : notes, livres, VHS, easter eggs
+
+## Simulation répliquée (rappel)
+Toute modification du monde passe par une **action** (`game.sim.do(name, payload)`, exécutée sur l'hôte) qui produit des
+**effets** (`game.sim.emit(name, payload, {to, exceptHost})`, appliqués sur tous les pairs). En solo, ce navigateur est
+l'hôte : même code. L'état des objets du monde (`WorldObject.set(patch)`) passe par l'effet `obj`.
+
+## Vidéosurveillance : `js/game/security.js`
+- Objet monde `security` : `{rec, blocked: {camId: true}, mounted, rc: {car, driver} | null, erased}`.
+- `list()` : caméras disponibles (fixes débloquées, caméras portatives/webcams posées, voiture RC équipée, regard des
+  autres joueurs en mode spectateur). `camTransform(c)`, `camStatus(c)` (`ok` | `offline` | `blocked`), `sees(c, pos)`.
+- Modes : `enterDesk()`, `enterTablet()`, `enterSpectator()`, `exitMode()` ; `fullscreen` vrai quand une caméra occupe
+  l'écran (`renderFullscreen`), sinon le mur d'écrans est rendu en tournant (`renderMonitors`, 1 à 2 caméras par image).
+- Calques : 0 normal, 1 avatar du joueur local (visible seulement en CCTV), 2 visible seulement sur caméra, 3 seulement
+  en infrarouge (`CAM_LAYERS`).
+- Enregistreur : images JPEG (176×132) horodatées, priorité au mouvement ; `whoSaw(actorId)` (preuve de vol, nul si le
+  voleur est déguisé ou la caméra masquée) ; `rec_erase` laisse un trou suspect.
+- Actions : `cam_block`, `rec`, `rec_erase`, `sec_door`, `sec_hatch`, `sec_light`, `sec_shutter`, `sec_entrance`,
+  `sec_escalators`, `sec_fountain`, `rc_start`, `rc_stop`, `rc_input`, `rc_mount`. Effets : `sensor`, `secglitch`.
+
+## Présences : `js/game/entities.js`
+- L'hôte simule (A* sur `world.nav`, liens porte/rideau/grille/escalator) ; effets `ent+` (création), `ent-`,
+  `ents` (instantané 10 Hz), `ehit` (dégâts/mort/screamer pour un joueur), `entflags`.
+- Types : `cat`, `shadow`, `bobby`, `mannequin`, `crawler`, `thing`, `robber`, `police`, `fireman`, `visitor`,
+  `shopper`, `keeper`, `gerard`, `lucie`, `balloon`, `rat`.
+- API utilisée ailleurs : `activate(type, action, opts)`, `apparition(o)`, `catAct`, `moveThing`, `mannequinPose`,
+  `balloon`, `rats`, `spawnPolice`, `spawnFiremen`, `spawnVisitor`, `hear(pos, loud, kind)`, `repel`, `scent`,
+  `catPlay`, `flashStun`, `raycast`, `hit`, `actors()`, `stressNear(player)`, `coldAt(pos)`, `talk`, `gerard`,
+  `gerardLeave`, `crowdLeave`, `nightStart`, `serialize()` / `deserialize()`.
+- Règles : lumière, regard (joueur ou caméra affichée), portes fermées/verrouillées, rideaux, scotch, trappe, costumes ;
+  agressivité croissante pendant la nuit ; le premier contact de chaque présence par nuit n'est pas mortel.
+
+## Photos : `js/game/photo.js`
+`snapshot(player, flash)` (polaroid : l'objectif voit le calque 2), `booth(device, player)` (photomaton),
+`view(prop)`, `rearView(canvas | null)` (miroir de poche). Action `flashstun`.
+
+## Multijoueur : `js/net/sync.js`
+`RemotePlayer` (même interface minimale que `Player` : `pos`, `yaw`, `pitch`, `alive`, `costume`, `hasItem`, `mode`,
+`flashOn`, `camView`…), état du joueur local à 15 Hz, état complet (`full`) pour un joueur qui rejoint, état d'histoire
+périodique (`sstate`) pour la migration d'hôte, chat de proximité / radio (`sendChat(text, channel)`).

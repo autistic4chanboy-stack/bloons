@@ -31,7 +31,8 @@ export class PowerGrid extends WorldObject {
   zoneOn(zone) { const z = typeof zone === 'string' ? this.world.zone(zone) : zone; return z ? this.isOn(z.circuit) : true; }
   get onGenerator() { return !this.state.mains && this.state.gen.running && this.state.gen.fuel > 0; }
   get blackout() { return !this.state.mains && !(this.state.gen.running && this.state.gen.fuel > 0); }
-  load() { let n = 0; for (const z in this.state.lit) if (this.state.lit[z]) n++; return n; }
+  // charge électrique (zones éclairées + verrous magnétiques de la porte blindée et de la trappe)
+  load() { let n = 0; for (const z in this.state.lit) if (this.state.lit[z]) n++; if (this.state.doorClosed) n += 4; if (this.state.hatchClosed) n += 2; return n; }
   onState(patch, isReset) {
     const g = this.world.game;
     g.lighting?.dirty();

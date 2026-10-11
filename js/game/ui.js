@@ -265,9 +265,9 @@ export class UI {
   mapSVG() {
     const g = this.game; const p = g.player.pos;
     const floor = p.y < -1 ? -1 : p.y > 4.5 ? 1 : 0;
-    const sx = (x) => (x + 115) * 3.3, sz = (z) => (z + 28) * 3.3;
-    let s = `<svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg"><rect width="640" height="190" fill="#0c1016"/>`;
-    s += `<text x="10" y="14" fill="#9ab" font-size="10" font-family="monospace">${floor === 1 ? 'ÉTAGE' : floor === -1 ? 'SOUS-SOL' : 'REZ-DE-CHAUSSÉE'} — le point rouge, c'est vous</text>`;
+    const sx = (x) => (x + 115) * 3.3, sz = (z) => (z + 28) * 3.3 + 20;
+    let s = `<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg"><rect width="640" height="210" fill="#0c1016"/>`;
+    s += `<text x="10" y="13" fill="#9ab" font-size="10" font-family="monospace">${floor === 1 ? 'ÉTAGE' : floor === -1 ? 'SOUS-SOL' : 'REZ-DE-CHAUSSÉE'} — le point rouge, c'est vous</text>`;
     if (floor >= 0) {
       s += `<rect x="${sx(-66)}" y="${sz(-8)}" width="${132 * 3.3}" height="${16 * 3.3}" fill="#1c2430"/>`;
       for (const sh of SHOPS.filter(x => x.floor === floor)) {
