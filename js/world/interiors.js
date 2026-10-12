@@ -5,6 +5,10 @@
 // couloir de droite qui mène à la réserve : c'est là que passent les présences.
 import * as THREE from 'three';
 import { signTexture } from '../engine/textures.js';
+import {
+  furnMaterial, scale, postcardSpinner, lotteryStand, consultDesk, pouf, ballCage, photoKiosk, backdrop, softbox, lollipop, flowerBucket, workbench,
+  jewelCase as kJewelCase, table as kTable, counter as kCounter, woodMat, FU, ME,
+} from './furnkit.js';
 
 // ───────────────────────── papiers peints procéduraux ─────────────────────────
 // Nom de matériau : wp_<motif>_<couleur1>[_<couleur2>…] (couleurs hexadécimales sans #). tile = taille d'un motif (m).
@@ -144,12 +148,13 @@ function wallpaperMaterial(name) {
   m.userData.texRepeat = 1 / (P.tile || 0.7);
   return m;
 }
-// Branche les papiers peints sur la bibliothèque de matériaux (clones par zone : l'éclairage du magasin s'applique)
+// Branche les papiers peints et les matériaux du kit de mobilier (bois, tissu, tôle perforée) sur la bibliothèque de
+// matériaux (clones par zone : l'éclairage du magasin s'applique)
 export function installInteriorMaterials(mats) {
   if (!mats || mats._interiors) return;
   mats._interiors = true;
   const make = mats._make.bind(mats);
-  mats._make = (name) => (name.startsWith('wp_') && wallpaperMaterial(name)) || make(name);
+  mats._make = (name) => (name.startsWith('wp_') && wallpaperMaterial(name)) || (name.startsWith('furniture_') && furnMaterial(name)) || make(name);
 }
 
 // ───────────────────────── ambiances par magasin ─────────────────────────
@@ -212,14 +217,16 @@ export function finishShop(L, d, opts = {}) {
     else if (side === 'R') L.mbox(mat, W - 0.16, a0, W - 0.15, a1, h0, h1);
     else L.mbox(mat, a0, D - 0.11, a1, D - 0.1, h0, h1);
   };
+  // cimaise moulurée (doucine) et plinthe à bord adouci, posées sur le revêtement
+  const RAIL = [[0, -0.026], [0.008, -0.024], [0.016, -0.016], [0.02, -0.006], [0.02, -0.006], [0.025, -0.002], [0.025, 0.006], [0.018, 0.014], [0.009, 0.022], [0, 0.026]];
   const wall = (side, a0, a1, h0 = 0, h1 = H) => {
     const w = spec(side);
     if (w.split > 0 && w.lower) {
       layer(side, a0, a1, Math.max(h0, 0), Math.min(h1, w.split), w.lower);
       layer(side, a0, a1, Math.max(h0, w.split), h1, w.upper);
-      if (w.rail != null && h0 < w.split && h1 > w.split) L.wallPanel(side, a0, a1, w.split - 0.025, w.split + 0.025, w.rail, 0.025);
+      if (w.rail != null && h0 < w.split && h1 > w.split) L.wallPen(side, a0, a1, null, w.split).extrudeX(woodMat(w.rail), RAIL, -(a1 - a0) / 2, (a1 - a0) / 2, w.rail, { caps: true });
     } else layer(side, a0, a1, h0, h1, w.upper);
-    if (h0 < 0.01) L.wallPanel(side, a0, a1, 0, 0.1, d.skirting ?? 0x3a3a3a, 0.015);
+    if (h0 < 0.01) L.wallPen(side, a0, a1).rbox(FU, -(a1 - a0) / 2, 0, 0, (a1 - a0) / 2, 0.1, 0.016, 0.005, d.skirting ?? 0x3a3a3a, 'xXYZ');
   };
   const front = 0.12, back = opts.back === false ? D : D - 0.1;
   wall('L', front, back); wall('R', front, back);
@@ -227,13 +234,24 @@ export function finishShop(L, d, opts = {}) {
     const p0 = W - 2.15, p1 = W - 1.05;
     wall('B', 0.16, p0); wall('B', p1, W - 0.16); wall('B', p0, p1, 2.15, H);
   }
-  if (d.exposed) { // gaines et chemins de câbles sous un plafond noir
+  if (d.exposed) { // gaines spiralées (brides, colliers, tiges filetées) et chemin de câbles en échelle sous un plafond noir
+    const hl = (W - 0.6) / 2;
     for (const v of [2.6, 7.2]) {
       if (v > D - 0.5) continue;
-      L.A.shape(L.id, 'furniture_metal', new THREE.CylinderGeometry(0.22, 0.22, W - 0.6, 14), new THREE.Matrix4().compose(new THREE.Vector3(L.X(W / 2), L.y + H - 0.35, L.Z(v)), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)), new THREE.Vector3(1, 1, 1)), 0x9aa0a6);
-      for (let u = 1.2; u < W - 0.8; u += 2.4) L.furn(u - 0.01, v - 0.01, u + 0.01, v + 0.01, H - 0.13, H, 0x222222, { metal: true, collide: false });
+      const p = L.penAt(W / 2, v, L.ryX(1, 0), null, H - 0.35);
+      p.tube(ME, [-hl, 0, 0], [hl, 0, 0], 0.22, 18, 0x9aa0a6, true);
+      for (let x = -hl + 0.6; x < hl - 0.3; x += 1.5) p.tube(ME, [x - 0.02, 0, 0], [x + 0.02, 0, 0], 0.228, 18, 0x868c92);
+      for (let u = 1.2; u < W - 0.8; u += 2.4) {
+        const x = u - W / 2;
+        p.sweep(ME, Array.from({ length: 12 }, (_, i) => [x, Math.cos(i / 12 * Math.PI * 2) * 0.232, Math.sin(i / 12 * Math.PI * 2) * 0.232]), 0.006, 4, 0x55595e, { closed: true });
+        p.tube(ME, [x, 0.232, 0], [x, 0.35, 0], 0.005, 4, 0x2a2c2e);
+      }
     }
-    L.furn(0.6, 4.9, W - 0.6, 5.2, H - 0.22, H - 0.18, 0x30343a, { metal: true, collide: false });
+    const p = L.penAt(W / 2, 5.05, L.ryX(1, 0), null, H - 0.22), hw = (W - 1.2) / 2;
+    for (const s of [-1, 1]) p.box(ME, -hw, 0, s * 0.15 - 0.004, hw, 0.05, s * 0.15 + 0.004, 0x30343a, 'xXyYzZ');
+    for (let x = -hw + 0.15; x < hw; x += 0.3) p.box(ME, x - 0.012, 0, -0.15, x + 0.012, 0.012, 0.15, 0x30343a, 'xXyY');
+    for (let k = 0; k < 4; k++) p.tube(FU, [-hw, 0.025 + (k % 2) * 0.02, -0.09 + k * 0.06], [hw, 0.025 + (k % 2) * 0.02, -0.09 + k * 0.06], 0.012, 5, [0x1a1a1a, 0x3a3a3a, 0x7a1f1f, 0x1a1a1a][k]);
+    for (let x = -hw + 0.6; x < hw; x += 2.4) for (const s of [-1, 1]) p.tube(ME, [x, 0.05, s * 0.155], [x, 0.22, s * 0.155], 0.005, 4, 0x2a2c2e);
   }
 }
 
@@ -264,10 +282,11 @@ function menuTex(title, lines, style = 'chalk', accent = '#ffcc00') {
 // l'allée d'entrée, de l'allée transversale v ∈ [3,9 ; 5,1] et du couloir de droite u ∈ [W-2,2 ; W-1] (v > 4,5).
 const PI = Math.PI;
 function jewelCase(L, u0, v0, u1, v1, ax) {
-  L.furn(Math.min(u0, u1), v0, Math.max(u0, u1), v1, 0, 0.9, 0x1a1a24);
-  L.furn(Math.min(u0, u1), v0, Math.max(u0, u1), v1, 0.9, 0.92, 0xfafafa, { collide: false });
+  const ua = Math.min(u0, u1), ub = Math.max(u0, u1), along = ub - ua >= Math.abs(v1 - v0);
+  L.solid(ua, v0, ub, v1, 0, 0.9);
   L.board(ax, ax === 'v' ? v0 + 0.1 : Math.min(u0, u1) + 0.1, ax === 'v' ? v1 - 0.1 : Math.max(u0, u1) - 0.1, ax === 'v' ? (u0 + u1) / 2 : (v0 + v1) / 2, 0.92, 0.5, 0.2, ax === 'v' ? PI / 2 : L.faceFront);
-  L.vitrine(Math.min(u0, u1), v0, Math.max(u0, u1), v1);
+  L.vitrine(ua, v0, ub, v1);
+  kJewelCase(L.penAt((ua + ub) / 2, (v0 + v1) / 2, along ? L.faceFront : L.ryOf(1, 0)), { L: along ? ub - ua : Math.abs(v1 - v0), D: along ? Math.abs(v1 - v0) : ub - ua, color: 0x1a1a24 });
 }
 export const INTERIOR_LAYOUTS = {
   pharma(L) {
@@ -278,25 +297,26 @@ export const INTERIOR_LAYOUTS = {
     L.island(1.3, 4.3, 2.0, 3, 1.35, white, 0.9, { cap: green, capH: 0.1 }); L.island(7.7, 10.4, 2.0, 3, 1.35, white, 0.9, { cap: green, capH: 0.1 });
     // comptoir du pharmacien au fond, face à l'entrée ; tiroirs à médicaments et rayonnages derrière
     L.counter(2.2, 6.7, 8.8, 7.4, 1.0, white, 2, oak);
-    L.furn(2.2, 6.68, 8.8, 6.7, 0.3, 0.42, green, { collide: false });
+    L.penAt(5.5, 6.69, L.faceFront).rbox(FU, -3.3, 0.3, -0.01, 3.3, 0.42, 0.01, 0.005, green); // bandeau vert
     L.drawers('B', 0.8, 8.8, 0, 1.15, 0.5, white, 0xb0b8b4, 0, 5);
     L.wallShelf('B', 0.8, 8.8, 3, 2.35, 0.3, white, null, { base: 1.4, from: 1.15, back: 0xf0f3f1, backMetal: false });
     L.litPanel('B', 5.0, 6.0, 2.6, 3.6, crossTex());
-    L.furn(10.6, 3.0, 11.2, 3.4, 0, 1.25, 0xdfe5e2); L.furn(10.64, 3.38, 11.16, 3.41, 0.95, 1.2, 0x263238, { collide: false }); // balance pèse-personne
+    L.solid(10.6, 3.0, 11.2, 3.4, 0, 1.25); scale(L.penAt(10.9, 3.2, L.faceFront), 0xdfe5e2); // balance pèse-personne
     L.plant(0.7, 6.4, 0.8); L.floorSpot(10.9, 6.0, -PI / 2); L.floorSpot(1.2, 6.6, PI / 2);
   },
   tabac(L) {
     const W = L.W, wood = 0x4e3524, dark = 0x2b1d14, rk = { back: 0x5d4037, backMetal: false, uprights: 0x3e2723, metal: false };
     L.counter(0.9, 6.0, 6.6, 6.8, 1.05, wood, 1, 0x2a1a10);
-    L.wallBlock('B', 0.8, 6.6, 0, 0.95, 0.55, dark);
+    L.wallBlock('B', 0.8, 6.6, 0, 0.95, 0.55, dark, null, 'doors', { top: 0x2a1a10 });
     L.wallShelf('B', 0.8, 6.6, 7, 2.55, 0.28, 0x3a2a20, null, { base: 1.1, from: 0.95, back: 0x1e140e, backMetal: false, uprights: 0x1e140e, metal: false });
     L.wallShelf('R', 1.4, 8.8, 6, 2.0, 0.32, 0x6d4c41, null, rk);   // presse
     L.wallShelf('L', 1.4, 5.2, 5, 1.9, 0.3, 0x6d4c41, null, rk);    // cartes, briquets, confiserie
     L.table(7.6, 1.6, 9.4, 2.4, 0.8, 0x5d4037, 1);                   // quotidiens
-    L.furn(1.0, 1.6, 2.4, 2.2, 0, 1.1, 0x1565c0); L.furn(0.98, 1.58, 2.42, 2.22, 1.1, 1.14, 0x0d47a1, { collide: false }); // stand de jeux
+    L.solid(1.0, 1.6, 2.4, 2.2, 0, 1.1); lotteryStand(L.penAt(1.7, 1.9, L.faceIn), 1.4, 0.6, 0x1565c0); // stand de jeux
     L.board('u', 1.1, 2.3, 1.9, 1.14, 0.5, 0.3, L.faceFront, null, { noLabels: true });
-    L.furn(3.3, 2.6, 3.5, 2.8, 0, 1.75, 0x9e9e9e, { metal: true });   // tourniquet à cartes postales
-    for (let h = 0.5; h < 1.7; h += 0.3) L.furn(3.08, 2.48, 3.72, 2.92, h, h + 0.22, L.rng.pick([0xffffff, 0xfff3e0, 0xe3f2fd, 0xfce4ec]), { collide: false });
+    L.solid(3.3, 2.6, 3.5, 2.8, 0, 1.75);                               // tourniquet à cartes postales
+    const cards = []; for (let h = 0.5; h < 1.7; h += 0.3) cards.push(L.rng.pick([0xffffff, 0xfff3e0, 0xe3f2fd, 0xfce4ec]));
+    postcardSpinner(L.penAt(3.4, 2.7, 0), cards);
     L.pendant(2.4, 6.4, 2.35, 0x8a6d3b, 'cone', 0.32); L.pendant(5.0, 6.4, 2.35, 0x8a6d3b, 'cone', 0.32);
     L.floorSpot(10.6, 2.2, -PI / 2);
   },
@@ -329,8 +349,7 @@ export const INTERIOR_LAYOUTS = {
     L.wallShelf('R', 3.2, 9.0, 7, 2.2, 0.18, oak, null, fr);
     L.table(1.4, 1.8, 3.6, 2.6, 0.85, oak, 2);                     // solaires
     for (const u0 of [1.6, 4.2]) {                                  // bureaux de conseil
-      L.furn(u0, 6.0, u0 + 1.3, 6.7, 0, 0.75, white); L.furn(u0 - 0.02, 5.98, u0 + 1.32, 6.72, 0.75, 0.78, oak, { collide: false });
-      L.furn(u0 + 0.5, 6.58, u0 + 0.8, 6.62, 0.78, 1.18, 0xdcdcdc, { metal: true, collide: false });
+      L.solid(u0, 6.0, u0 + 1.3, 6.7, 0, 0.75); consultDesk(L.penAt(u0 + 0.65, 6.35, L.faceFront), 1.3, 0.7, white, oak);
       L.chairDeco(u0 + 0.65, 5.55, 0, 0x37474f); L.chairDeco(u0 + 0.65, 7.1, PI, 0x8d6e63);
     }
     L.partition(0.17, 7.5, 2.6, 7.58, 2.4, 0xe8e4dc); L.partition(3.4, 7.5, 3.48, 9.88, 2.4, 0xe8e4dc); // salle d'examen
@@ -356,10 +375,10 @@ export const INTERIOR_LAYOUTS = {
     L.wallShelf('R', 1.4, 9.0, 6, 2.25, 0.32, oak, null, sh);
     L.wallShelf('B', 0.8, 8.8, 4, 1.8, 0.35, oak, null, sh);
     L.counter(0.6, 1.5, 2.4, 2.2, 1.0, cream, 1, oak);
-    L.table(3.2, 2.0, 4.5, 2.8, 0.45, oak, 1); L.table(7.4, 2.0, 9.4, 2.8, 0.45, cream, 1); // podiums bas
+    L.table(3.2, 2.0, 4.5, 2.8, 0.45, oak, 1, { style: 'podium' }); L.table(7.4, 2.0, 9.4, 2.8, 0.45, cream, 1, { style: 'podium' }); // podiums bas
     L.rug(2.4, 5.6, 6.0, 7.4, 0xb08968, 0x6d4c41);
     L.floorSpot(4.2, 6.5, L.faceFront);                                 // banc d'essayage
-    for (const u of [2.75, 5.65]) { L.furn(u - 0.22, 6.28, u + 0.22, 6.72, 0, 0.42, 0x8d6e63); }   // poufs
+    for (const u of [2.75, 5.65]) { L.solid(u - 0.22, 6.28, u + 0.22, 6.72, 0, 0.42); pouf(L.penAt(u, 6.5, 0), 0.44, 0.44, 0.42, 0x8d6e63); } // poufs
     L.wallHigh('L', 2.0, 0.75);                                         // miroir bas (fixe)
     L.pendant(4.2, 6.5, 2.4, 0x3e2723, 'drum', 0.5);
     L.plant(10.9, 9.3, 0.9);
@@ -369,10 +388,9 @@ export const INTERIOR_LAYOUTS = {
     const kit = [0x1565c0, 0xc62828, 0x212121, 0x43a047, 0xffffff, 0xff9800, 0x00acc1];
     L.wallShelf('L', 3.9, 9.0, 6, 2.3, 0.4, white, null, sw);
     L.wallShelf('R', 1.4, 9.0, 6, 2.3, 0.4, white, null, sw);
-    L.rack(1.4, 3.6, 2.4, kit); L.rack(7.6, 9.8, 2.4, kit);
-    L.furn(1.6, 6.0, 2.8, 7.0, 0, 0.06, dark, { metal: true });         // bac à ballons
-    for (const [u, v] of [[1.6, 6.0], [2.8, 6.0], [1.6, 7.0], [2.8, 7.0]]) L.furn(u - 0.02, v - 0.02, u + 0.02, v + 0.02, 0, 0.9, 0x9aa0a6, { metal: true, collide: false });
-    L.furn(1.6, 6.0, 2.8, 7.0, 0, 0.9, dark, { visible: false });
+    L.rack(1.4, 3.6, 2.4, kit, 1.5, ['tee', 'coat', 'tee', 'pants']); L.rack(7.6, 9.8, 2.4, kit, 1.5, ['tee', 'coat', 'tee', 'pants']);
+    L.solid(1.6, 6.0, 2.8, 7.0, 0, 0.06);                                // bac à ballons grillagé
+    L.solid(1.6, 6.0, 2.8, 7.0, 0, 0.9); ballCage(L.penAt(2.2, 6.5, L.faceFront), 1.2, 1.0, 0.9, dark);
     L.board('u', 1.65, 2.75, 6.5, 0.4, 0.9, 0.6, L.faceFront, null, { noLabels: true });
     L.counter(0.9, 3.0, 2.8, 3.7, 1.0, dark, 1, 0x455a64);
     L.floorSpot(3.4, 8.0, L.faceFront);                                 // tente
@@ -383,15 +401,12 @@ export const INTERIOR_LAYOUTS = {
     const W = L.W, grey = 0x37474f, white = 0xf5f5f5;
     L.counter(0.9, 1.4, 3.6, 2.1, 1.0, grey, 1, 0x212121);
     L.wallShelf('L', 2.8, 8.4, 4, 2.0, 0.28, white, null, { back: 0xe0e0e0, backMetal: false });
-    for (const v of [1.6, 2.8]) { L.wallBlock('R', v, v + 0.7, 0, 1.0, 0.45, grey); L.furn(W - 0.63, v + 0.1, W - 0.61, v + 0.6, 1.0, 1.45, 0x111111, { collide: false }); } // bornes d'impression
+    for (const v of [1.6, 2.8]) { L.wallBlock('R', v, v + 0.7, 0, 1.0, 0.45, grey, null, 'none'); photoKiosk(L.wallPen('R', v, v + 0.7), 0.7, 0.46, grey); } // bornes d'impression
     L.frames('R', 4.4, 9.0, 1.2, 2.6, [0xe0c9a6, 0x90a4ae, 0xffccbc, 0xc5e1a5, 0xb3e5fc, 0xffffff, 0x3e2723]);
     L.table(7.4, 2.0, 10.4, 2.8, 0.9, white, 2);
     // studio : fond blanc arrondi, deux réflecteurs, tabouret
-    L.furn(1.2, 9.3, 5.2, 9.36, 0, 3.0, 0xfafafa); L.furn(1.2, 7.9, 5.2, 9.3, 0, 0.01, 0xfafafa, { collide: false });
-    for (const u of [0.9, 5.5]) {
-      L.furn(u - 0.02, 7.58, u + 0.02, 7.62, 0, 1.85, 0x222222, { metal: true, collide: false });
-      L.A.shape(L.id, 'furniture', new THREE.ConeGeometry(0.45, 0.3, 12, 1, true), new THREE.Matrix4().compose(new THREE.Vector3(L.X(u), L.y + 1.95, L.Z(7.6)), new THREE.Quaternion().setFromEuler(new THREE.Euler(u < 3 ? 0.9 : -0.9, 0, u < 3 ? -0.5 : 0.5)), new THREE.Vector3(1, 1, 1)), 0xf5f5f5);
-    }
+    L.solid(1.2, 9.3, 5.2, 9.36, 0, 3.0); backdrop(L.penAt(3.2, 9.36, L.faceFront), 4.0, 0xfafafa);
+    for (const u of [0.9, 5.5]) softbox(L.penAt(u, 7.6, L.ryOf(3.2 - u, 1.0)), 1.85, 0xf8f8f8);
     L.stool(3.2, 8.6, 0x212121, 0.65);
     L.wallFloor('B', 7.4);                                              // photomaton
   },
@@ -402,8 +417,8 @@ export const INTERIOR_LAYOUTS = {
     L.table(1.4, 2.0, 3.6, 2.8, 0.75, wood, 2);
     // salon d'exposition
     L.rug(1.0, 5.6, 4.8, 8.6, 0xb5654f, 0xe8d8bf);
-    L.bench(1.2, 7.9, 4.4, 8.7, sage, 'v1');
-    L.furn(1.2, 7.9, 1.4, 8.7, 0.46, 0.72, sage); L.furn(4.2, 7.9, 4.4, 8.7, 0.46, 0.72, sage);
+    L.bench(1.2, 7.9, 4.4, 8.7, sage, 'v1', 0.46, { sofa: true });
+    L.solid(1.2, 7.9, 1.4, 8.7, 0.46, 0.72); L.solid(4.2, 7.9, 4.4, 8.7, 0.46, 0.72);
     L.table(2.2, 6.4, 3.6, 7.0, 0.42, wood, 1);
     L.floorLamp(4.65, 8.75);
     // coin salle à manger
@@ -426,13 +441,12 @@ export const INTERIOR_LAYOUTS = {
     L.floorSpot(8.7, 6.9, L.faceFront);                                 // barbe à papa
     L.floorSpot(3.6, 1.0, L.faceIn); L.floorSpot(8.4, 1.0, L.faceIn);   // distributeurs de boules
     for (const [u, c] of [[1.4, 0xe91e63], [2.6, 0x29b6f6], [3.8, 0xffeb3b]]) { // sucettes géantes
-      L.furn(u - 0.02, 9.6, u + 0.02, 9.64, 0, 1.9, 0xfafafa, { collide: false });
-      L.A.shape(L.id, 'furniture', new THREE.CylinderGeometry(0.32, 0.32, 0.06, 20), new THREE.Matrix4().compose(new THREE.Vector3(L.X(u), L.y + 2.2, L.Z(9.62)), new THREE.Quaternion().setFromEuler(new THREE.Euler(PI / 2, 0, 0)), new THREE.Vector3(1, 1, 1)), c);
+      lollipop(L.penAt(u, 9.62, L.faceFront), 2.2, c);
     }
   },
   octet(L, s) {
     const white = 0xf2f4f6, grey = 0x455a64;
-    L.furn(0.17, 1.6, 0.95, 7.8, 0, 0.75, white); L.furn(0.15, 1.58, 0.97, 7.82, 0.75, 0.78, grey, { collide: false });
+    L.solid(0.17, 1.6, 0.95, 7.8, 0, 0.75); workbench(L.wallPen('L', 1.6, 7.8), 6.2, 0.79, 0.78, white, grey); // établi de réparation
     for (const v of [2.2, 3.4, 4.6, 5.8, 7.0]) L.counterSpot(0.55, v, 0.78, PI / 2);
     L.board('v', 1.7, 7.7, 0.55, 0.78, 0.7, 0.5, PI / 2, null, { noLabels: true });
     L.wallShelf('R', 1.4, 9.0, 5, 2.2, 0.4, white, null, { back: 0xd7d2c6, backMetal: false });
@@ -445,10 +459,10 @@ export const INTERIOR_LAYOUTS = {
     const cream = 0xf2ead8, wood = 0x8a6440;
     L.glassCounter(0.8, 5.3, 9.6, 6.3, 1.1, cream, wood, { regU: 8.9 });
     L.wallShelf('B', 0.8, 8.8, 4, 2.0, 0.45, wood, null, { back: 0x6d4c41, backMetal: false, metal: false, base: 0.7, plinth: 0x5d4037 }); // panetières
-    L.furn(0.17, 7.0, 0.85, 9.0, 0, 0.92, 0xb0bec5, { metal: true });   // plan de travail (four, cafetière)
+    L.wallBlock('L', 7.0, 9.0, 0, 0.92, 0.68, 0xb0bec5, null, 'kitchen'); // plan de travail (four, cafetière)
     L.counterSpot(0.5, 7.5, 0.92, PI / 2); L.counterSpot(0.5, 8.5, 0.92, PI / 2);
     L.wallShelf('L', 1.2, 4.6, 4, 1.8, 0.35, wood, null, { back: 0x6d4c41, backMetal: false, metal: false }); // épicerie fine
-    L.furn(9.8, 2.0, 10.6, 2.8, 0, 1.08, 0x5d4037); L.furn(9.75, 1.95, 10.65, 2.85, 1.08, 1.12, wood, { collide: false }); // mange-debout
+    L.solid(9.8, 2.0, 10.6, 2.8, 0, 1.08); kTable(L.penAt(10.2, 2.4, L.faceFront), { w: 0.9, d: 0.9, h: 1.12, color: wood, style: 'pedestal', legs: 0x2a2826 }); // mange-debout
     L.wallPicture('B', 4.8, 2.85, 4.4, 1.0, menuTex('Nos pains & viennoiseries', [['Baguette tradition', '1,20 €'], ['Croissant pur beurre', '1,10 €'], ['Pain au chocolat', '1,25 €'], ['Éclair café', '2,80 €']]));
     for (const u of [2.4, 5.0, 7.6]) L.pendant(u, 5.8, 2.35, 0xd8c39a, 'drum', 0.36);
   },
@@ -458,7 +472,7 @@ export const INTERIOR_LAYOUTS = {
     for (let u = 1.4; u < 9.2; u += 1.0) L.stool(u, 5.28, red, 0.76);
     L.mirror('B', 1.0, 8.6, 1.3, 2.4);
     L.wallShelf('B', 1.0, 8.6, 3, 2.5, 0.25, wood, null, { base: 1.4, from: 1.3, back: 0x2b1d14, backMetal: false, metal: false }); // arrière-bar
-    L.wallBlock('B', 1.0, 8.6, 0, 0.95, 0.55, wood);
+    L.wallBlock('B', 1.0, 8.6, 0, 0.95, 0.55, wood, null, 'doors', { top: 0x2b1d14 });
     L.counterSpot(2.2, 9.55, 0.95, L.faceFront); L.counterSpot(3.4, 9.55, 0.95, L.faceFront); // percolateurs
     L.board('u', 4.2, 8.4, 9.55, 0.95, 0.45, 0.4, L.faceFront);
     L.bench(0.17, 1.2, 0.8, 3.8, red, 'u0');                            // banquette
@@ -473,7 +487,7 @@ export const INTERIOR_LAYOUTS = {
     L.counter(0.8, 5.6, 9.6, 6.4, 1.05, wood, 1, cream);
     L.wallFloor('B', 3.0);                                              // four à pizza
     L.counterSpot(8.6, 6.0, 1.05, L.faceFront + PI);                    // fontaine à sodas
-    L.wallBlock('B', 5.0, 8.8, 0, 0.92, 0.7, 0xb0bec5); L.board('u', 5.1, 8.7, 9.53, 0.92, 0.6, 0.4, L.faceFront);
+    L.wallBlock('B', 5.0, 8.8, 0, 0.92, 0.7, 0xb0bec5, null, 'kitchen'); L.board('u', 5.1, 8.7, 9.53, 0.92, 0.6, 0.4, L.faceFront);
     for (const [u, v] of [[2.0, 1.9], [2.0, 3.3], [9.8, 2.4]]) { L.table(u - 0.4, v - 0.4, u + 0.4, v + 0.4, 0.75, red, 1); L.floorSpot(u - 0.72, v, PI / 2); L.floorSpot(u + 0.72, v, -PI / 2); }
     for (const [a, c] of [[0.8, 0x2e7d32], [3.73, 0xfafafa], [6.67, 0xc62828]]) L.wallPanel('B', a, a + 2.93, 3.45, 3.62, c, 0.02); // bandeau tricolore
     L.wallPicture('B', 6.9, 2.5, 3.4, 1.0, menuTex('Pizzas au feu de bois', [['Margherita', '9,00 €'], ['Regina', '11,50 €'], ['Quatre fromages', '12,00 €'], ['Calzone', '12,50 €']]));
@@ -484,23 +498,23 @@ export const INTERIOR_LAYOUTS = {
     L.counter(0.8, 5.6, 9.6, 6.4, 1.05, red, 2, steel);
     L.wallFloor('B', 1.4); L.wallFloor('B', 2.1);                         // friteuses
     L.counterSpot(8.9, 6.0, 1.05, L.faceFront + PI);                     // fontaine à sodas
-    L.wallBlock('B', 2.8, 8.8, 0, 0.92, 0.7, steel); L.board('u', 3.0, 8.6, 9.53, 0.92, 0.6, 0.4, L.faceFront);
+    L.wallBlock('B', 2.8, 8.8, 0, 0.92, 0.7, steel, null, 'kitchen'); L.board('u', 3.0, 8.6, 9.53, 0.92, 0.6, 0.4, L.faceFront);
     const lines = [[['Big Burger', '8,90 €'], ['Double cheese', '6,50 €'], ['Chicken crispy', '7,40 €'], ['Veggie', '7,90 €']], [['Menu Maxi', '11,90 €'], ['Frites', '2,90 €'], ['Nuggets x9', '5,20 €'], ['Soda', '2,50 €']], [['Sundae', '3,20 €'], ['Milkshake', '3,90 €'], ['Cookie', '1,90 €']]];
     L.litPanel('B', 1.0, 3.9, 2.35, 3.35, menuTex('BURGERS', lines[0], 'lit', '#ffc107'));
     L.litPanel('B', 4.05, 6.95, 2.35, 3.35, menuTex('MENUS', lines[1], 'lit', '#ffc107'));
     L.litPanel('B', 7.1, 8.8, 2.35, 3.35, menuTex('DESSERTS', lines[2], 'lit', '#ffc107'));
     for (const v0 of [1.0, 2.65]) { // box le long du mur gauche : deux banquettes face à face et une table
       L.bench(0.17, v0, 1.5, v0 + 0.5, red, 'v0'); L.bench(0.17, v0 + 1.1, 1.5, v0 + 1.6, red, 'v1');
-      L.table(0.25, v0 + 0.55, 1.4, v0 + 1.05, 0.74, 0xfafafa, 1);
+      L.table(0.25, v0 + 0.55, 1.4, v0 + 1.05, 0.74, 0xfafafa, 1, { style: 'pedestal' });
     }
     for (const [u, v] of [[8.3, 2.0], [10.3, 2.0], [8.3, 3.4]]) { L.table(u - 0.35, v - 0.35, u + 0.35, v + 0.35, 0.74, 0xfafafa, 1); L.floorSpot(u - 0.62, v, PI / 2); L.floorSpot(u + 0.62, v, -PI / 2); }
   },
   sushi(L) {
     const wood = 0xc8a46e, dark = 0x2b1d14;
-    L.furn(0.8, 1.6, 2.0, 8.6, 0, 0.95, dark); L.furn(0.78, 1.58, 2.02, 8.62, 0.95, 1.0, wood, { collide: false });
+    L.solid(0.8, 1.6, 2.0, 8.6, 0, 0.95); kCounter(L.penAt(1.4, 5.1, L.ryOf(1, 0)), { L: 7.0, D: 1.2, h: 1.0, color: dark, top: wood }); // comptoir du tapis
     L.counterSpot(1.4, 5.1, 1.0, PI / 2);                                // tapis à sushis (1er emplacement)
     for (const v of [2.3, 3.4, 4.5, 5.6, 6.7, 7.8]) L.floorSpot(2.45, v, -PI / 2); // tabourets (chaises)
-    L.wallBlock('B', 3.0, 8.8, 0, 0.92, 0.65, 0xb0bec5); L.counterSpot(4.0, 9.55, 0.92, L.faceFront); // cuisine, cuiseur à riz
+    L.wallBlock('B', 3.0, 8.8, 0, 0.92, 0.65, 0xb0bec5, null, 'kitchen'); L.counterSpot(4.0, 9.55, 0.92, L.faceFront); // cuisine, cuiseur à riz
     L.board('u', 5.0, 8.6, 9.55, 0.92, 0.5, 0.4, L.faceFront);
     L.counter(8.8, 1.4, 10.8, 2.1, 1.0, dark, 1, wood);
     L.table(7.6, 2.6, 8.6, 3.4, 0.4, wood, 1); L.rug(7.3, 2.3, 8.9, 3.7, 0x9e2b25, 0xd8c39a);
@@ -511,22 +525,21 @@ export const INTERIOR_LAYOUTS = {
     const white = 0xfafafa, blue = 0x81d4fa;
     L.glassCounter(1.0, 5.4, 9.6, 6.2, 1.15, white, blue, { regU: 8.9 });
     L.wallFloor('B', 2.2); L.wallFloor('B', 4.0);                         // congélateurs
-    L.wallBlock('B', 5.2, 8.8, 0, 0.92, 0.6, white); L.board('u', 5.3, 8.7, 9.58, 0.92, 0.5, 0.4, L.faceFront, null, { noLabels: true });
+    L.wallBlock('B', 5.2, 8.8, 0, 0.92, 0.6, white, null, 'doors', { top: 0xdfe6ea }); L.board('u', 5.3, 8.7, 9.58, 0.92, 0.5, 0.4, L.faceFront, null, { noLabels: true });
     for (const [u, v] of [[2.0, 2.2], [9.6, 2.2]]) { L.table(u - 0.35, v - 0.35, u + 0.35, v + 0.35, 0.74, white, 1); L.floorSpot(u - 0.62, v, PI / 2); L.floorSpot(u + 0.62, v, -PI / 2); }
     for (const [u, c] of [[2.4, 0xf8bbd0], [5.0, 0xb3e5fc], [7.6, 0xfff59d]]) L.pendant(u, 5.8, 2.35, c, 'globe', 0.34);
     L.wallPicture('B', 7.0, 2.7, 3.2, 0.9, menuTex('Nos parfums', [['1 boule', '2,50 €'], ['2 boules', '4,50 €'], ['3 boules', '6,00 €'], ['Coupe Banquise', '7,90 €']]));
   },
   fleuriste(L) {
-    const wood = 0x6d4c41, zinc = 0x9aa0a6;
+    const wood = 0x6d4c41;
     for (const [u, v] of [[2.3, 2.4], [9.4, 2.6], [2.4, 6.6], [6.4, 6.6]]) L.table(u - 1, v - 0.6, u + 1, v + 0.6, 0.6, wood, 2);
     L.wallShelf('L', 4.0, 9.0, 3, 1.6, 0.5, wood, null, { metal: false, back: 0x5d4037, backMetal: false });
     L.wallShelf('B', 1.0, 8.8, 3, 1.6, 0.5, wood, null, { metal: false, back: 0x5d4037, backMetal: false });
     L.counter(7.6, 8.4, 9.6, 9.1, 1.0, 0xad1457, 1, wood);
     const flowers = [0xe53935, 0xffeb3b, 0xf8bbd0, 0xffffff, 0x8e24aa, 0xff9800];
     for (const [u, v] of [[4.6, 1.2], [7.4, 1.2], [10.9, 4.0], [10.9, 5.4], [0.7, 4.4]]) { // seaux de fleurs
-      L.A.shape(L.id, 'furniture_metal', new THREE.CylinderGeometry(0.2, 0.16, 0.42, 12), new THREE.Matrix4().makeTranslation(L.X(u), L.y + 0.21, L.Z(v)), zinc);
-      for (let k = 0; k < 5; k++) L.A.shape(L.id, 'furniture', new THREE.IcosahedronGeometry(0.07, 0), new THREE.Matrix4().makeTranslation(L.X(u + Math.cos(k * 1.3) * 0.1), L.y + 0.62 + (k % 2) * 0.08, L.Z(v + Math.sin(k * 1.3) * 0.1)), L.rng.pick(flowers));
-      L.A.shape(L.id, 'furniture', new THREE.IcosahedronGeometry(0.16, 0), new THREE.Matrix4().makeTranslation(L.X(u), L.y + 0.5, L.Z(v)), 0x4f8f45);
+      const cols = []; for (let k = 0; k < 5; k++) cols.push(L.rng.pick(flowers));
+      flowerBucket(L.penAt(u, v, 0), [...cols, ...cols.slice(0, 2)], () => L.frng.next());
     }
     L.plant(10.8, 9.0, 1.1); L.plant(0.7, 9.1, 0.9);
   },

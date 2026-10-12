@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { WorldObject } from './world.js';
 import { Box, LAYER } from '../engine/physics.js';
 import { canvas, toTexture } from '../engine/textures.js';
+import { Pen, gatePedestal, FU } from './furnkit.js';
 
 // Boutiques équipées de portiques (commerce de détail ; pas les restaurants, le coiffeur, le cinéma…)
 const GATED = new Set(['hyper', 'pharma', 'quincaillerie', 'animalerie', 'jouets', 'electro', 'pixel', 'videoclub', 'librairie', 'mobizone',
@@ -273,6 +274,17 @@ export class TheftGate extends WorldObject {
   }
 }
 
+// croix de pharmacie (caisson lumineux) : croix verte à double filet sur fond sombre
+let _cross = null;
+function crossTexture() {
+  if (_cross) return _cross;
+  const c = canvas(128, 128), x = c.getContext('2d');
+  x.fillStyle = '#0b1a10'; x.fillRect(0, 0, 128, 128);
+  for (const [k, col] of [[0, '#0f7a3c'], [6, '#2bd36a'], [12, '#9dffc0']]) { x.fillStyle = col; x.fillRect(44 + k / 2, 12 + k / 2, 40 - k, 104 - k); x.fillRect(12 + k / 2, 44 + k / 2, 104 - k, 40 - k); }
+  _cross = toTexture(c); _cross.wrapS = _cross.wrapT = THREE.ClampToEdgeWrapping;
+  return _cross;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Construit les détails de façade d'une boutique à vitrine (appelé par shopbuilder après les vitres).
 export function buildShopFront(world, A, ctl, s, rng, ex0, ex1) {
@@ -298,19 +310,30 @@ export function buildShopFront(world, A, ctl, s, rng, ex0, ex1) {
     const p2 = others.find(gp => gp !== promoPane); const k2 = key === 'titres' ? 'wifi' : 'titres';
     if (p2) sticker(p2, promoRect(k2), 1.1, 0.55, 0, y + 1.7, sg);
   }
+  // ── croix verte de pharmacie en drapeau sur le bandeau (caisson lumineux double face, potence) ──
+  if (id === 'pharma') {
+    const cx = (ctl.x0 + ctl.x1) / 2, gz = s.floor ? (cx < -24 ? 'gallery1_w' : cx > 24 ? 'gallery1_e' : 'atrium') : (cx < -24 ? 'gallery0_w' : cx > 24 ? 'gallery0_e' : 'atrium');
+    const x = ctl.x0 + 0.9, yc = y + 3.95, zc = zF - sg * 0.62, p = new Pen(A, gz).at(x, yc, zc, 0);
+    p.rbox(FU, -0.07, -0.36, -0.36, 0.07, 0.36, 0.36, 0.02, 0x1e2a22);                                         // caisson
+    for (const yy of [0.22, -0.22]) p.box(FU, -0.02, yy - 0.02, Math.min(sg * 0.36, sg * 0.47), 0.02, yy + 0.02, Math.max(sg * 0.36, sg * 0.47), 0x3a3e42, 'xXyYzZ'); // potence
+    const mat = new THREE.MeshBasicMaterial({ map: crossTexture() }), geo = new THREE.BufferGeometry(), P = [], N = [], U = [], I = [];
+    for (const sx of [-1, 1]) { // les deux faces du caisson dans un seul maillage (un seul appel de dessin)
+      const b = P.length / 3;
+      for (const [zz, yy] of [[-0.3, -0.3], [0.3, -0.3], [0.3, 0.3], [-0.3, 0.3]]) { P.push(x + sx * 0.073, yc + yy, zc - sx * zz); N.push(sx, 0, 0); U.push(zz > 0 ? 1 : 0, yy > 0 ? 1 : 0); }
+      I.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    }
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); geo.setIndex(I);
+    const m = new THREE.Mesh(geo, mat); m.matrixAutoUpdate = false; world.zone(gz)?.group.add(m);
+    ctl.zone.signMats.push(mat);
+  }
   // ── portiques antivol ──
   if (!GATED.has(id)) return;
   const cx = (ex0 + ex1) / 2, zG = zF + sg * 0.75;
   const xs = ex1 - ex0 > 5 ? [cx - 2.7, cx - 0.9, cx + 0.9, cx + 2.7] : [cx - 0.9, cx + 0.9];
   const ledGeo = [];
+  const pen = new Pen(A, id);
   for (const px of xs) {
-    const base = 0x2a2c30, alu = 0xb9bdc2, ink = 0x5a5e66;
-    A.furn(id, px - 0.06, y, zG - 0.33, px + 0.06, y + 0.1, zG + 0.33, base, { collide: false });
-    for (const dz of [-0.29, 0.29]) A.furn(id, px - 0.03, y + 0.1, zG + dz - 0.025, px + 0.03, y + 1.5, zG + dz + 0.025, alu, { collide: false, metal: true });
-    A.furn(id, px - 0.04, y + 1.5, zG - 0.33, px + 0.04, y + 1.56, zG + 0.33, alu, { collide: false, metal: true });
-    A.box(id, 'glass', px - 0.01, y + 0.1, zG - 0.265, px + 0.01, y + 1.5, zG + 0.265, { collide: false });
-    // boucle d'antenne sérigraphiée
-    for (const [a0, a1, b0, b1] of [[y + 0.24, y + 0.26, -0.2, 0.2], [y + 1.36, y + 1.38, -0.2, 0.2], [y + 0.24, y + 1.38, -0.2, -0.185], [y + 0.24, y + 1.38, 0.185, 0.2]]) A.furn(id, px - 0.013, a0, zG + b0, px + 0.013, a1, zG + b1, ink, { collide: false });
+    gatePedestal(pen.at(px, y, zG, 0), 1.56, 0x5a5e66); // socle, montants ronds, traverse, plexiglas à boucle d'antenne
     world.physics.add(new Box(px - 0.07, y, zG - 0.34, px + 0.07, y + 1.58, zG + 0.34, LAYER.FURN, null));
     const lg = new THREE.BoxGeometry(0.05, 0.014, 0.6); lg.translate(px, y + 1.567, zG); ledGeo.push(lg);
   }
