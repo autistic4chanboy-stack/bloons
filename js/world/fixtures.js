@@ -4,10 +4,45 @@ import * as THREE from 'three';
 import { WorldObject } from './world.js';
 import { Box, LAYER } from '../engine/physics.js';
 import { quickGeometry } from './meshes.js';
+import { GeoBuilder, roundBoxGeo, latheGeo, trs } from '../engine/geo.js';
 import { LORE } from '../data/lore.js';
 import { ITEMS } from '../data/items.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
+// gabarits partagés (petites pièces de quincaillerie), UV en mètres
+const T = {};
+const tpl = (k, make) => T[k] || (T[k] = make());
+// Ajoute une géométrie colorée à un kit de quickGeometry (couleur par sommet, texel blanc de l'atlas)
+const kg = (k, geo, m, color) => k.b.geometry(geo, m, { color, rect: k.white });
+
+// Encadrement d'une ouverture de porte (chambranles des deux faces, linteau), posé dans le lot d'architecture quand il
+// existe (pendant la construction : aucun appel de rendu en plus). Les tableaux du mur sont retrouvés dans la physique.
+function doorFrame(world, o, w, h) {
+  const A = world.arch; if (!A || o.mat === 'glass' || o.frame === false) return;
+  const ax = o.axis === 'x', y = o.y, mid = ax ? o.x : o.z, n0 = ax ? o.z : o.x;
+  // murs voisins : épaisseur et position (axe n), bords réels de l'ouverture (axe u) et dessous du linteau
+  const probe = (u, yy) => { const px = ax ? u : n0, pz = ax ? n0 : u; return world.physics.near(px - 0.02, pz - 0.02, px + 0.02, pz + 0.02, LAYER.WALL).find(b => b.min[1] <= yy && b.max[1] >= yy && b.min[0] <= px && b.max[0] >= px && b.min[2] <= pz && b.max[2] >= pz); };
+  const side = [probe(mid - w / 2 - 0.08, y + 1), probe(mid + w / 2 + 0.08, y + 1)];
+  const ref = side[0] || side[1]; if (!ref) return;
+  const ni = ax ? 2 : 0, ui = ax ? 0 : 2, nLo = ref.min[ni], nHi = ref.max[ni];
+  if (nHi - nLo > 0.6) return; // pas un mur (bloc plein)
+  const eA = side[0] ? Math.min(side[0].max[ui], mid - w / 2 + 0.06) : mid - w / 2, eB = side[1] ? Math.max(side[1].min[ui], mid + w / 2 - 0.06) : mid + w / 2;
+  const lin = [0.06, 0.25, 0.5].map(d => probe(mid, y + h + d)).find(b => b), top = lin ? lin.min[1] : y + h;
+  const metal = o.mat === 'metal', mat = metal ? 'furniture_metal' : 'furniture', col = o.frameColor ?? (metal ? 0x5d666c : 0xe9e5dc);
+  const B = (u0, u1, y0, y1, a, b) => A.box(o.zone, mat, ax ? u0 : a, y0, ax ? a : u0, ax ? u1 : b, y1, ax ? b : u1, { collide: false, color: col, flat: true });
+  for (const [f, s] of [[nLo, -1], [nHi, 1]]) {
+    const a = Math.min(f, f + s * 0.018), b = Math.max(f, f + s * 0.018);
+    // chambranles seulement contre un mur (porte double : rien au milieu, entre les deux vantaux)
+    if (side[0]) B(eA - 0.065, eA, y, top + (lin ? 0.065 : 0), a, b);
+    if (side[1]) B(eB, eB + 0.065, y, top + (lin ? 0.065 : 0), a, b);
+    if (lin) B(eA, eB, top, top + 0.065, a, b);
+  }
+  // huisserie pleine dans l'épaisseur du mur jusqu'au jeu de 4 mm autour du vantail (plus de jour au travers de
+  // l'ouverture quand elle est plus grande que la porte)
+  if (mid - w / 2 - eA >= 0.008) B(eA, mid - w / 2 - 0.004, y, top, nLo, nHi);
+  if (eB - (mid + w / 2) >= 0.008) B(mid + w / 2 + 0.004, eB, y, top, nLo, nHi);
+  if (lin && top - (y + h) >= 0.008) B(eA, eB, y + h + 0.004, top, nLo, nHi);
+}
 
 // ───────────────────────── PORTE ─────────────────────────
 // axis : 'x' = le panneau s'étend le long de X (porte dans un mur parallèle à X) ; 'z' sinon.
@@ -26,22 +61,58 @@ export class Door extends WorldObject {
     else this.pivot.position.set(o.x, o.y, o.z + hingeSign * w / 2);
     const color = o.color ?? (o.mat === 'metal' ? 0x6f7a80 : o.mat === 'glass' ? 0x9fb8c0 : 0x8d6e4e);
     const { geometry } = quickGeometry(g.atlas, (k) => {
-      const sx = o.axis === 'x' ? w : t, sz = o.axis === 'x' ? t : w;
-      const off = -hingeSign * w / 2;
-      const ox = o.axis === 'x' ? off : 0, oz = o.axis === 'x' ? 0 : off;
+      // repère du vantail : u de la charnière vers le bord libre, y, n = épaisseur ; bx : boîte (u0…u1, y0…y1, n0…n1)
+      const ax = o.axis === 'x', dU = -hingeSign, hw = t / 2, steel = 0xc3c7cb;
+      const bx = (u0, u1, y0, y1, n0, n1, c, opt) => k.box(ax ? dU * (u0 + u1) / 2 : (n0 + n1) / 2, (y0 + y1) / 2, ax ? (n0 + n1) / 2 : dU * (u0 + u1) / 2, ax ? u1 - u0 : n1 - n0, y1 - y0, ax ? n1 - n0 : u1 - u0, c, opt);
+      // pièce de révolution dont l'axe propre (Y) pointe vers la face s (n = ±)
+      const onFace = (u, yy, nn, s) => ax ? trs(dU * u, yy, nn, s * Math.PI / 2, 0, 0) : trs(nn, yy, dU * u, 0, 0, -s * Math.PI / 2);
       if (o.mat === 'glass') {
-        k.box(ox, h / 2, oz, o.axis === 'x' ? w : 0.05, 0.08, o.axis === 'x' ? 0.05 : w, 0x8a959a);
-        k.box(ox, 0.04, oz, o.axis === 'x' ? w : 0.05, 0.08, o.axis === 'x' ? 0.05 : w, 0x8a959a);
-        k.box(ox, h - 0.04, oz, o.axis === 'x' ? w : 0.05, 0.08, o.axis === 'x' ? 0.05 : w, 0x8a959a);
+        // porte vitrée sans cadre : sabots haut et bas, poignées bâtons inox sur entretoises (deux faces), verrou au sol
+        bx(0, w, 0, 0.11, -0.022, 0.022, 0x9aa1a6); bx(0, w, h - 0.11, h, -0.022, 0.022, 0x9aa1a6);
+        bx(w - 0.16, w - 0.04, 0.005, 0.03, -0.03, 0.03, 0x6d7378);
+        for (const s of [-1, 1]) {
+          kg(k, tpl('dbar', () => latheGeo([[0, -0.5], [0.016, -0.5], [0.016, -0.5], [0.016, 0.5], [0.016, 0.5], [0, 0.5]], 12)), ax ? trs(dU * (w - 0.11), 1.1, s * 0.075) : trs(s * 0.075, 1.1, dU * (w - 0.11)), steel);
+          for (const yy of [0.72, 1.48]) kg(k, tpl('dstand', () => latheGeo([[0.009, 0], [0.009, 0.06]], 8)), onFace(w - 0.11, yy, s * 0.008, s), steel);
+        }
       } else {
-        k.box(ox, h / 2, oz, sx, h, sz, color);
-        if (o.window) k.box(ox, h * 0.72, oz, o.axis === 'x' ? w * 0.4 : t * 1.1, h * 0.25, o.axis === 'x' ? t * 1.1 : w * 0.4, 0x223038);
-        if (o.label) { const r = k.label('door_' + o.label, o.label, 0xffffff); k.box(ox, h * 0.82, oz, o.axis === 'x' ? 0.4 : t * 1.2, 0.14, o.axis === 'x' ? t * 1.2 : 0.4, 0xffffff, { label: { face: o.axis === 'x' ? 'zZ' : 'xX', rect: r } }); }
+        bx(0, w, 0, h, -hw, hw, color);                                                                                  // vantail
+        for (const s of [-1, 1]) bx(0.03, w - 0.03, 0.015, 0.25, s > 0 ? hw : -hw - 0.002, s > 0 ? hw + 0.002 : -hw, 0xb3b8bc); // plaques de propreté
+        if (o.window) { // oculus : vitrage sombre dans un joint noir traversant
+          const u0 = w * 0.3, u1 = w * 0.7, y0 = h * 0.6, y1 = h * 0.85, a = -hw - 0.005, b = hw + 0.005;
+          bx(u0, u1, y0, y1, -hw - 0.001, hw + 0.001, 0x223038);
+          bx(u0 - 0.022, u1 + 0.022, y0 - 0.022, y0, a, b, 0x1c1c1c); bx(u0 - 0.022, u1 + 0.022, y1, y1 + 0.022, a, b, 0x1c1c1c);
+          bx(u0 - 0.022, u0, y0, y1, a, b, 0x1c1c1c); bx(u1, u1 + 0.022, y0, y1, a, b, 0x1c1c1c);
+        }
+        if (o.label) { const r = k.label('door_' + o.label, o.label, 0xffffff); k.box(ax ? dU * w / 2 : 0, h * 0.82, ax ? 0 : dU * w / 2, ax ? 0.4 : t * 1.2, 0.14, ax ? t * 1.2 : 0.4, 0xffffff, { label: { face: ax ? 'zZ' : 'xX', rect: r } }); }
+        for (const yy of [0.24, h * 0.52, h - 0.24]) bx(-0.008, 0.012, yy - 0.055, yy + 0.055, -0.009, 0.009, 0x8a8f93);   // nœuds de paumelles
+        if (o.armored) for (const s of [-1, 1]) { // porte blindée : cadre en relief sur les deux faces
+          const a = s > 0 ? hw : -hw - 0.012, b = s > 0 ? hw + 0.012 : -hw, c2 = 0x47555e;
+          bx(0.07, w - 0.07, 0.3, 0.36, a, b, c2); bx(0.07, w - 0.07, h - 0.36, h - 0.3, a, b, c2); bx(0.07, 0.13, 0.36, h - 0.36, a, b, c2); bx(w - 0.13, w - 0.07, 0.36, h - 0.36, a, b, c2);
+        } else if (o.mat === 'metal') { // ferme-porte en applique (face +n)
+          bx(0.1, 0.4, h - 0.13, h - 0.055, hw, hw + 0.052, 0x8f9498); bx(0.4, 0.62, h - 0.085, h - 0.065, hw + 0.018, hw + 0.034, 0x60666a);
+        }
+        // porte d'issue (o.panic) : barre anti-panique côté poussée (boîtiers d'about, barre ronde à 5,5 cm du vantail) ;
+        // la porte s'ouvre vers -z (axe x) ou +x (axe z) quand swing = 1
+        const push = o.panic ? (ax ? 1 : -1) * (o.swing || 1) : 0;
+        if (push) {
+          const f = push * hw, nn = (d0, d1) => push > 0 ? [f + d0, f + d1] : [f - d1, f - d0];
+          bx(0.06, 0.16, 0.95, 1.05, ...nn(0, 0.07), 0x9ea3a7); bx(w - 0.17, w - 0.04, 0.93, 1.07, ...nn(0, 0.075), 0x9ea3a7);
+          const uc = (0.16 + w - 0.17) / 2, L = w - 0.33, nc = f + push * 0.055;
+          kg(k, tpl('dbar', () => latheGeo([[0, -0.5], [0.016, -0.5], [0.016, -0.5], [0.016, 0.5], [0.016, 0.5], [0, 0.5]], 12)), ax ? trs(dU * uc, 1.0, nc, 0, 0, Math.PI / 2, 1, L, 1) : trs(nc, 1.0, dU * uc, Math.PI / 2, 0, 0, 1, L, 1), steel);
+        }
+        // béquilles inox sur rosaces (vers la charnière), entrée de clé quand la porte a une serrure
+        const uh = w - 0.075;
+        for (const s of [-1, 1]) {
+          if (s === push) continue;
+          const f = s * hw;
+          kg(k, tpl('rose', () => latheGeo([[0, 0], [0.026, 0], [0.026, 0.004], [0.02, 0.011], [0, 0.012]], 12)), onFace(uh, 1.0, f, s), steel);
+          kg(k, tpl('neck', () => latheGeo([[0.009, 0], [0.009, 0.052]], 8)), onFace(uh, 1.0, f, s), steel);
+          bx(uh - 0.13, uh + 0.012, 0.989, 1.011, s > 0 ? f + 0.045 : f - 0.063, s > 0 ? f + 0.063 : f - 0.045, steel);
+          if (o.lock || o.locked || o.code) { kg(k, tpl('escut', () => latheGeo([[0, 0], [0.019, 0], [0.019, 0.003], [0.015, 0.008], [0, 0.009]], 10)), onFace(uh, 0.88, f, s), steel); bx(uh - 0.0025, uh + 0.0025, 0.872, 0.888, s > 0 ? f + 0.008 : f - 0.0095, s > 0 ? f + 0.0095 : f - 0.008, 0x111111); }
+        }
       }
-      // poignée
-      const hx = o.axis === 'x' ? off * 1.7 : 0, hz = o.axis === 'x' ? 0 : off * 1.7;
-      k.box(hx, 1.0, hz, o.axis === 'x' ? 0.12 : t + 0.08, 0.025, o.axis === 'x' ? t + 0.08 : 0.12, 0xc0c0c0);
     });
+    doorFrame(world, o, w, h);
     this.mesh = new THREE.Mesh(geometry, g.mats.get('props', this.zone));
     this.mesh.castShadow = true; this.mesh.receiveShadow = true;
     this.pivot.add(this.mesh);
@@ -179,18 +250,20 @@ export class Shutter extends WorldObject {
     const g = world.game;
     const w = Math.abs(o.x1 - o.x0), h = o.y1 - o.y0;
     this.h = h;
-    const geo = new THREE.BoxGeometry(w, h, 0.06);
+    // tablier (lames ondulées, UV à l'échelle) et lame finale renforcée
+    const gb = new GeoBuilder({ uvScale: 0.3 });
+    gb.box(0, 0, 0, w, h, 0.06); gb.box(0, -h / 2 + 0.035, 0, w, 0.07, 0.085);
     const mat = g.mats.get('corrugated', o.zone);
-    // UV adaptés à la taille
-    const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w * 0.3, uv.getY(i) * h * 0.3);
-    this.mesh = new THREE.Mesh(geo, mat);
+    this.mesh = new THREE.Mesh(gb.build(), mat);
     this.mesh.castShadow = true; this.mesh.receiveShadow = true;
     this.cx = (o.x0 + o.x1) / 2;
     this.mesh.position.set(this.cx, o.y0 + h / 2, o.z);
-    // boîtier
-    const box = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, 0.35, 0.4), g.mats.get('metal', o.zone));
-    box.position.set(this.cx, o.y1 + 0.17, o.z);
-    (world.zone(o.zone)?.group || world.root).add(this.mesh, box);
+    (world.zone(o.zone)?.group || world.root).add(this.mesh);
+    // coffre d'enroulement : dans le lot d'architecture de la zone pendant la construction (pas d'appel de rendu)
+    if (w > 0.1) {
+      if (world.arch) world.arch.rbox(o.zone, 'chrome', this.cx, o.y1 + 0.175, o.z, w + 0.2, 0.35, 0.4, 0.03);
+      else { const box = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, 0.35, 0.4), g.mats.get('metal', o.zone)); box.position.set(this.cx, o.y1 + 0.17, o.z); (world.zone(o.zone)?.group || world.root).add(box); }
+    }
     this.col = new Box(o.x0, o.y0, o.z - 0.1, o.x1, o.y1, o.z + 0.1, LAYER.DOOR, this);
     world.physics.add(this.col);
     this.setPick(o.x0, o.y0, o.z - 0.15, o.x1, o.y1, o.z + 0.15);
@@ -309,7 +382,11 @@ export class LightSwitch extends WorldObject {
     super(world, id, 'switch');
     this.o = o; this.zone = o.zone; this.target = o.target; this.name = 'Interrupteur — ' + (o.label || o.target);
     const g = world.game;
-    const { geometry } = quickGeometry(g.atlas, (k) => { k.box(0, 0, 0, 0.09, 0.13, 0.025, 0xeeeeee); k.box(0, 0, 0.015, 0.03, 0.05, 0.015, 0xdddddd); });
+    const { geometry } = quickGeometry(g.atlas, (k) => { // plaque arrondie, bascule inclinée, voyant orange
+      kg(k, tpl('sw_plate', () => roundBoxGeo(0.086, 0.086, 0.022, 0.005, 1)), trs(0, 0, 0), 0xf1efea);
+      kg(k, tpl('sw_rock', () => roundBoxGeo(0.042, 0.054, 0.012, 0.004, 1)), trs(0, 0, 0.013, -0.12, 0, 0), 0xe4e2dc);
+      k.box(0, 0.018, 0.0205, 0.007, 0.003, 0.002, 0xff8a3d);
+    });
     this.mesh = new THREE.Mesh(geometry, g.mats.get('props', o.zone));
     this.mesh.position.set(o.x, o.y, o.z); this.mesh.rotation.y = o.ry || 0;
     (world.zone(o.zone)?.group || world.root).add(this.mesh);
@@ -373,10 +450,21 @@ export class Locker extends WorldObject {
     super(world, id, 'locker'); this.o = o; this.name = o.name || 'Casier'; this.zone = o.zone;
     const g = world.game; const w = 0.4, h = 1.8, d = 0.5;
     this.group = new THREE.Group(); this.group.position.set(o.x, o.y, o.z); this.group.rotation.y = o.ry || 0;
-    const { geometry: body } = quickGeometry(g.atlas, (k) => { k.box(0, h / 2, 0, w, h, d, o.color || 0x546e7a, { faces: 'xXyYz' }); k.box(0, h * 0.5, 0, w * 0.96, 0.02, d * 0.9, 0x37474f); });
+    const col = o.color || 0x546e7a, dk = 0x2f3a40;
+    const { geometry: body } = quickGeometry(g.atlas, (k) => { // caisson (ouvert devant), dessus à rebord, socle sombre, tablette et patère
+      k.box(0, h / 2, 0, w, h, d, col, { faces: 'xXyYz' }); k.box(0, h * 0.78, 0, w * 0.96, 0.02, d * 0.9, 0x37474f);
+      k.box(0, h + 0.006, -0.005, w + 0.012, 0.012, d + 0.01, dk); k.box(0, 0.04, 0, w + 0.004, 0.08, d - 0.04, 0x1f2427);
+      k.box(0, h * 0.72, -d / 2 + 0.06, 0.02, 0.02, 0.08, 0x9ea4a8);
+    });
     const bm = new THREE.Mesh(body, g.mats.get('props', o.zone)); bm.castShadow = bm.receiveShadow = true; this.group.add(bm);
     this.doorPivot = new THREE.Group(); this.doorPivot.position.set(-w / 2, 0, d / 2); this.group.add(this.doorPivot);
-    const { geometry: door } = quickGeometry(g.atlas, (k) => { k.box(w / 2, h / 2, 0.01, w, h, 0.02, o.color || 0x546e7a); for (let i = 0; i < 4; i++) k.box(w / 2, h * 0.82 + i * 0.03, 0.022, w * 0.6, 0.008, 0.004, 0x263238); k.box(w * 0.85, h * 0.5, 0.03, 0.02, 0.1, 0.02, 0x9e9e9e); if (o.name) { const r = k.label('lk_' + o.name, o.name, 0xffffff); k.box(w / 2, h * 0.7, 0.022, w * 0.6, 0.06, 0.003, 0xffffff, { label: { face: 'Z', rect: r } }); } });
+    const { geometry: door } = quickGeometry(g.atlas, (k) => { // porte : persiennes embouties, poignée à palette, porte-cadenas, paumelles
+      k.box(w / 2, h / 2 + 0.04, 0.01, w, h - 0.08, 0.02, col);
+      for (const y0 of [h * 0.86, 0.22]) for (let i = 0; i < 5; i++) k.b.box(0, 0, 0, w * 0.62, 0.012, 0.006, { color: dk, flat: true, matrix: trs(w / 2, y0 + i * 0.028, 0.022, -0.5, 0, 0) });
+      k.box(w * 0.86, h * 0.52, 0.026, 0.035, 0.12, 0.012, 0x23292c); k.box(w * 0.86, h * 0.53, 0.036, 0.016, 0.07, 0.012, 0xa9afb3); k.box(w * 0.86, h * 0.45, 0.03, 0.02, 0.025, 0.02, 0xa9afb3);
+      for (const y of [0.25, h * 0.5, h - 0.25]) k.box(0.004, y, 0.012, 0.012, 0.07, 0.02, 0x7d8387);
+      if (o.name) { const r = k.label('lk_' + o.name, o.name, 0xffffff); k.box(w / 2, h * 0.7, 0.022, w * 0.6, 0.06, 0.003, 0xffffff, { label: { face: 'Z', rect: r } }); }
+    });
     this.door = new THREE.Mesh(door, g.mats.get('props', o.zone)); this.doorPivot.add(this.door);
     (world.zone(o.zone)?.group || world.root).add(this.group);
     world.physics.add(new Box(o.x - 0.25, o.y, o.z - 0.25, o.x + 0.25, o.y + h, o.z + 0.25, LAYER.FURN));
@@ -423,13 +511,18 @@ export class VentGrate extends WorldObject {
   constructor(world, id, o) {
     super(world, id, 'grate'); this.o = o; this.zone = o.zone; this.name = 'Grille d\'aération';
     const g = world.game;
-    const geo = new THREE.BoxGeometry(o.w || 0.9, 0.04, o.d || 0.9);
-    this.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.7, roughness: 0.4 }));
+    // cadre à quatre profils, lames inclinées, vis aux angles : une seule géométrie (un seul appel de rendu)
+    const W = o.w || 0.9, D = o.d || 0.9, fr = 0.05, gb = new GeoBuilder({ uvScale: 1 });
+    gb.box(0, 0, -D / 2 + fr / 2, W, 0.04, fr); gb.box(0, 0, D / 2 - fr / 2, W, 0.04, fr);
+    gb.box(-W / 2 + fr / 2, 0, 0, fr, 0.04, D - 2 * fr); gb.box(W / 2 - fr / 2, 0, 0, fr, 0.04, D - 2 * fr);
+    const nl = Math.round((D - 2 * fr) / 0.055);
+    for (let i = 0; i < nl; i++) gb.box(0, 0, 0, W - 2 * fr, 0.004, 0.062, { matrix: trs(0, -0.004, -D / 2 + fr + (i + 0.5) * (D - 2 * fr) / nl, 0.75, 0, 0) });
+    const screw = tpl('screw', () => latheGeo([[0, 0], [0.008, 0], [0.007, 0.003], [0.004, 0.005], [0, 0.0055]], 8));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) gb.geometry(screw, trs(sx * (W / 2 - fr / 2), -0.02, sz * (D / 2 - fr / 2), Math.PI, 0, 0), { flat: false });
+    this.mesh = new THREE.Mesh(gb.build(), new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.7, roughness: 0.4 }));
     this.mesh.position.set(o.x, o.y, o.z);
     if (o.wall) { this.mesh.rotation.x = Math.PI / 2; }
     (world.zone(o.zone)?.group || world.root).add(this.mesh);
-    // lamelles
-    for (let i = -3; i <= 3; i++) { const l = new THREE.Mesh(new THREE.BoxGeometry((o.w || 0.9) * 0.9, 0.02, 0.03), this.mesh.material); l.position.set(0, -0.02, i * 0.11); this.mesh.add(l); }
     this.setPick(o.x - 0.5, o.y - 0.3, o.z - 0.5, o.x + 0.5, o.y + 0.1, o.z + 0.5);
     this.init({ open: false, screws: 4, taped: false });
   }
@@ -484,10 +577,14 @@ export class HideSpot extends WorldObject {
 export class PushButton extends WorldObject {
   constructor(world, id, o) {
     super(world, id, 'button'); this.o = o; this.zone = o.zone; this.name = o.label;
-    const grp = new THREE.Group(); grp.position.set(o.x, o.y, o.z); grp.rotation.y = o.ry || 0;
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.17, 0.03), new THREE.MeshStandardMaterial({ color: o.plate ?? 0xffd600, roughness: 0.5 }));
-    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.035, 14), new THREE.MeshStandardMaterial({ color: o.color ?? 0xd50000, roughness: 0.35 }));
-    btn.rotation.x = Math.PI / 2; btn.position.z = 0.03; grp.add(plate, btn);
+    // boîtier jaune arrondi, collerette noire, champignon rouge, bandeau « ARRÊT » : un seul mesh (couleurs par sommet)
+    const { geometry } = quickGeometry(world.game.atlas, (k) => {
+      kg(k, tpl('pb_box', () => roundBoxGeo(0.13, 0.17, 0.03, 0.01, 1)), trs(0, 0, 0), o.plate ?? 0xffd600);
+      kg(k, tpl('pb_ring', () => latheGeo([[0, 0], [0.047, 0], [0.047, 0.01], [0.041, 0.015], [0, 0.015]], 16)), trs(0, 0.012, 0.015, Math.PI / 2, 0, 0), 0x1a1a1a);
+      kg(k, tpl('pb_cap', () => latheGeo([[0, 0], [0.024, 0], [0.024, 0.012], [0.038, 0.016], [0.039, 0.026], [0.03, 0.035], [0, 0.038]], 16)), trs(0, 0.012, 0.03, Math.PI / 2, 0, 0), o.color ?? 0xd50000);
+      const r = k.shared('pb_arret', 72, 22, { kind: 'plain', bg: 0x1a1a1a, brand: 'ARRÊT', fg: 0xffffff }); k.box(0, -0.06, 0.0155, 0.09, 0.026, 0.002, 0xffffff, { label: { face: 'Z', rect: r } });
+    });
+    const grp = new THREE.Mesh(geometry, world.game.mats.get('props', o.zone)); grp.position.set(o.x, o.y, o.z); grp.rotation.y = o.ry || 0; grp.castShadow = true;
     (world.zone(o.zone)?.group || world.root).add(grp);
     this.setPick(o.x - 0.11, o.y - 0.11, o.z - 0.11, o.x + 0.11, o.y + 0.11, o.z + 0.11);
   }

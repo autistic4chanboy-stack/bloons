@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { WorldObject } from './world.js';
 import { Box, LAYER } from '../engine/physics.js';
 import { Net } from '../net/net.js';
+import { GeoBuilder, roundBoxGeo, latheGeo, cylGeo, alongMatrix, trs } from '../engine/geo.js';
+import { quickGeometry } from './meshes.js';
 
 const FLOOR_NAMES = ['Parking', 'Rez-de-chaussée', 'Étage'];
 const AREAS = ['garage', 'gallery0', 'gallery1'];
@@ -33,13 +35,18 @@ export class Elevator extends WorldObject {
     const segs = [[F[0], -0.6], [0, 4.6], [4.6, top]];
     for (const [ya, yb] of segs) {
       const zn = levelZone((ya + yb) / 2);
-      for (const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) A.box(zn, 'steel_dark', px - 0.06, ya, pz - 0.06, px + 0.06, yb, pz + 0.06, { collide: false });
+      for (const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) A.rbox(zn, 'steel_dark', px, (ya + yb) / 2, pz, 0.12, yb - ya, 0.12, 0.012); // poteaux tubulaires
       A.box(zn, 'glass', x0 - 0.01, ya, z0, x0 + 0.01, yb, z1, { collide: false }); A.box(zn, 'glass', x1 - 0.01, ya, z0, x1 + 0.01, yb, z1, { collide: false });
       A.box(zn, 'glass', x0, ya, z0 - 0.01, x1, yb, z0 + 0.01, { collide: false });
+      for (const yy of [ya, yb]) A.box(zn, 'steel_dark', x0 + 0.06, yy - 0.05, z0 + 0.012, x1 - 0.06, yy + 0.05, z0 + 0.04, { collide: false }); // lisses de fixation du vitrage
     }
     world.physics.add(new Box(x0 - 0.04, F[0], z0, x0 + 0.04, top, z1, LAYER.GLASS)); world.physics.add(new Box(x1 - 0.04, F[0], z0, x1 + 0.04, top, z1, LAYER.GLASS));
     world.physics.add(new Box(x0, F[0], z0 - 0.04, x1, top, z0 + 0.04, LAYER.GLASS));
-    A.box(levelZone(top - 0.5), 'steel_dark', x0 - 0.08, top, z0 - 0.08, x1 + 0.08, top + 0.35, z1 + 0.08, { collide: false }); // machinerie
+    // machinerie : caisson à corniche et grille d'aération
+    const zt = levelZone(top - 0.5);
+    A.rbox(zt, 'steel_dark', cx, top + 0.175, (z0 + z1) / 2, x1 - x0 + 0.16, 0.35, z1 - z0 + 0.16, 0.03, 0xffffff, { n: 2 });
+    A.rbox(zt, 'steel_dark', cx, top + 0.37, (z0 + z1) / 2, x1 - x0 + 0.24, 0.04, z1 - z0 + 0.24, 0.015);
+    for (let k = 0; k < 6; k++) A.box(zt, 'furniture', cx - 0.5, top + 0.08 + k * 0.035, z1 + 0.08, cx + 0.5, top + 0.095 + k * 0.035, z1 + 0.085, { collide: false, color: 0x15181a, flat: true });
     // côté portes : vitrage au-dessus des portes à chaque niveau, panneaux pleins autour
     for (const y of F) {
       const zn = levelZone(y + 1);
@@ -48,16 +55,23 @@ export class Elevator extends WorldObject {
       A.box(zn, 'steel', x0, y, zDoor - 0.03, cx - dw / 2, y + 2.2, zDoor + 0.03); A.box(zn, 'steel', cx + dw / 2, y, zDoor - 0.03, x1, y + 2.2, zDoor + 0.03);
       world.physics.add(new Box(x0, y + 2.2, zDoor - 0.04, x1, Math.min(y + 4.5, top), zDoor + 0.04, LAYER.GLASS));
       A.box(zn, 'granite', x0 - 0.05, y, zDoor, x1 + 0.05, y + 0.012, zDoor + 0.35, { collide: false }); // seuil
+      // chambranle inox autour de la baie, rail de guidage au sol, plaque de la boîte à boutons d'appel
+      for (const sx of [-1, 1]) A.rbox(zn, 'steel', cx + sx * (dw / 2 + 0.03), y + 1.11, zDoor + 0.045, 0.06, 2.22, 0.03, 0.008);
+      A.rbox(zn, 'steel', cx, y + 2.22, zDoor + 0.045, dw + 0.12, 0.05, 0.03, 0.008);
+      A.box(zn, 'steel_dark', cx - dw / 2, y + 0.012, zDoor + 0.04, cx + dw / 2, y + 0.018, zDoor + 0.11, { collide: false });
+      A.rbox(zn, 'steel', x1 + 0.22, y + 1.15, zDoor + 0.06, 0.1, 0.18, 0.03, 0.008); A.box(zn, 'steel', x1 + 0.06, y + 1.13, zDoor + 0.05, x1 + 0.17, y + 1.17, zDoor + 0.07, { collide: false }); // boîte d'appel sur console
     }
-    // ── portes palières (deux vantaux vitrés coulissants par niveau) ──
-    const glassMat = g.mats.get('glass'), frameMat = g.mats.get('steel', 'gallery0_w');
+    // ── portes palières (deux vantaux vitrés coulissants par niveau : verre + cadre inox en une géométrie) ──
+    const glassMat = g.mats.get('glass'), frameMat = g.mats.get('steel', 'gallery0_w'), uvs = frameMat.userData.texRepeat ?? 0.6;
+    // cadre d'un vantail s : traverses haute et basse, montant de rive (contre le dormant) et montant de jonction à joint
+    const leafFrame = (s) => { const b = new GeoBuilder({ uvScale: uvs }); b.box(0, 2.12, 0, dw / 2, 0.06, 0.05); b.box(0, 0.03, 0, dw / 2, 0.06, 0.05); b.box(s * (dw / 4 - 0.015), 1.075, 0, 0.03, 2.03, 0.045); b.box(-s * (dw / 4 - 0.012), 1.075, 0, 0.024, 2.03, 0.05); return b.build(); };
+    const frames = { '-1': leafFrame(-1), '1': leafFrame(1) }, paneGeo = new THREE.BoxGeometry(dw / 2 - 0.05, 2.05, 0.02);
     this.landings = F.map((y, i) => {
       const grp = new THREE.Group(); const leaves = [];
       for (const s of [-1, 1]) {
         const leaf = new THREE.Group();
-        const pane = new THREE.Mesh(new THREE.BoxGeometry(dw / 2, 2.15, 0.03), glassMat); pane.position.y = 1.075; leaf.add(pane);
-        const fr = new THREE.Mesh(new THREE.BoxGeometry(dw / 2, 0.06, 0.05), frameMat); fr.position.y = 2.15; leaf.add(fr);
-        const fr2 = fr.clone(); fr2.position.y = 0.03; leaf.add(fr2);
+        const pane = new THREE.Mesh(paneGeo, glassMat); pane.position.y = 1.075; leaf.add(pane);
+        leaf.add(new THREE.Mesh(frames[s], frameMat));
         leaf.position.set(cx + s * dw / 4, y, zDoor + 0.06); grp.add(leaf); leaves.push({ leaf, s });
       }
       (world.zone(levelZone(y + 1))?.group || world.root).add(grp);
@@ -68,12 +82,39 @@ export class Elevator extends WorldObject {
     const cab = this.cab = new THREE.Group(); world.root.add(cab);
     const cw = x1 - x0 - 0.12, cd = z1 - z0 - 0.12;
     const floorM = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.12, cd), g.mats.get('granite', 'gallery0_w')); floorM.position.y = -0.06; cab.add(floorM);
-    const ceilM = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.08, cd), g.mats.get('steel_dark', 'gallery0_w')); ceilM.position.y = 2.5; cab.add(ceilM);
-    this.lightMat = new THREE.MeshBasicMaterial({ color: 0xfff4dd }); const lamp = new THREE.Mesh(new THREE.PlaneGeometry(cw * 0.6, cd * 0.6), this.lightMat); lamp.rotation.x = Math.PI / 2; lamp.position.y = 2.455; cab.add(lamp);
-    for (const [w, d, px, pz] of [[0.03, cd, -cw / 2, 0], [0.03, cd, cw / 2, 0], [cw, 0.03, 0, -cd / 2]]) { const gl = new THREE.Mesh(new THREE.BoxGeometry(w, 2.4, d), glassMat); gl.position.set(px, 1.25, pz); cab.add(gl); }
-    for (const [px, pz] of [[-cw / 2, -cd / 2], [cw / 2, -cd / 2], [-cw / 2, cd / 2], [cw / 2, cd / 2]]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.5, 0.06), frameMat); p.position.set(px, 1.25, pz); cab.add(p); }
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(cw - 0.2, 0.04, 0.04), g.mats.get('chrome')); rail.position.set(0, 0.95, -cd / 2 + 0.06); cab.add(rail);
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.5, 0.22), frameMat); panel.position.set(cw / 2 - 0.03, 1.25, cd / 2 - 0.3); cab.add(panel);
+    // ossature inox en une géométrie : poteaux, plafond à caissons, anneaux des spots, plinthes de protection, mains
+    // courantes rondes sur consoles (fond et côtés), platine du tableau de commande
+    const sb = new GeoBuilder({ uvScale: uvs }), M = (geo, m) => sb.geometry(geo, m, { flat: false, uvScale: uvs });
+    for (const [px, pz] of [[-cw / 2, -cd / 2], [cw / 2, -cd / 2], [-cw / 2, cd / 2], [cw / 2, cd / 2]]) M(roundBoxGeo(0.06, 2.5, 0.06, 0.008, 1), trs(px, 1.25, pz));
+    sb.box(0, 2.5, 0, cw, 0.08, cd); sb.box(0, 2.455, 0, cw - 0.3, 0.012, cd - 0.3);
+    const spots = [[-0.55, -0.5], [0, -0.5], [0.55, -0.5], [-0.55, 0.45], [0, 0.45], [0.55, 0.45]], ring = latheGeo([[0.05, 0], [0.068, -0.004], [0.072, 0]], 16);
+    for (const [sx, sz] of spots) M(ring, trs(sx, 2.448, sz));
+    for (const [w, d, px, pz] of [[0.006, cd - 0.08, -cw / 2 + 0.02, 0], [0.006, cd - 0.6, cw / 2 - 0.02, -0.26], [cw - 0.08, 0.006, 0, -cd / 2 + 0.02]]) sb.box(px, 0.12, pz, w, 0.16, d);
+    const rails = [[[-cw / 2 + 0.2, -cd / 2 + 0.065], [cw / 2 - 0.2, -cd / 2 + 0.065], [0, 0, -1]], [[-cw / 2 + 0.065, -cd / 2 + 0.2], [-cw / 2 + 0.065, cd / 2 - 0.45], [-1, 0, 0]], [[cw / 2 - 0.065, -cd / 2 + 0.2], [cw / 2 - 0.065, cd / 2 - 0.55], [1, 0, 0]]];
+    for (const [a, b, n] of rails) {
+      const A3 = new THREE.Vector3(a[0], 0.95, a[1]), B3 = new THREE.Vector3(b[0], 0.95, b[1]);
+      M(cylGeo(0.019, A3.distanceTo(B3), 12), alongMatrix(A3, B3, 1, 1, false));
+      for (const p of [A3, B3]) { const q = p.clone().addScaledVector(new THREE.Vector3(...n), 0.045); M(cylGeo(0.008, 0.045, 8), alongMatrix(p, q, 1, 1, false)); }
+    }
+    sb.box(cw / 2 - 0.024, 1.25, cd / 2 - 0.3, 0.012, 0.56, 0.24);
+    const steelM = new THREE.Mesh(sb.build(), frameMat); cab.add(steelM);
+    this.lightMat = new THREE.MeshBasicMaterial({ color: 0xfff4dd });
+    const lb = new GeoBuilder(), disc = new THREE.CircleGeometry(0.05, 14); for (const [sx, sz] of spots) lb.geometry(disc, new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(sx, 0, sz), { flat: false }); disc.dispose();
+    const lamp = new THREE.Mesh(lb.build(), this.lightMat); lamp.position.y = 2.446; cab.add(lamp);
+    const gb = new GeoBuilder(); for (const [w, d, px, pz] of [[0.03, cd, -cw / 2, 0], [0.03, cd, cw / 2, 0], [cw, 0.03, 0, -cd / 2]]) gb.box(px, 1.25, pz, w, 2.4, d);
+    cab.add(new THREE.Mesh(gb.build(), glassMat));
+    // tableau de commande : boutons ronds étiquetés (P, 0, 1) alignés sur les zones de visée, alarme, afficheur
+    const { geometry: copGeo } = quickGeometry(g.atlas, (k) => {
+      k.box(0, 0, 0.004, 0.2, 0.52, 0.008, 0xc9cdd1);
+      const btn = latheGeo([[0, 0], [0.021, 0], [0.021, 0.004], [0.017, 0.009], [0, 0.01]], 14);
+      ['P', '0', '1'].forEach((t, i) => {
+        k.b.geometry(btn, trs(0, 0.17 - i * 0.16, 0.008, Math.PI / 2, 0, 0), { color: 0xe8eaec, rect: k.white });
+        const r = k.shared('elev_' + t, 32, 32, { kind: 'plain', bg: 0x2a2d30, brand: t, fg: 0xffffff }); k.box(-0.055, 0.17 - i * 0.16, 0.009, 0.03, 0.03, 0.002, 0xffffff, { label: { face: 'Z', rect: r } });
+      });
+      k.b.geometry(btn, trs(0.055, -0.22, 0.008, Math.PI / 2, 0, 0), { color: 0xf2c200, rect: k.white });
+      const rd = k.shared('elev_disp', 64, 24, { kind: 'plain', bg: 0x0b0b0b, brand: '▲ 0 ▼', fg: 0xffb300 }); k.box(0, 0.235, 0.009, 0.12, 0.04, 0.002, 0xffffff, { label: { face: 'Z', rect: rd } });
+    });
+    const cop = new THREE.Mesh(copGeo, g.mats.get('props', 'gallery0_w')); cop.rotation.y = -Math.PI / 2; cop.position.set(cw / 2 - 0.03, 1.25, cd / 2 - 0.3); cab.add(cop);
     this.cabDoors = [];
     for (const s of [-1, 1]) { const d = new THREE.Mesh(new THREE.BoxGeometry(dw / 2, 2.2, 0.03), glassMat); d.position.set(s * dw / 4, 1.1, cd / 2 - 0.02); cab.add(d); this.cabDoors.push({ d, s }); }
     this.cabFloor = world.physics.add(new Box(x0, 0, z0, x1, 0, z1, LAYER.FURN));
@@ -83,7 +124,6 @@ export class Elevator extends WorldObject {
     // ── boutons : appels aux paliers, boutons de cabine ──
     this.buttons = [];
     F.forEach((y, i) => { const b = new ElevatorButton(world, world.newId('elevbtn'), { elevator: this, floor: i, label: 'Appel ascenseur', zone: levelZone(y + 1), x: x1 + 0.22, y: y + 1.15, z: zDoor + 0.12 }); world.add(b); this.buttons.push(b);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.18, 0.03), frameMat); m.position.set(x1 + 0.22, y + 1.15, zDoor + 0.06); (world.zone(levelZone(y + 1))?.group || world.root).add(m);
       const led = new THREE.Mesh(new THREE.CircleGeometry(0.025, 10), new THREE.MeshBasicMaterial({ color: 0xffb300 })); led.position.set(x1 + 0.22, y + 1.15, zDoor + 0.077); (world.zone(levelZone(y + 1))?.group || world.root).add(led); });
     this.cabButtons = F.map((y, i) => { const b = new ElevatorButton(world, world.newId('elevcab'), { elevator: this, floor: i, cab: true, label: 'Cabine', zone: 'gallery0_w', x: 0, y: 0, z: 0 }); world.add(b); return b; });
     this.init({ floor: 1, to: 1, moving: 0, doors: 0 });

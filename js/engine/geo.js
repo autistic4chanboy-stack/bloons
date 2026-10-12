@@ -148,3 +148,168 @@ export function concatGeometries(list) {
   out.computeBoundingSphere(); out.computeBoundingBox();
   return { geometry: out, ranges };
 }
+
+// ───────────────────────── Formes paramétriques (architecture, mobilier) ─────────────────────────
+// Géométries indexées (position, normal, uv) dont les UV sont en MÈTRES : multipliées par la répétition du matériau
+// (Arch.shapeM), une texture garde la même échelle que sur les murs. Les arêtes vives sont obtenues en doublant un
+// point du profil (deux normales). Mises en cache par les appelants (une forme, de nombreuses matrices).
+function mkGeo(pos, nor, uv, idx) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(pos.length / 3 > 65535 ? new THREE.Uint32BufferAttribute(idx, 1) : new THREE.Uint16BufferAttribute(idx, 1));
+  g.computeBoundingSphere();
+  return g;
+}
+// normales 2D d'une ligne de points (fermée ou non) : moyenne des segments voisins, sauf aux points doublés (arête vive)
+function lineNormals(P, closed, side = 1) {
+  const n = P.length, seg = [];
+  for (let i = 0; i < n - (closed ? 0 : 1); i++) {
+    const a = P[i], b = P[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+    seg.push(l < 1e-7 ? null : [side * dy / l, -side * dx / l]);
+  }
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const s0 = closed ? seg[(i - 1 + n) % n] : (i > 0 ? seg[i - 1] : null), s1 = closed ? seg[i % n] : (i < n - 1 ? seg[i] : null);
+    let nx = 0, ny = 0;
+    if (s0 && s1) { nx = s0[0] + s1[0]; ny = s0[1] + s1[1]; } else if (s0) { nx = s0[0]; ny = s0[1]; } else if (s1) { nx = s1[0]; ny = s1[1]; }
+    const l = Math.hypot(nx, ny) || 1; out.push([nx / l, ny / l]);
+  }
+  return out;
+}
+// Surface de révolution autour de Y : pts [[r, y], …] du bas vers le haut (r ≥ 0) ; o.phi0, o.phiLen (portion d'arc)
+export function latheGeo(pts, segs = 16, o = {}) {
+  const phi0 = o.phi0 ?? 0, phiLen = o.phiLen ?? Math.PI * 2, full = Math.abs(phiLen - Math.PI * 2) < 1e-6;
+  const N = lineNormals(pts, false), rMax = Math.max(...pts.map(p => p[0]), 0.01);
+  const pos = [], nor = [], uv = [], idx = [], L = [0];
+  for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const cols = segs + 1;
+  for (let i = 0; i < pts.length; i++) for (let j = 0; j <= segs; j++) {
+    const f = phi0 + phiLen * (full && j === segs ? 0 : j / segs), s = Math.sin(f), c = Math.cos(f);
+    pos.push(pts[i][0] * s, pts[i][1], pts[i][0] * c); nor.push(N[i][0] * s, N[i][1], N[i][0] * c); uv.push(phiLen * rMax * j / segs, L[i]);
+  }
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) < 1e-7) continue;
+    for (let j = 0; j < segs; j++) { const a = i * cols + j, b = a + 1, c = a + cols, d = c + 1; idx.push(a, b, d, a, d, c); }
+  }
+  return mkGeo(pos, nor, uv, idx);
+}
+// Congé des angles d'une polyligne 3D (Vector3[]) : chaque angle intérieur devient un arc de rayon r (n segments)
+export function roundPath(P, r, n = 4) {
+  if (P.length < 3 || r <= 0) return P.map(p => p.clone());
+  const out = [P[0].clone()];
+  for (let i = 1; i < P.length - 1; i++) {
+    const a = P[i - 1], b = P[i], c = P[i + 1];
+    const u = a.clone().sub(b), v = c.clone().sub(b), lu = u.length(), lv = v.length(); u.normalize(); v.normalize();
+    const ang = Math.acos(THREE.MathUtils.clamp(u.dot(v), -1, 1));
+    if (ang > Math.PI - 1e-3) { out.push(b.clone()); continue; }
+    const t = Math.min(r / Math.tan(ang / 2), lu * 0.49, lv * 0.49), p0 = b.clone().addScaledVector(u, t), p1 = b.clone().addScaledVector(v, t);
+    for (let k = 0; k <= n; k++) { const s = k / n; const q0 = p0.clone().lerp(b, s), q1 = b.clone().lerp(p1, s); out.push(q0.lerp(q1, s)); } // Bézier quadratique
+  }
+  out.push(P[P.length - 1].clone());
+  return out;
+}
+const _q = new THREE.Quaternion(), _t0 = new THREE.Vector3(), _t1 = new THREE.Vector3();
+// Balayage d'un profil fermé (shape [[x, y], …], sens trigonométrique) le long d'une polyligne 3D (Vector3[]) ; repères
+// par transport parallèle (o.up : orientation initiale du profil, axe y du profil). o.scale(t, i) : facteur de taille
+// (troncs, branches) ; o.caps : ferme les extrémités ; o.open : profil ouvert (bande).
+export function sweepGeo(path, shape, o = {}) {
+  const n = path.length, m = shape.length, closed = !o.open;
+  const SN = lineNormals(shape, closed, 1), pos = [], nor = [], uv = [], idx = [];
+  const T = [], Nn = [], Bn = [];
+  for (let i = 0; i < n; i++) {
+    const a = path[Math.max(0, i - 1)], b = path[Math.min(n - 1, i + 1)];
+    T.push(new THREE.Vector3().subVectors(b, a).normalize());
+  }
+  let up = (o.up || new THREE.Vector3(0, 1, 0)).clone(); if (Math.abs(up.dot(T[0])) > 0.98) up.set(1, 0, 0).cross(T[0]).normalize();
+  let N0 = up.sub(T[0].clone().multiplyScalar(up.dot(T[0]))).normalize();
+  for (let i = 0; i < n; i++) {
+    if (i > 0) { _q.setFromUnitVectors(_t0.copy(T[i - 1]), _t1.copy(T[i])); N0 = N0.clone().applyQuaternion(_q); N0.sub(T[i].clone().multiplyScalar(N0.dot(T[i]))).normalize(); }
+    Nn.push(N0); Bn.push(new THREE.Vector3().crossVectors(T[i], N0).normalize());
+  }
+  // périmètre (u) et longueur du chemin (v), en mètres
+  const per = [0]; for (let k = 1; k <= m; k++) { const a = shape[k - 1], b = shape[k % m]; per.push(per[k - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+  let len = 0; const cols = closed ? m + 1 : m;
+  for (let i = 0; i < n; i++) {
+    if (i) len += path[i].distanceTo(path[i - 1]);
+    const s = o.scale ? o.scale(len, i) : 1, P = path[i], N = Nn[i], B = Bn[i];
+    for (let k = 0; k < cols; k++) {
+      const sp = shape[k % m], sn = SN[k % m];
+      // x du profil → binormale, y → normale (profil vu dans le sens du chemin)
+      pos.push(P.x + (B.x * sp[0] + N.x * sp[1]) * s, P.y + (B.y * sp[0] + N.y * sp[1]) * s, P.z + (B.z * sp[0] + N.z * sp[1]) * s);
+      nor.push(B.x * sn[0] + N.x * sn[1], B.y * sn[0] + N.y * sn[1], B.z * sn[0] + N.z * sn[1]); uv.push(per[k] * s, len);
+    }
+  }
+  for (let i = 0; i < n - 1; i++) for (let k = 0; k < cols - 1; k++) {
+    const sa = shape[k % m], sb = shape[(k + 1) % m]; if (Math.hypot(sb[0] - sa[0], sb[1] - sa[1]) < 1e-7) continue;
+    const a = i * cols + k, b = a + 1, c = a + cols, d = c + 1; idx.push(a, c, d, a, d, b);
+  }
+  if (o.caps && closed) for (const [i, sg] of [[0, -1], [n - 1, 1]]) {
+    const s = o.scale ? o.scale(i ? len : 0, i) : 1, P = path[i], N = Nn[i], B = Bn[i], base = pos.length / 3;
+    for (let k = 0; k < m; k++) { const sp = shape[k]; pos.push(P.x + (B.x * sp[0] + N.x * sp[1]) * s, P.y + (B.y * sp[0] + N.y * sp[1]) * s, P.z + (B.z * sp[0] + N.z * sp[1]) * s); nor.push(T[i].x * sg, T[i].y * sg, T[i].z * sg); uv.push(sp[0] * s, sp[1] * s); }
+    for (let k = 1; k < m - 1; k++) sg > 0 ? idx.push(base, base + k + 1, base + k) : idx.push(base, base + k, base + k + 1);
+  }
+  return mkGeo(pos, nor, uv, idx);
+}
+// Profils usuels pour sweepGeo
+export function circleShape(r, n = 10) { const s = []; for (let k = 0; k < n; k++) { const a = (k / n) * Math.PI * 2; s.push([Math.cos(a) * r, Math.sin(a) * r]); } return s; }
+export function rectShape(w, h, r = 0, n = 2) { // rectangle centré, coins arrondis (rayon r, n segments par coin)
+  if (r <= 0) return [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [w / 2, h / 2], [-w / 2, h / 2], [-w / 2, h / 2], [-w / 2, -h / 2]];
+  const s = [], cs = [[w / 2 - r, -h / 2 + r, -Math.PI / 2], [w / 2 - r, h / 2 - r, 0], [-w / 2 + r, h / 2 - r, Math.PI / 2], [-w / 2 + r, -h / 2 + r, Math.PI]];
+  for (const [cx, cy, a0] of cs) for (let k = 0; k <= n; k++) { const a = a0 + (k / n) * Math.PI / 2; s.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); }
+  return s;
+}
+// Boîte aux arêtes arrondies (rayon r, n segments par demi-congé : n = 1 donne un chanfrein lissé). Normales lisses,
+// UV projetées par face (mètres). o.faces : faces à garder ('xXyYzZ').
+export function roundBoxGeo(w, h, d, r, n = 1, o = {}) {
+  const H = [w / 2, h / 2, d / 2], R = Math.max(1e-4, Math.min(r, H[0] * 0.999, H[1] * 0.999, H[2] * 0.999));
+  const coords = (hh) => { const a = [], inner = hh - R; for (let k = n; k >= 1; k--) a.push(-inner - R * Math.tan((k / n) * Math.PI / 4)); a.push(-inner, inner); for (let k = 1; k <= n; k++) a.push(inner + R * Math.tan((k / n) * Math.PI / 4)); return a; };
+  const C = [coords(H[0]), coords(H[1]), coords(H[2])], faces = o.faces ?? 'xXyYzZ';
+  const pos = [], nor = [], uv = [], idx = [], v = [0, 0, 0];
+  // face : axe normal, signe, axes (u, w) dans le plan tels que u × w = normale
+  for (const [f, ax, sg, ua, wa] of [['x', 0, -1, 2, 1], ['X', 0, 1, 1, 2], ['y', 1, -1, 0, 2], ['Y', 1, 1, 2, 0], ['z', 2, -1, 1, 0], ['Z', 2, 1, 0, 1]]) {
+    if (!faces.includes(f)) continue;
+    const U = C[ua], W = C[wa], base = pos.length / 3;
+    for (let j = 0; j < W.length; j++) for (let i = 0; i < U.length; i++) {
+      v[ax] = sg * H[ax]; v[ua] = U[i]; v[wa] = W[j];
+      const ix = Math.max(-H[0] + R, Math.min(H[0] - R, v[0])), iy = Math.max(-H[1] + R, Math.min(H[1] - R, v[1])), iz = Math.max(-H[2] + R, Math.min(H[2] - R, v[2]));
+      let dx = v[0] - ix, dy = v[1] - iy, dz = v[2] - iz; const l = Math.hypot(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l;
+      pos.push(ix + dx * R, iy + dy * R, iz + dz * R); nor.push(dx, dy, dz);
+      uv.push(ax === 0 ? -sg * v[2] : ax === 2 ? sg * v[0] : v[0], ax === 1 ? v[2] : v[1]);
+    }
+    for (let j = 0; j < W.length - 1; j++) for (let i = 0; i < U.length - 1; i++) { const a = base + j * U.length + i, b = a + 1, c = a + U.length, e = c + 1; idx.push(a, b, e, a, e, c); }
+  }
+  return mkGeo(pos, nor, uv, idx);
+}
+// Prisme droit : contour 2D (sens trigonométrique, plan XY) extrudé sur Z de z0 à z1, flancs à arêtes vives
+export function prismGeo(shape, z0, z1) {
+  const m = shape.length, pos = [], nor = [], uv = [], idx = [];
+  let u = 0;
+  for (let k = 0; k < m; k++) {
+    const a = shape[k], b = shape[(k + 1) % m], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy); if (l < 1e-7) continue;
+    const nx = dy / l, ny = -dx / l, base = pos.length / 3;
+    pos.push(a[0], a[1], z0, b[0], b[1], z0, b[0], b[1], z1, a[0], a[1], z1); for (let q = 0; q < 4; q++) nor.push(nx, ny, 0);
+    uv.push(u, z0, u + l, z0, u + l, z1, u, z1); u += l;
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  for (const [z, sg] of [[z0, -1], [z1, 1]]) { // fonds (éventail : contours convexes ou étoilés depuis le premier point)
+    const base = pos.length / 3; for (const p of shape) { pos.push(p[0], p[1], z); nor.push(0, 0, sg); uv.push(p[0], p[1]); }
+    for (let k = 1; k < m - 1; k++) sg > 0 ? idx.push(base, base + k, base + k + 1) : idx.push(base, base + k + 1, base + k);
+  }
+  return mkGeo(pos, nor, uv, idx);
+}
+// Cylindre (axe Y, centré) à UV métriques ; o.open : sans fonds ; o.r1 : rayon du haut
+export function cylGeo(r, h, segs = 12, o = {}) {
+  const r1 = o.r1 ?? r, pts = o.open ? [[r, -h / 2], [r1, h / 2]] : [[0, -h / 2], [r, -h / 2], [r, -h / 2], [r1, h / 2], [r1, h / 2], [0, h / 2]];
+  return latheGeo(pts, segs);
+}
+// Matrices utilitaires : objet unitaire posé entre deux points (axe Y de l'objet le long de a → b)
+const _ya = new THREE.Vector3(0, 1, 0), _d = new THREE.Vector3(), _mq = new THREE.Quaternion(), _ms = new THREE.Vector3();
+export function alongMatrix(a, b, sx = 1, sz = 1, stretch = true) {
+  _d.subVectors(b, a); const l = _d.length(); _mq.setFromUnitVectors(_ya, _d.normalize());
+  return new THREE.Matrix4().compose(new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5), _mq, _ms.set(sx, stretch ? l : 1, sz));
+}
+export function trs(x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
+  return new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
+}

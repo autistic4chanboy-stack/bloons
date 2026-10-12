@@ -22,8 +22,15 @@ export function buildServiceDecor(world, A, rng) {
     // armoire électrique murale (une par couloir)
     const ex = rng.range(-50, 50);
     A.furn(zn, ex - 0.4, y, Math.min(Zw(0), Zw(0.35)), ex + 0.4, y + 1.95, Math.max(Zw(0), Zw(0.35)), 0x9aa1a6, { metal: true });
-    A.furn(zn, ex - 0.07, y + 1.5, Math.min(Zw(0.351), Zw(0.356)), ex + 0.07, y + 1.64, Math.max(Zw(0.351), Zw(0.356)), 0xf2c230, { collide: false });
-    A.furn(zn, ex + 0.25, y + 0.9, Math.min(Zw(0.35), Zw(0.39)), ex + 0.29, y + 1.1, Math.max(Zw(0.35), Zw(0.39)), 0x222222, { collide: false });
+    // double porte (joint central, paumelles, poignées à clé), persiennes basses, socle, chapeau, pictogramme de danger
+    box(A, zn, ex - 0.4, y, 0.35, ex + 0.4, y + 0.1, 0.355, Zw, 0x2a2d30); box(A, zn, ex - 0.42, y + 1.95, -0.01, ex + 0.42, y + 1.98, 0.37, Zw, 0x7d858b);
+    box(A, zn, ex - 0.004, y + 0.1, 0.35, ex + 0.004, y + 1.95, 0.353, Zw, 0x3a3f43);
+    for (const sx of [-1, 1]) {
+      for (const yy of [0.35, 1.0, 1.65]) box(A, zn, ex + sx * 0.39 - 0.01, y + yy, 0.35, ex + sx * 0.39 + 0.01, y + yy + 0.08, 0.36, Zw, 0x5f666b);
+      box(A, zn, ex + sx * 0.06 - 0.012, y + 0.9, 0.35, ex + sx * 0.06 + 0.012, y + 1.08, 0.385, Zw, 0x222222);
+      for (let k = 0; k < 5; k++) box(A, zn, ex + sx * 0.2 - 0.12, y + 0.2 + k * 0.04, 0.35, ex + sx * 0.2 + 0.12, y + 0.215 + k * 0.04, 0.356, Zw, 0x3a3f43);
+    }
+    A.furn(zn, ex - 0.25, y + 1.5, Math.min(Zw(0.351), Zw(0.356)), ex - 0.11, y + 1.64, Math.max(Zw(0.351), Zw(0.356)), 0xf2c230, { collide: false });
     // amas le long du mur extérieur
     let bins = 0;
     for (let x = -57 + rng.range(0, 3); x < 58; x += rng.range(7.5, 11)) {
@@ -73,12 +80,21 @@ function roll(A, zn, x, y, Zw, s, rng, n) {
 }
 
 // conteneur à déchets 660 L (fouillable pour les deux premiers de chaque couloir)
+// cuve en polyéthylène aux angles arrondis (nervures, tourillons de levage), couvercle bombé à charnières, barre de
+// préhension, quatre roulettes pivotantes (chapes, roues)
 function bin(world, A, zn, x, y, Zw, s, rng, searchable) {
-  const col = rng.pick([0x2e6b3a, 0x5b6066, 0x2e6b3a, 0xc9a227]);
-  box(A, zn, x - 0.63, y + 0.12, 0.08, x + 0.63, y + 1.1, 0.86, Zw, col);
-  box(A, zn, x - 0.66, y + 1.1, 0.05, x + 0.66, y + 1.16, 0.9, Zw, col);
-  box(A, zn, x - 0.55, y + 0.98, 0.86, x + 0.55, y + 1.02, 0.93, Zw, 0x333333);   // poignée
-  for (const px of [x - 0.5, x + 0.5]) for (const pd of [0.2, 0.74]) box(A, zn, px - 0.06, y, pd - 0.06, px + 0.06, y + 0.12, pd + 0.06, Zw, 0x1a1a1a);
+  const col = rng.pick([0x2e6b3a, 0x5b6066, 0x2e6b3a, 0xc9a227]), dk = shade(col, 0.82);
+  const zc = (Zw(0.08) + Zw(0.86)) / 2;
+  A.rbox(zn, 'furniture', x, y + 0.61, zc, 1.26, 0.98, 0.78, 0.05, col, { n: 2 });
+  for (const dx of [-0.42, -0.14, 0.14, 0.42]) box(A, zn, x + dx - 0.02, y + 0.16, 0.86, x + dx + 0.02, y + 1.05, 0.875, Zw, dk); // nervures
+  A.rbox(zn, 'furniture', x, y + 1.13, (Zw(0.05) + Zw(0.9)) / 2, 1.32, 0.07, 0.85, 0.03, dk, { n: 2 });
+  for (const dx of [-0.45, 0.45]) box(A, zn, x + dx - 0.05, y + 1.08, 0.04, x + dx + 0.05, y + 1.14, 0.08, Zw, 0x1d1d1d);   // charnières
+  box(A, zn, x - 0.55, y + 0.98, 0.88, x + 0.55, y + 1.02, 0.93, Zw, 0x333333);                                         // poignée
+  for (const dx of [-0.64, 0.64]) box(A, zn, x + dx - 0.04, y + 0.8, 0.4, x + dx + 0.04, y + 0.88, 0.54, Zw, dk);         // tourillons
+  for (const px of [x - 0.5, x + 0.5]) for (const pd of [0.2, 0.74]) {
+    box(A, zn, px - 0.045, y + 0.085, pd - 0.035, px + 0.045, y + 0.12, pd + 0.035, Zw, 0x2a2a2a);
+    A.lathe(zn, 'furniture', [[0, -0.02], [0.05, -0.02], [0.055, -0.012], [0.055, 0.012], [0.05, 0.02], [0, 0.02]], 10, px, y + 0.055, Zw(pd), 0x141414, { rz: Math.PI / 2 });
+  }
   const z0 = Zw(0.05), z1 = Zw(0.93);
   const b = [x - 0.67, y, Math.min(z0, z1), x + 0.67, y + 1.17, Math.max(z0, z1)];
   world.physics.add(new Box(b[0], b[1], b[2], b[3], b[4], b[5], LAYER.FURN, null));
@@ -104,3 +120,5 @@ function jack(A, zn, x, y, Zw, s) {
   box(A, zn, x + 0.6, y + 1.22, 0.2, x + 0.69, y + 1.27, 0.58, Zw, 0x222222);                                      // poignée
   solid(A.world, x + 0.08, y, Zw, 0.72, 0.1, 0.68, 0.35);
 }
+
+function shade(c, k) { return (Math.round(((c >> 16) & 255) * k) << 16) | (Math.round(((c >> 8) & 255) * k) << 8) | Math.round((c & 255) * k); }
