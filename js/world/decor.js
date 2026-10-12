@@ -6,7 +6,7 @@ import '../data/decor.js';
 import { ITEMS } from '../data/items.js';
 import { registerShape } from './meshes.js';
 import { Box, LAYER } from '../engine/physics.js';
-import { Readable, Locker } from './fixtures.js';
+import { Readable, Locker, PushButton } from './fixtures.js';
 import { signTexture, posterTexture } from '../engine/textures.js';
 import { SHOPS } from '../data/shops.js';
 
@@ -150,7 +150,7 @@ export function buildDecor(world, A, dev, rng) {
   for (const [x, y, z, ry, zn] of [[-24.4, 1.0, 7.6, -Math.PI / 2, 'gallery0_w'], [24.4, 1.0, -7.6, Math.PI / 2, 'gallery0_e'], [-24.4, 6.0, -7.6, -Math.PI / 2, 'gallery1_w'], [24.4, 6.0, 7.6, Math.PI / 2, 'gallery1_e']]) dev('extinguisher_box', zn, x, y, z, ry);
   dev('mall_payphone', 'gallery0_w', -65.45, 1.1, -3.6, Math.PI / 2); dev('mall_payphone', 'gallery0_w', -65.45, 1.1, -4.8, Math.PI / 2);
   dev('mall_payphone', 'gallery1_w', -65.45, 6.1, -5.6, Math.PI / 2);
-  dev('mall_kiddie_car', 'gallery0_w', -51.5, 0.6, 2.6, Math.PI / 2); dev('mall_kiddie_horse', 'gallery0_e', 51.5, 0.6, -2.6, -Math.PI / 2);
+  dev('mall_kiddie_car', 'gallery0_w', -48.5, 0.6, 2.2, Math.PI / 2); dev('mall_kiddie_horse', 'gallery0_e', 48.5, 0.6, -2.2, -Math.PI / 2);
   dev('massage_chair', 'gallery1_w', -60, 5.6, 5.6, Math.PI);
   dev('vending', 'gallery1_e', 63.0, 5.9, 7.45, Math.PI); dev('vending', 'gallery0_w', -63.2, 0.9, -7.45, 0);
   dev('atm', 'gallery0_e', 63.0, 0.95, -7.65, 0);
@@ -179,6 +179,15 @@ export function buildDecor(world, A, dev, rng) {
   for (let i = 0; i < 6; i++) { const lk = new Locker(world, world.newId('locker'), { zone: 'entrance', x: 70.5 + i * 0.46, y: 0, z: 7.6, ry: Math.PI, name: 'Consigne n°' + (11 + i), contents: i === 2 ? ['umbrella_lost'].filter(id => ITEMS[id]) : i === 4 ? ['magazine'] : [], locked: i % 2 === 1 }); world.add(lk); }
   for (let i = 0; i < 5; i++) dev('shopping_cart', 'entrance', 78.9, 0.5, -5.0 + i * 0.62, -Math.PI / 2, { prop: true });
   A.box('entrance', 'rubber', 77.2, 0.001, -1.8, 79.9, 0.012, 1.8, { collide: false }); // tapis d'entrée
+  // ── arrêts d'urgence des escalators (au pied de chaque escalator) ──
+  const stopEsc = (game, actor, btn) => {
+    game.sim.emit('fx', { s: 'beep', pos: [btn.o.x, btn.o.y, btn.o.z], v: 0.8 });
+    if (!game.power.state.escalators) { game.sim.emit('toast', { text: 'Les escalators sont déjà à l\'arrêt.' }, { to: actor }); return; }
+    game.power.set({ escalators: false }); game.noise?.(new THREE.Vector3(btn.o.x, btn.o.y, btn.o.z), 0.6, 'machine');
+    game.sim.emit('toast', { text: 'Arrêt d\'urgence : escalators stoppés (relance depuis la console du poste).' }, { to: actor });
+  };
+  for (const [x, z, ry] of [[-15.2, -2.78, Math.PI], [-15.2, 2.78, 0], [15.2, -2.78, Math.PI], [15.2, 2.78, 0]]) world.add(new PushButton(world, world.newId('btn'), { zone: 'atrium', x, y: 0.95, z, ry, label: 'Arrêt d\'urgence de l\'escalator', press: stopEsc }));
+
   // ── entretien : panneaux « sol glissant », chariots de ménage ──
   dev('mall_wetsign', 'atrium', 2.6, 0.31, -2.4, 0.4, { prop: true }); dev('mall_wetsign', 'gallery1_e', 55, 5.31, -6.5, 1.2, { prop: true });
   dev('mall_wetsign', 'service_n0', -20, 0.31, 23.2, 0.2, { prop: true });

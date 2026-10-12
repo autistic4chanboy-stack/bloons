@@ -245,6 +245,7 @@ const PRIM = {
   shutter(ev, f) { const z = ev.zoneOf(f.where); const sh = z?.shop && ev.g.world.shops[z.shop]?.shutter; if (sh) sh.set({ target: f.to ?? 0.7 }); },
   phone(ev, f) { ev.g.phone.incoming(f.caller); },
   pa(ev, f) { ev.g.sim.emit('pa', { chime: f.chime, text: f.line || '', feedback: f.feedback, child: f.child, system: true }); },
+  pa_music(ev, f) { const g = ev.g; if (!g.power.isOn('pa')) return; g.sim.emit('pa', { music: f.style || 'muzak', creepy: true, dur: f.dur || 40 }); },
   shadow(ev, f) { ev.g.entities.apparition({ pos: ev.pos(f.where || 'player_far'), dur: f.dur || 3, cam: !!f.cam, eyes: !!f.eyes, where: f.where }); },
   cam_glitch(ev, f) { ev.g.security.glitch(f.dur || 3, f.figure); },
   cat(ev, f) { ev.g.entities.catAct(f.act || 'meow', ev.zoneOf(f.where)?.id); },

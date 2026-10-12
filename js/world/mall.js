@@ -13,6 +13,7 @@ import { Box, LAYER } from '../engine/physics.js';
 import { Door, Shutter, GlassPane, LightSwitch, Readable, Seat, Container, Locker, VentGrate } from './fixtures.js';
 import { buildShops, shopX, ventXForShop } from './shopbuilder.js';
 import { buildDecor } from './decor.js';
+import { Elevator } from './elevator.js';
 import { SHOPS } from '../data/shops.js';
 import { posterTexture, signTexture, buildingFacade, textTexture } from '../engine/textures.js';
 import { RNG } from '../engine/rng.js';
@@ -23,6 +24,8 @@ export const CEIL0 = 4.6, CEIL1 = 10;
 export const VOID_Z = 4;
 export const VOID_HOLES = [[-61.5, -46.5], [-43.5, -28], [-24, 24], [28, 43.5], [46.5, 61.5]];
 export const BRIDGES_X = [-63, -45, -27, 27, 45, 63]; // nœuds de navigation reliant les deux rives à l'étage
+export const ELEVATOR = { x0: -55.2, x1: -52.8, z0: 1.5, z1: 3.9, floors: [-4.5, 0, 5] }; // ascenseur panoramique (galerie ouest)
+const ELEV_HOLE = { x0: ELEVATOR.x0, z0: ELEVATOR.z0, x1: ELEVATOR.x1, z1: ELEVATOR.z1 };
 const holesIn = (x0, x1) => VOID_HOLES.filter(([a, b]) => b > x0 && a < x1).map(([a, b]) => ({ x0: Math.max(a, x0), z0: -VOID_Z, x1: Math.min(b, x1), z1: VOID_Z }));
 const galZone = (x, f) => (Math.abs(x) <= 24 ? 'atrium' : (f ? 'gallery1_' : 'gallery0_') + (x < 0 ? 'w' : 'e'));
 // Bureaux de l'administration : [zone, nom, [x0, z0, x1, z1]] (étage, y 5 → plafond suspendu 8.6)
@@ -92,7 +95,7 @@ export function buildMall(world) {
 
   // ═══════════════════════════ GALERIE ═══════════════════════════
   // Sol RDC galerie + atrium
-  A.floor('gallery0_w', 'terrazzo', -66, -8, -24, 8, 0, 0.6, { faces: 'Y' });
+  A.slabWithHoles('gallery0_w', 'terrazzo', -66, -8, -24, 8, 0, 0.6, [ELEV_HOLE], { faces: 'xXzZY' }); // trémie de l'ascenseur
   A.floor('atrium', 'terrazzo', -24, -8, 24, 8, 0, 0.6, { faces: 'Y' });
   A.floor('gallery0_e', 'terrazzo', 24, -8, 66, 8, 0, 0.6, { faces: 'Y' });
   // Dalle de l'étage : vide central sur toute la longueur, passerelles aux paliers des escalators, au milieu des
@@ -120,7 +123,10 @@ export function buildMall(world) {
     world.physics.add(new Box(lx - 0.06, 5, lz - 0.06, hx + 0.06, 6.15, hz + 0.06, LAYER.GLASS));
   };
   for (const [a, b] of VOID_HOLES) {
-    railSeg(a, -VOID_Z, b, -VOID_Z); railSeg(a, VOID_Z, b, VOID_Z);
+    railSeg(a, -VOID_Z, b, -VOID_Z);
+    const ec = (ELEVATOR.x0 + ELEVATOR.x1) / 2; // palier de l'ascenseur : interruption du garde-corps nord
+    if (ec > a && ec < b) { railSeg(a, VOID_Z, ec - 0.75, VOID_Z); railSeg(ec + 0.75, VOID_Z, b, VOID_Z); railSeg(ec - 0.75, ELEVATOR.z1, ec - 0.75, VOID_Z); railSeg(ec + 0.75, ELEVATOR.z1, ec + 0.75, VOID_Z); }
+    else railSeg(a, VOID_Z, b, VOID_Z);
     for (const xe of [a, b]) {
       if (Math.abs(xe) === 24) { railSeg(xe, -VOID_Z, xe, -2.7); railSeg(xe, 2.7, xe, VOID_Z); } // arrivée des escalators
       else railSeg(xe, -VOID_Z, xe, VOID_Z);
@@ -136,6 +142,9 @@ export function buildMall(world) {
       A.box(zn1, 'steel_dark', x - 1.2, 9.0, -0.01, x - 1.18, 11.2, 0.01, { collide: false }); A.box(zn1, 'steel_dark', x + 1.18, 9.0, -0.01, x + 1.2, 11.2, 0.01, { collide: false });
     }
   }
+
+  // Ascenseur panoramique (parking ↔ RDC ↔ étage)
+  world.elevator = new Elevator(world, world.newId('elevator'), ELEVATOR, A); world.add(world.elevator);
 
   // Escalators (escaliers + habillage)
   const escalator = (xBottom, dir, laneZ) => {
@@ -726,7 +735,7 @@ function buildBasement(world, A, door, dev, rng) {
 function buildGarage(world, A, door, dev, rng) {
   const g = world.game; const zn = 'garage'; const yb = -4.5, yc = -0.6;
   A.floor(zn, 'asphalt', -66, -24, 66, 24, yb, 0.4);
-  A.ceiling(zn, 'concrete', -66, -24, 66, 24, yc, 0.6);
+  A.slabWithHoles(zn, 'concrete', -66, -24, 66, 24, yc + 0.6, 0.6, [ELEV_HOLE], { faces: 'xXzZy' }); // plafond (trémie de l'ascenseur)
   A.wallX(zn, 'concrete_dark', -66, 66, -24.2, yb, yc, 0.4);
   A.wallX(zn, 'concrete_dark', -66, 66, 24.2, yb, yc, 0.4);
   A.wallZ(zn, 'concrete_dark', -24, 6, -66.15, yb, yc, 0.3);
