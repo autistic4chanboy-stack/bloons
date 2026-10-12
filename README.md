@@ -31,6 +31,9 @@ Le jeu est un site statique : aucun build, aucune dépendance à installer.
 Il faut un navigateur récent avec **WebGL 2** (Chrome, Edge, Firefox, Safari 15+). Un casque est recommandé : tous les
 sons sont spatialisés, avec réverbération selon la pièce et sons étouffés à travers les murs.
 
+Si le jeu rame : la résolution dynamique (activée par défaut) baisse d'elle-même la définition ; dans les options,
+« Qualité : basse » réduit aussi la distance d'affichage et les ombres, et « Échelle de rendu » descend jusqu'à 40 %.
+
 ### Sauvegardes
 
 La version navigateur sauvegarde **dans le navigateur** (`localStorage`) : 3 emplacements pour le mode histoire,
