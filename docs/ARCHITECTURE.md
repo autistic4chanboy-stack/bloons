@@ -128,6 +128,14 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
 - `shopbuilder.js` : coque et aménagement des boutiques ; `stocking.js` complète les rayons ; `shopfront.js` ajoute
   les détails de façade (autocollants des vitrines sur une seule planche de texture, enfants des vitres : ils
   disparaissent avec elles ; portiques antivol `TheftGate`).
+- `interiors.js` : intérieur propre à chaque boutique. `DESIGNS` (revêtements muraux par mur : enduit teinté, papiers
+  peints procéduraux `wp_<motif>_<couleurs>` — damassé, rayures, fleuri, art déco, enfantin, carrelage métro, panneau
+  perforé ou rainuré, velours, mousse acoustique, néons, cloison japonaise, pois, brique blanchie —, soubassement et
+  cimaise, plafond, plafond technique apparent, teinte et intensité de la lumière) et `INTERIOR_LAYOUTS`
+  (disposition des comptoirs, rayonnages, mobilier et accessoires). Les papiers peints passent par la bibliothèque de
+  matériaux (`installInteriorMaterials`), donc par l'éclairage de zone. Règle d'aménagement : l'allée d'entrée, l'allée
+  transversale (v ≈ 4,5 m) et le couloir de droite vers la réserve restent libres ; la navigation des présences suit ce
+  tracé (nœud `<magasin>_m`). Les articles remplissent les rayons du magasin avant ceux de la réserve.
 - `decor.js` : décor des galeries (colonnes, bannières, totems, plans, kiosques, cabines, manèges, consignes, boutons
   d'arrêt d'urgence des escalators, comptoir d'accueil avec sonnette `DeskBell` et bac d'objets trouvés).
   `garagedecor.js` (parking : repères des piliers, numéros des places, flèches, gabarit, gaines, sprinklers ; tous

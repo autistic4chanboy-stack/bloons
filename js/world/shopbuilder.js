@@ -9,6 +9,7 @@ import { Door, Shutter, GlassPane, LightSwitch, HideSpot, Container, Seat } from
 import { signTexture } from '../engine/textures.js';
 import { stockShop } from './stocking.js';
 import { buildShopFront } from './shopfront.js';
+import { installInteriorMaterials, designFor, finishShop, INTERIOR_LAYOUTS } from './interiors.js';
 
 export function shopX(s) { const x0 = GALLERY_X0 + s.slot * SLOT_W; return { x0, x1: x0 + s.w * SLOT_W }; }
 export function ventXForShop(s) { return shopX(s).x0 + 9; }
@@ -41,6 +42,7 @@ const PLACE = {
 
 export function buildShops(world, A, dev, rngRoot) {
   const g = world.game;
+  installInteriorMaterials(g.mats);
   world.shops = {};
   world.shopNavHooks = world.shopNavHooks || [];
   // murs mitoyens (une seule fois par limite d'emplacement)
@@ -67,10 +69,11 @@ function buildShop(world, A, dev, s, rng) {
   const cinema = s.layout === 'cinema';
   const ceilS = y + 4.0, ceilB = s.floor ? y + 3.6 : 3.4;
   const id = s.id, idB = s.id + '_back';
+  const design = designFor(s);
   const circuit = s.id === 'electro' ? 'electro' : (s.floor ? 'shops1' : 'shops0');
-  const zone = world.addZone(new Zone(id, s.name, s.zone || (cinema ? 'atrium' : 'shop'), s.floor, x0, y, Math.min(zF, cinema ? zB : zP), x1, top, Math.max(zF, cinema ? zB : zP), { shop: id, circuit, area: id, lightColor: [1, 0.96, 0.88], lightLevel: s.zone === 'bigstore' ? 0.7 : 0.6 }));
+  const zone = world.addZone(new Zone(id, s.name, s.zone || (cinema ? 'atrium' : 'shop'), s.floor, x0, y, Math.min(zF, cinema ? zB : zP), x1, top, Math.max(zF, cinema ? zB : zP), { shop: id, circuit, area: id, lightColor: design.light || [1, 0.96, 0.88], lightLevel: design.level ?? (s.zone === 'bigstore' ? 0.7 : 0.6) }));
   const back = cinema ? null : world.addZone(new Zone(idB, 'Réserve — ' + s.name, 'backroom', s.floor, x0, y, Math.min(zP, zB), x1, top, Math.max(zP, zB), { shop: id, circuit, area: id }));
-  const ctl = { shop: s, zone, back, x0, x1, sg, y, zF, zP, zB, glass: [], registers: [], devices: [], cams: [] };
+  const ctl = { shop: s, zone, back, x0, x1, sg, y, zF, zP, zB, glass: [], registers: [], devices: [], cams: [], ceil: (cinema ? top - 0.4 : ceilS) - y };
   world.shops[id] = ctl;
 
   // local → monde
@@ -79,9 +82,9 @@ function buildShop(world, A, dev, s, rng) {
   const wallMat = 'plaster_' + tint(s.color, 0.18);
 
   // ── sols / plafonds ──
-  A.floor(id, FLOORS[id] || 'tile_e8e4dc_8a857c_4', x0, Math.min(zF, cinema ? zB : zP), x1, Math.max(zF, cinema ? zB : zP), y, s.floor ? 0.4 : 0.6, { faces: 'Y' });
+  A.floor(id, design.floor || FLOORS[id] || 'tile_e8e4dc_8a857c_4', x0, Math.min(zF, cinema ? zB : zP), x1, Math.max(zF, cinema ? zB : zP), y, s.floor ? 0.4 : 0.6, { faces: 'Y' });
   if (back) A.floor(idB, 'lino', x0, Math.min(zP, zB), x1, Math.max(zP, zB), y, s.floor ? 0.4 : 0.6, { faces: 'Y' });
-  A.ceiling(id, 'ceiling', x0, Math.min(zF, cinema ? zB : zP), x1, Math.max(zF, cinema ? zB : zP), cinema ? top - 0.4 : ceilS, 0.05, { collide: false });
+  A.ceiling(id, design.ceiling || 'ceiling', x0, Math.min(zF, cinema ? zB : zP), x1, Math.max(zF, cinema ? zB : zP), cinema ? top - 0.4 : ceilS, 0.05, { collide: false });
   if (back) {
     const vx = ventXForShop(s);
     if (!s.floor) {
@@ -93,8 +96,6 @@ function buildShop(world, A, dev, s, rng) {
       A.ceiling(idB, 'concrete', vx - 0.5, h1, vx + 0.5, zh, ceilB, 0.05, { collide: false });
     } else A.ceiling(idB, 'concrete', x0, Math.min(zP, zB), x1, Math.max(zP, zB), ceilB, 0.05, { collide: false });
   }
-  // revêtement mural teinté (intérieur, côté magasin)
-  for (const xw of [x0 + 0.155, x1 - 0.155]) A.box(id, wallMat, xw - 0.005, y, Math.min(zF, cinema ? zB : zP), xw + 0.005, cinema ? top - 0.4 : ceilS, Math.max(zF, cinema ? zB : zP), { collide: false });
 
   // ── cloison réserve / mur du fond ──
   const rearX = x0 + 1.6, partX = x1 - 1.6;
@@ -172,8 +173,9 @@ function buildShop(world, A, dev, s, rng) {
 
   // ── aménagement ──
   const P = { boards: [], floor: [], counter: [], wallHigh: [], wallFloor: [], register: [], back: [], special: {} };
-  const L = new LayoutKit(world, A, ctl, P, rng);
-  const fn = LAYOUTS[id] || LAYOUTS[s.layout] || LAYOUTS.walls;
+  const L = new LayoutKit(world, A, ctl, P, rng); ctl.P = P; // (P gardé pour le débogage des aménagements)
+  finishShop(L, design, cinema ? { back: false, depth: Math.abs(zB - zF) - 0.15 } : {});
+  const fn = INTERIOR_LAYOUTS[id] || LAYOUTS[id] || LAYOUTS[s.layout] || LAYOUTS.walls;
   fn(L, s);
   if (back) L.backroom();
   placeContents(world, dev, ctl, P, s, rng);
@@ -190,7 +192,10 @@ function buildShop(world, A, dev, s, rng) {
     let lastC = cId;
     if (s.w > 1) for (let k = 0; k < s.w; k++) { const nid = `${id}_c${k}`; nav.node(nid, x0 + 6 + k * 12, y, zF + sg * Math.min(5, depth * 0.45), id, ['shop']); nav.link(cId, nid); lastC = nid; }
     if (back) {
-      nav.node(`${id}_pd`, partX, y, zP - sg * 0.8, id); nav.link(`${id}_pd`, cId); if (s.w > 1) nav.link(`${id}_pd`, lastC);
+      // allée transversale jusqu'au couloir de droite, puis la porte de la réserve (pas de diagonale à travers les rayons)
+      const mId = `${id}_m`; nav.node(mId, partX, y, zF + sg * Math.min(5, depth * 0.45), id, ['shop']);
+      nav.link(cId, mId); if (s.w > 1) nav.link(lastC, mId);
+      nav.node(`${id}_pd`, partX, y, zP - sg * 0.8, id); nav.link(`${id}_pd`, mId);
       nav.node(`${id}_bk`, partX - 1.2, y, (zP + zB) / 2, idB, ['back']);
       nav.link(`${id}_pd`, `${id}_bk`, { door: ctl.backDoor.id });
       nav.node(`${id}_rd`, rearX, y, zB - sg * 0.8, idB); nav.link(`${id}_bk`, `${id}_rd`);
@@ -226,36 +231,44 @@ class LayoutKit {
     else { const za = this.Z(a0), zb = this.Z(a1); this.P.boards.push({ ax: 'z', a0: Math.min(za, zb), a1: Math.max(za, zb), c: this.X(c), y, depth, clear, ry, zone: zone || this.id, cur: 0 }); }
   }
   // étagère murale : côté 'L' (u≈0), 'R' (u≈W), 'B' (cloison, v≈D)
-  wallShelf(side, a0, a1, levels = 4, height = 2.1, depth = 0.5, color = 0xb0b4b8, zone = null) {
-    const zn = zone || this.id; const metal = true;
-    const step = (height - 0.25) / (levels - 1);
-    const yb = zone && zone.endsWith('_back') ? 0 : 0;
+  wallShelf(side, a0, a1, levels = 4, height = 2.1, depth = 0.5, color = 0xb0b4b8, zone = null, o = {}) {
+    const zn = zone || this.id; const metal = o.metal ?? true;
+    const base = o.base ?? 0.12;
+    const step = (height - base - 0.13) / Math.max(1, levels - 1);
     for (let i = 0; i < levels; i++) {
-      const h = 0.12 + i * step;
+      const h = base + i * step;
       if (side === 'L') { this.furn(0.17, a0, 0.17 + depth, a1, h - 0.03, h, color, { zone: zn, metal, collide: false }); this.board('v', a0 + 0.05, a1 - 0.05, 0.17 + depth / 2, h, depth, step - 0.04, Math.PI / 2, zn); }
       if (side === 'R') { this.furn(this.W - 0.17 - depth, a0, this.W - 0.17, a1, h - 0.03, h, color, { zone: zn, metal, collide: false }); this.board('v', a0 + 0.05, a1 - 0.05, this.W - 0.17 - depth / 2, h, depth, step - 0.04, -Math.PI / 2, zn); }
       if (side === 'B') { const v = this.D - 0.12; this.furn(a0, v - depth, a1, v, h - 0.03, h, color, { zone: zn, metal, collide: false }); this.board('u', a0 + 0.05, a1 - 0.05, v - depth / 2, h, depth, step - 0.04, this.faceFront, zn); }
     }
-    // dos + montants + collision
-    if (side === 'L') { this.furn(0.15, a0, 0.2, a1, 0, height, 0x8a8f94, { zone: zn, metal }); this.furn(0.17, a0, 0.17 + depth, a1, 0, height, color, { zone: zn, visible: false }); }
-    if (side === 'R') { this.furn(this.W - 0.2, a0, this.W - 0.15, a1, 0, height, 0x8a8f94, { zone: zn, metal }); this.furn(this.W - 0.17 - depth, a0, this.W - 0.17, a1, 0, height, color, { zone: zn, visible: false }); }
-    if (side === 'B') { const v = this.D - 0.12; this.furn(a0, v - 0.05, a1, v, 0, height, 0x8a8f94, { zone: zn, metal }); this.furn(a0, v - depth, a1, v, 0, height, color, { zone: zn, visible: false }); }
+    // dos + montants + collision (o.back : couleur du fond ; o.plinth : socle plein sous la première tablette)
+    const bk = o.back ?? 0x8a8f94, h0 = o.from ?? 0, bm = o.backMetal ?? metal;
+    if (side === 'L') { this.furn(0.15, a0, 0.2, a1, h0, height, bk, { zone: zn, metal: bm }); this.furn(0.17, a0, 0.17 + depth, a1, h0, height, color, { zone: zn, visible: false }); }
+    if (side === 'R') { this.furn(this.W - 0.2, a0, this.W - 0.15, a1, h0, height, bk, { zone: zn, metal: bm }); this.furn(this.W - 0.17 - depth, a0, this.W - 0.17, a1, h0, height, color, { zone: zn, visible: false }); }
+    if (side === 'B') { const v = this.D - 0.12; this.furn(a0, v - 0.05, a1, v, h0, height, bk, { zone: zn, metal: bm }); this.furn(a0, v - depth, a1, v, h0, height, color, { zone: zn, visible: false }); }
+    if (o.plinth !== undefined && base > 0.2) this.wallBlock(side, a0, a1, 0, base - 0.03, depth, o.plinth, zn);
+    if (o.uprights) for (let a = a0; a <= a1 + 0.01; a += Math.max(0.6, (a1 - a0) / Math.max(1, Math.round((a1 - a0) / 1.0)))) {
+      if (side === 'L') this.furn(0.17, a - 0.015, 0.17 + depth, a + 0.015, h0, height, o.uprights, { zone: zn, metal, collide: false });
+      if (side === 'R') this.furn(this.W - 0.17 - depth, a - 0.015, this.W - 0.17, a + 0.015, h0, height, o.uprights, { zone: zn, metal, collide: false });
+      if (side === 'B') { const v = this.D - 0.12; this.furn(a - 0.015, v - depth, a + 0.015, v, h0, height, o.uprights, { zone: zn, metal, collide: false }); }
+    }
   }
   // gondole double face le long de u
-  island(u0, u1, v0, levels = 4, height = 1.7, color = 0xd0d4d8, depth = 1.0) {
-    const step = (height - 0.25) / (levels - 1);
-    this.furn(u0, v0, u1, v0 + depth, 0, 0.1, 0x555a60, { metal: true });
-    this.furn(u0, v0 + depth / 2 - 0.03, u1, v0 + depth / 2 + 0.03, 0, height, 0x8a8f94, { metal: true });
+  island(u0, u1, v0, levels = 4, height = 1.7, color = 0xd0d4d8, depth = 1.0, o = {}) {
+    const step = (height - 0.25) / (levels - 1), metal = o.metal ?? true;
+    this.furn(u0, v0, u1, v0 + depth, 0, 0.1, o.base ?? 0x555a60, { metal });
+    this.furn(u0, v0 + depth / 2 - 0.03, u1, v0 + depth / 2 + 0.03, 0, height, o.back ?? 0x8a8f94, { metal });
     for (let i = 0; i < levels; i++) {
       const h = 0.12 + i * step;
-      this.furn(u0, v0, u1, v0 + depth, h - 0.03, h, color, { metal: true, collide: false });
+      this.furn(u0, v0, u1, v0 + depth, h - 0.03, h, color, { metal, collide: false });
       this.board('u', u0 + 0.05, u1 - 0.05, v0 + depth * 0.25, h, depth / 2 - 0.04, step - 0.04, this.faceFront);
       this.board('u', u0 + 0.05, u1 - 0.05, v0 + depth * 0.75, h, depth / 2 - 0.04, step - 0.04, this.faceIn);
     }
     this.furn(u0, v0, u1, v0 + depth, 0, height, color, { visible: false });
     // tête de gondole
-    this.furn(u0 - 0.05, v0, u0, v0 + depth, 0, height + 0.25, this.color, {});
-    this.furn(u1, v0, u1 + 0.05, v0 + depth, 0, height + 0.25, this.color, {});
+    const cap = o.cap ?? this.color, ch = height + (o.capH ?? 0.25);
+    this.furn(u0 - 0.05, v0, u0, v0 + depth, 0, ch, cap, {});
+    this.furn(u1, v0, u1 + 0.05, v0 + depth, 0, ch, cap, {});
   }
   // table / présentoir avec plateau
   table(u0, v0, u1, v1, h, color = 0x8d6e63, levels = 1) {
@@ -268,10 +281,10 @@ class LayoutKit {
     if (levels > 1) { this.furn(u0 + 0.2, v0 + 0.2, u1 - 0.2, v1 - 0.2, h + 0.35, h + 0.38, color, { collide: false }); this.board(along ? 'u' : 'v', along ? u0 + 0.25 : v0 + 0.25, along ? u1 - 0.25 : v1 - 0.25, along ? (v0 + v1) / 2 : (u0 + u1) / 2, h + 0.38, 0.3, 0.6, along ? this.faceFront : Math.PI / 2); }
   }
   // comptoir de caisse (le long de u) avec emplacement de caisse
-  counter(u0, v0, u1, v1, h = 1.0, color = null, nRegisters = 1) {
+  counter(u0, v0, u1, v1, h = 1.0, color = null, nRegisters = 1, top = 0x3e2c1e) {
     const c = color ?? this.color;
     this.furn(u0, v0, u1, v1, 0, h - 0.05, c);
-    this.furn(u0 - 0.03, v0 - 0.03, u1 + 0.03, v1 + 0.03, h - 0.05, h, 0x3e2c1e);
+    this.furn(u0 - 0.03, v0 - 0.03, u1 + 0.03, v1 + 0.03, h - 0.05, h, top);
     const along = Math.abs(u1 - u0) >= Math.abs(v1 - v0);
     for (let i = 0; i < nRegisters; i++) {
       const t = (i + 0.5) / nRegisters;
@@ -292,6 +305,163 @@ class LayoutKit {
     if (side === 'R') this.P.wallFloor.push({ x: this.X(this.W - 0.2), y: this.y, z: this.Z(a), ry: -Math.PI / 2, zone: zone || this.id, wall: 'R' });
     if (side === 'B') this.P.wallFloor.push({ x: this.X(a), y: this.y, z: this.Z(this.D - 0.15), ry: this.faceFront, zone: zone || this.id, wall: 'B' });
   }
+  // couvercle vitré d'une vitrine (crochetable / cassable), posé à 1,18 m sur un meuble bas
+  vitrine(u0, v0, u1, v1) {
+    const L = this, xa = L.X(u0), xb = L.X(u1), za = Math.min(L.Z(v0), L.Z(v1)), zb = Math.max(L.Z(v0), L.Z(v1));
+    const gp = new GlassPane(L.world, L.world.newId('glass'), { zone: L.id, x0: xa, x1: xb, z0: za, z1: zb, y0: L.y + 1.18, y1: L.y + 1.18, shop: L.id, name: 'Vitrine à bijoux', horizontal: true, lockable: true, big: false });
+    gp.mesh.geometry.dispose(); gp.mesh.geometry = new THREE.PlaneGeometry(xb - xa, zb - za); gp.mesh.rotation.set(-Math.PI / 2, 0, 0); gp.mesh.position.set((xa + xb) / 2, L.y + 1.18, (za + zb) / 2);
+    gp.col.set(xa, L.y + 0.92, za, xb, L.y + 1.2, zb); L.world.physics.update(gp.col); gp.setPick(xa, L.y + 0.92, za, xb, L.y + 1.22, zb);
+    L.world.add(gp); L.c.glass.push(gp);
+    L.A.box(L.id, 'glass', xa, L.y + 0.92, za - 0.005, xb, L.y + 1.18, za + 0.005, { collide: false }); L.A.box(L.id, 'glass', xa, L.y + 0.92, zb - 0.005, xb, L.y + 1.18, zb + 0.005, { collide: false });
+    return gp;
+  }
+  // ── briques d'aménagement supplémentaires (intérieurs différenciés) ──
+  get H() { return this.c.ceil ?? 4.0; } // hauteur sous plafond (relative)
+  // boîte d'un matériau donné (coordonnées locales), sans collision par défaut
+  mbox(mat, u0, v0, u1, v1, h0, h1, o = {}) {
+    const za = this.Z(v0), zb = this.Z(v1);
+    return this.A.box(o.zone || this.id, mat, this.X(Math.min(u0, u1)), this.y + h0, Math.min(za, zb), this.X(Math.max(u0, u1)), this.y + h1, Math.max(za, zb), { collide: o.collide ?? false, ...o });
+  }
+  // bloc plein contre un mur (socle, meuble bas)
+  wallBlock(side, a0, a1, h0, h1, depth, color, zone = null) {
+    const zn = zone || this.id;
+    if (side === 'L') return this.furn(0.17, a0, 0.17 + depth, a1, h0, h1, color, { zone: zn });
+    if (side === 'R') return this.furn(this.W - 0.17 - depth, a0, this.W - 0.17, a1, h0, h1, color, { zone: zn });
+    const v = this.D - 0.12; return this.furn(a0, v - depth, a1, v, h0, h1, color, { zone: zn });
+  }
+  // panneau plaqué sur un mur (miroir, ardoise, panneau de couleur) : matériau ou couleur
+  wallPanel(side, a0, a1, h0, h1, mat, t = 0.02) {
+    const W = this.W, D = this.D, col = typeof mat === 'number';
+    const b = side === 'L' ? [0.165, a0, 0.165 + t, a1] : side === 'R' ? [W - 0.165 - t, a0, W - 0.165, a1] : [a0, D - 0.115 - t, a1, D - 0.115];
+    if (col) return this.furn(b[0], b[1], b[2], b[3], h0, h1, mat, { collide: false });
+    return this.mbox(mat, b[0], b[1], b[2], b[3], h0, h1);
+  }
+  mirror(side, a0, a1, h0 = 0.3, h1 = 2.0) { this.wallPanel(side, a0 - 0.03, a1 + 0.03, h0 - 0.03, h1 + 0.03, 0x2b2b2b, 0.02); this.wallPanel(side, a0, a1, h0, h1, 'chrome', 0.03); }
+  // comptoir vitré réfrigéré ou d'exposition (le long de u) : socle, plateau, vitre bombée, planche visible
+  glassCounter(u0, v0, u1, v1, h = 1.1, color = 0xf2efe8, top = 0x8a6440, o = {}) {
+    const fv = v0, bv = v1; // face client en v0
+    this.furn(u0, fv, u1, bv, 0, h - 0.42, color);
+    this.furn(u0 - 0.02, fv - 0.02, u1 + 0.02, bv + 0.02, h - 0.42, h - 0.38, top, { collide: false });
+    this.mbox('glass', u0 + 0.02, fv, u1 - 0.02, fv + 0.01, h - 0.38, h, {});                 // vitre avant
+    this.mbox('glass', u0 + 0.02, fv, u1 - 0.02, bv - 0.25, h - 0.005, h + 0.005, {});         // vitre du dessus
+    this.furn(u0, bv - 0.25, u1, bv, h - 0.06, h, top, { collide: false });                    // plan de service
+    for (const u of [u0, u1]) this.furn(u - 0.02, fv, u + 0.02, bv, h - 0.38, h, 0x9aa0a6, { metal: true, collide: false });
+    this.furn(u0, fv, u1, bv, 0, h, color, { visible: false });
+    this.board('u', u0 + 0.06, u1 - 0.06, (fv + bv - 0.25) / 2, h - 0.38, Math.abs(bv - fv) - 0.35, 0.3, this.faceFront);
+    if (o.register !== false) this.P.register.push({ x: this.X(o.regU ?? (u1 - 0.5)), y: this.y + h, z: this.Z(bv - 0.12), ry: this.faceFront + Math.PI, zone: this.id });
+    return { u0, v0, u1, v1, h };
+  }
+  // banquette rembourrée (dossier côté 'back' : 'u0' | 'u1' | 'v0' | 'v1')
+  bench(u0, v0, u1, v1, color = 0x7a1f1f, back = 'u0', h = 0.46) {
+    this.furn(u0, v0, u1, v1, 0, h - 0.08, 0x2b1d14);
+    this.furn(u0 + 0.02, v0 + 0.02, u1 - 0.02, v1 - 0.02, h - 0.08, h, color);
+    const t = 0.12;
+    const b = back === 'u0' ? [u0, v0, u0 + t, v1] : back === 'u1' ? [u1 - t, v0, u1, v1] : back === 'v0' ? [u0, v0, u1, v0 + t] : [u0, v1 - t, u1, v1];
+    if (back) this.furn(b[0], b[1], b[2], b[3], h, h + 0.55, color);
+  }
+  stool(u, v, color = 0x222222, h = 0.72) {
+    this.furn(u - 0.02, v - 0.02, u + 0.02, v + 0.02, 0, h - 0.05, 0x777b80, { metal: true, collide: false });
+    this.furn(u - 0.18, v - 0.18, u + 0.18, v + 0.18, 0, 0.02, 0x555a60, { metal: true, collide: false });
+    this.furn(u - 0.17, v - 0.17, u + 0.17, v + 0.17, h - 0.05, h, color, { collide: false });
+  }
+  chairDeco(u, v, ry = 0, color = 0x5d4037) { // chaise de décor (non interactive)
+    const c = Math.cos(ry), sn = Math.sin(ry), back = (du, dv) => [u + du * c + dv * sn, v - du * sn + dv * c];
+    this.furn(u - 0.2, v - 0.2, u + 0.2, v + 0.2, 0.42, 0.46, color, { collide: false });
+    for (const [du, dv] of [[-0.17, -0.17], [0.17, -0.17], [-0.17, 0.17], [0.17, 0.17]]) { const [a, b] = back(du, dv); this.furn(a - 0.02, b - 0.02, a + 0.02, b + 0.02, 0, 0.42, 0x3e2723, { collide: false }); }
+    const [bu, bv] = back(0, 0.19); this.furn(bu - (Math.abs(c) > 0.5 ? 0.2 : 0.02), bv - (Math.abs(c) > 0.5 ? 0.02 : 0.2), bu + (Math.abs(c) > 0.5 ? 0.2 : 0.02), bv + (Math.abs(c) > 0.5 ? 0.02 : 0.2), 0.46, 0.9, color, { collide: false });
+  }
+  rug(u0, v0, u1, v1, color = 0x8d3b3b, border = 0xd8c39a) {
+    this.furn(u0, v0, u1, v1, 0, 0.008, border, { collide: false });
+    this.furn(u0 + 0.1, v0 + 0.1, u1 - 0.1, v1 - 0.1, 0.008, 0.012, color, { collide: false });
+  }
+  plant(u, v, s = 1, pot = 0xd7ccc8) {
+    const A = this.A, zn = this.id, x = this.X(u), z = this.Z(v), y = this.y;
+    A.shape(zn, 'furniture', new THREE.CylinderGeometry(0.2 * s, 0.15 * s, 0.4 * s, 10), new THREE.Matrix4().makeTranslation(x, y + 0.2 * s, z), pot);
+    A.shape(zn, 'furniture', new THREE.IcosahedronGeometry(0.42 * s, 0), new THREE.Matrix4().compose(new THREE.Vector3(x, y + (0.4 + 0.55) * s, z), new THREE.Quaternion(), new THREE.Vector3(1, 1.5, 1)), 0x3f7a3a);
+    A.shape(zn, 'furniture', new THREE.IcosahedronGeometry(0.3 * s, 0), new THREE.Matrix4().compose(new THREE.Vector3(x + 0.12 * s, y + 1.25 * s, z - 0.08 * s), new THREE.Quaternion(), new THREE.Vector3(1, 1.3, 1)), 0x4f8f45);
+    this.world.physics.add(new Box(x - 0.22 * s, y, z - 0.22 * s, x + 0.22 * s, y + 0.5 * s, z + 0.22 * s, LAYER.FURN, null));
+  }
+  // suspension : fil depuis le plafond, abat-jour, disque lumineux (suit l'éclairage du magasin)
+  pendant(u, v, low = 2.4, color = 0x1e1e1e, kind = 'cone', size = 0.35) {
+    const A = this.A, zn = this.id, x = this.X(u), z = this.Z(v), y = this.y, H = this.H;
+    this.furn(u - 0.006, v - 0.006, u + 0.006, v + 0.006, low + size * 0.6, H, 0x111111, { collide: false });
+    const geo = kind === 'globe' ? new THREE.SphereGeometry(size * 0.55, 12, 8) : kind === 'drum' ? new THREE.CylinderGeometry(size * 0.6, size * 0.6, size * 0.6, 16, 1, true) : new THREE.ConeGeometry(size * 0.65, size * 0.7, 16, 1, true);
+    A.shape(zn, 'furniture', geo, new THREE.Matrix4().makeTranslation(x, y + low + size * 0.3, z), color);
+    if (kind === 'globe') A.panel(zn, x, y + low - size * 0.25 + 0.012, z, size * 0.4, size * 0.4, false);
+    else A.panel(zn, x, y + low + 0.02, z, size * 0.9, size * 0.9, false);
+  }
+  floorLamp(u, v, color = 0xe8dcc0) {
+    this.furn(u - 0.15, v - 0.15, u + 0.15, v + 0.15, 0, 0.03, 0x222222, { collide: false });
+    this.furn(u - 0.015, v - 0.015, u + 0.015, v + 0.015, 0.03, 1.5, 0x222222, { metal: true, collide: false });
+    this.A.shape(this.id, 'furniture', new THREE.CylinderGeometry(0.18, 0.24, 0.3, 14, 1, true), new THREE.Matrix4().makeTranslation(this.X(u), this.y + 1.62, this.Z(v)), color);
+    this.A.panel(this.id, this.X(u), this.y + 1.5, this.Z(v), 0.3, 0.3, false);
+  }
+  // portant de vêtements le long de u (barre, montants, cintres colorés)
+  rack(u0, u1, v, colors, h = 1.5) {
+    this.furn(u0, v - 0.025, u1, v + 0.025, h - 0.05, h, 0xc0c0c0, { metal: true, collide: false });
+    for (const u of [u0, u1]) { this.furn(u - 0.025, v - 0.025, u + 0.025, v + 0.025, 0, h, 0x9e9e9e, { metal: true }); this.furn(u - 0.2, v - 0.25, u + 0.2, v + 0.25, 0, 0.03, 0x9e9e9e, { metal: true, collide: false }); }
+    const n = Math.max(2, Math.floor((u1 - u0 - 0.2) / 0.11));
+    for (let k = 0; k < n; k++) { const u = u0 + 0.12 + k * (u1 - u0 - 0.24) / Math.max(1, n - 1); this.furn(u - 0.035, v - 0.2, u + 0.035, v + 0.2, h - 0.85 + (k % 3) * 0.05, h - 0.06, this.rng.pick(colors), { collide: false }); }
+    this.furn(u0, v - 0.25, u1, v + 0.25, 0, h, 0x888888, { visible: false });
+  }
+  // façade de tiroirs (pharmacie, quincaillerie) contre un mur
+  drawers(side, a0, a1, h0, h1, depth = 0.45, color = 0xf2f2f2, line = 0x9aa0a6, nx = 0, ny = 4) {
+    this.wallBlock(side, a0, a1, h0, h1, depth, color);
+    const cols = nx || Math.max(2, Math.round((a1 - a0) / 0.45));
+    const f = side === 'L' ? 0.17 + depth : side === 'R' ? this.W - 0.17 - depth : this.D - 0.12 - depth;
+    const d = side === 'R' || side === 'B' ? -0.008 : 0.008;
+    for (let i = 1; i < cols; i++) { const a = a0 + (a1 - a0) * i / cols; if (side === 'B') this.furn(a - 0.006, f + d, a + 0.006, f, h0, h1, line, { collide: false }); else this.furn(Math.min(f, f + d), a - 0.006, Math.max(f, f + d), a + 0.006, h0, h1, line, { collide: false }); }
+    for (let j = 1; j < ny; j++) { const h = h0 + (h1 - h0) * j / ny; if (side === 'B') this.furn(a0, f + d, a1, f, h - 0.006, h + 0.006, line, { collide: false }); else this.furn(Math.min(f, f + d), a0, Math.max(f, f + d), a1, h - 0.006, h + 0.006, line, { collide: false }); }
+  }
+  // bacs à bonbons en gradins contre un mur (avec planches pour les articles)
+  bins(side, a0, a1, colors) {
+    this.wallBlock(side, a0, a1, 0, 0.62, 0.62, 0xfafafa);
+    const rows = [[0.62, 0.55, 0.62], [0.98, 0.42, 0.5], [1.32, 0.3, 0.38]]; // [hauteur, profondeur avant, profondeur]
+    for (const [h, d] of rows) {
+      const n = Math.max(2, Math.floor((a1 - a0) / 0.3));
+      for (let k = 0; k < n; k++) {
+        const a = a0 + k * (a1 - a0) / n, b = a + (a1 - a0) / n - 0.02, c = this.rng.pick(colors);
+        if (side === 'L') this.furn(0.17, a, 0.17 + d, b, h, h + 0.05, c, { collide: false });
+        else if (side === 'R') this.furn(this.W - 0.17 - d, a, this.W - 0.17, b, h, h + 0.05, c, { collide: false });
+        else this.furn(a, this.D - 0.12 - d, b, this.D - 0.12, h, h + 0.05, c, { collide: false });
+      }
+      if (side === 'L') this.wallBlock('L', a0, a1, h, h + 0.03, d, 0xf5f5f5); else if (side === 'R') this.wallBlock('R', a0, a1, h, h + 0.03, d, 0xf5f5f5); else this.wallBlock('B', a0, a1, h, h + 0.03, d, 0xf5f5f5);
+      if (side === 'L') this.board('v', a0 + 0.05, a1 - 0.05, 0.17 + d / 2, h + 0.05, d - 0.06, 0.3, Math.PI / 2);
+      else if (side === 'R') this.board('v', a0 + 0.05, a1 - 0.05, this.W - 0.17 - d / 2, h + 0.05, d - 0.06, 0.3, -Math.PI / 2);
+      else this.board('u', a0 + 0.05, a1 - 0.05, this.D - 0.12 - d / 2, h + 0.05, d - 0.06, 0.3, this.faceFront);
+    }
+  }
+  // cloison basse ou pleine (cabine, salle d'examen) avec collision
+  partition(u0, v0, u1, v1, h = 2.3, color = 0xe8e4dc) { this.furn(u0, v0, u1, v1, 0, h, color); }
+  // panneau lumineux (enseigne intérieure, menus) : texture canvas, s'éteint avec le courant du magasin
+  litPanel(side, a0, a1, h0, h1, tex) {
+    const W = this.W, D = this.D, w = a1 - a0, hh = h1 - h0;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), new THREE.MeshBasicMaterial({ map: tex }));
+    if (side === 'B') { m.position.set(this.X((a0 + a1) / 2), this.y + (h0 + h1) / 2, this.Z(D - 0.14)); m.rotation.y = this.faceFront; }
+    else if (side === 'L') { m.position.set(this.X(0.19), this.y + (h0 + h1) / 2, this.Z((a0 + a1) / 2)); m.rotation.y = Math.PI / 2; }
+    else { m.position.set(this.X(W - 0.19), this.y + (h0 + h1) / 2, this.Z((a0 + a1) / 2)); m.rotation.y = -Math.PI / 2; }
+    m.matrixAutoUpdate = false; m.updateMatrix();
+    this.c.zone.group.add(m); this.c.zone.signMats.push(m.material);
+    return m;
+  }
+  // affiche ou cadre décoratif (éclairé par la scène)
+  wallPicture(side, a, h, w, hh, tex) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }));
+    if (side === 'B') { m.position.set(this.X(a), this.y + h, this.Z(this.D - 0.135)); m.rotation.y = this.faceFront; }
+    else if (side === 'L') { m.position.set(this.X(0.185), this.y + h, this.Z(a)); m.rotation.y = Math.PI / 2; }
+    else { m.position.set(this.X(this.W - 0.185), this.y + h, this.Z(a)); m.rotation.y = -Math.PI / 2; }
+    m.matrixAutoUpdate = false; m.updateMatrix(); this.c.zone.group.add(m);
+    return m;
+  }
+  // cadres photo colorés en grille sur un mur
+  frames(side, a0, a1, h0, h1, palette) {
+    for (let a = a0; a < a1 - 0.3; a += this.rng.range(0.45, 0.7)) for (let h = h0; h < h1 - 0.25; h += this.rng.range(0.4, 0.55)) {
+      const w = this.rng.range(0.25, 0.4), hh = this.rng.range(0.2, 0.32);
+      this.wallPanel(side, a, a + w, h, h + hh, 0x222222, 0.02);
+      this.wallPanel(side, a + 0.025, a + w - 0.025, h + 0.025, h + hh - 0.025, this.rng.pick(palette), 0.025);
+    }
+  }
+
   // réserve : étagères de stock, cartons, échelle de service
   backroom() {
     const s = this.c.shop, zn = this.id + '_back';
@@ -341,7 +511,7 @@ const LAYOUTS = {
     // caisses
     for (let i = 0; i < 4; i++) { const u = 4 + i * 4; L.counter(u, 1.6, u + 0.8, 3.6, 0.9, 0x37474f, 1); L.furn(u + 0.85, 1.6, u + 1.0, 3.6, 0, 0.6, 0xb0b0b0, { metal: true }); }
     // gondoles
-    for (const v of [4.4, 6.8]) for (const [a, b] of [[1.5, 11.5], [13.5, 23.5], [25.5, 35.5], [37.5, 46.5]]) L.island(a, b, v, 5, 1.8, 0xe0e0e0, 1.0);
+    for (const v of [5.4, 7.4]) for (const [a, b] of [[1.5, 11.5], [13.5, 23.5], [25.5, 35.5], [37.5, 45.2]]) L.island(a, b, v, 5, 1.8, 0xe0e0e0, 1.0);
     L.wallShelf('B', 0.8, W - 2.4, 5, 2.2, 0.5, 0xd8d8d8);
     L.wallShelf('L', 4.2, D - 0.8, 5, 2.2, 0.5, 0xd8d8d8);
     // fruits & légumes : étals inclinés
@@ -349,7 +519,7 @@ const LAYOUTS = {
     // frigos le long du mur droit
     for (let a = 3; a < D - 1; a += 1.6) L.wallFloor('R', a);
     L.wallFloor('L', 1.2); L.wallFloor('L', 2.6);
-    for (let u = 22; u < 27; u += 0.75) L.floorSpot(u, 0.9, L.faceIn);
+    for (let u = 30; u < 35; u += 0.75) L.floorSpot(u, 3.3, L.faceIn);
     for (let u = 44; u < 47; u += 1) L.floorSpot(u, 2.0, 0);
     L.floorSpot(2.0, 2.0, 0); L.floorSpot(2.8, 2.0, 0);
     // panneaux
@@ -367,8 +537,9 @@ const LAYOUTS = {
     L.wallShelf('L', 1.6, D - 0.8, 5, 2.3, 0.5, 0xfff176);
     L.wallShelf('R', 1.6, D - 0.8, 5, 2.3, 0.5, 0x81d4fa);
     L.wallShelf('B', 0.8, W - 2.4, 5, 2.3, 0.5, 0xf8bbd0);
-    L.island(4, 11, 4.2, 4, 1.4, 0xffcc80, 1.0); L.island(13, 20, 4.2, 4, 1.4, 0xa5d6a7, 1.0);
-    L.island(4, 11, 6.8, 4, 1.4, 0xce93d8, 1.0); L.island(13, 20, 6.8, 4, 1.4, 0x90caf9, 1.0);
+    L.island(4, 11, 5.6, 4, 1.4, 0xffcc80, 1.0); L.island(13, 20, 5.6, 4, 1.4, 0xa5d6a7, 1.0);
+    L.island(4, 11, 7.6, 4, 1.4, 0xce93d8, 1.0); L.island(13, 20, 7.6, 4, 1.4, 0x90caf9, 1.0);
+    L.island(4.6, 9.6, 2.6, 3, 1.2, 0xfff59d, 0.8);
     // pyramide de peluches
     L.table(16.5, 1.0, 19.5, 2.4, 0.6, 0xffb300, 2);
     L.counter(1.0, 1.2, 3.4, 1.9, 1.0, 0xffb300);
@@ -376,7 +547,7 @@ const LAYOUTS = {
     L.world.points.bobbyHome = new THREE.Vector3(L.X(W - 1.2), L.y, L.Z(3.2));
     L.world.points.bobbyHomeYaw = L.faceFront + 0.5;
     L.world.points.toyCenter = new THREE.Vector3(L.X(12), L.y, L.Z(5.6));
-    L.floorSpot(8, 2.4, 0);
+    L.floorSpot(5.4, 1.4, 0);
   },
   electro(L, s) {
     const W = L.W, D = L.D;
@@ -388,13 +559,13 @@ const LAYOUTS = {
     for (let u = 1.2; u < W - 2.5; u += 0.9) L.wallFloor('B', u);
     // îlots de petit électroménager (comptoirs)
     for (const [a, b] of [[3, 10.5], [13.5, 21]]) {
-      L.furn(a, 4.0, b, 5.0, 0, 0.9, 0xeceff1);
-      for (let u = a + 0.5; u < b - 0.3; u += 0.9) { L.counterSpot(u, 4.25, 0.9, L.faceFront); L.counterSpot(u + 0.3, 4.75, 0.9, L.faceIn); }
-      L.board('u', a + 0.1, b - 0.1, 4.5, 0.9, 0.9, 0.7, L.faceFront);
+      L.furn(a, 5.8, b, 6.8, 0, 0.9, 0xeceff1);
+      for (let u = a + 0.5; u < b - 0.3; u += 0.9) { L.counterSpot(u, 6.05, 0.9, L.faceFront); L.counterSpot(u + 0.3, 6.55, 0.9, L.faceIn); }
+      L.board('u', a + 0.1, b - 0.1, 6.3, 0.9, 0.9, 0.7, L.faceFront);
     }
     // présentoir des grille-pains (câblage défectueux — nuit 7)
-    L.table(3, 6.4, 7.5, 7.2, 0.95, 0xd84315, 1);
-    L.world.points.electroFire = new THREE.Vector3(L.X(5.2), L.y + 1.0, L.Z(6.8));
+    L.table(3, 2.0, 7.5, 2.8, 0.95, 0xd84315, 1);
+    L.world.points.electroFire = new THREE.Vector3(L.X(5.2), L.y + 1.0, L.Z(2.4));
     L.counter(W - 3.0, 1.0, W - 1.0, 1.8, 1.0, 0x1565c0);
     L.c.zone.extraSigns = ['PROMO TV', 'CUISINE', 'LAVAGE'];
   },
@@ -404,18 +575,18 @@ const LAYOUTS = {
     L.wallShelf('B', 0.8, W - 2.4, 6, 2.3, 0.35, 0x4527a0);
     L.furn(0.17, 2.0, 0.9, 7.5, 0, 0.8, 0x1a1a2e);
     for (const v of [2.8, 4.7, 6.6]) L.counterSpot(0.55, v, 0.8, Math.PI / 2);
-    L.island(3.5, 9, 4.6, 4, 1.4, 0x7c4dff, 1.0);
+    L.island(3.5, 9, 6.2, 4, 1.4, 0x7c4dff, 1.0);
     L.counter(W - 2.6, 1.0, W - 0.8, 1.8, 1.0, 0x7c4dff);
     L.floorSpot(1.3, 3.8, Math.PI / 2);
   },
   videoclub(L, s) {
     const W = L.W, D = L.D;
-    L.wallShelf('L', 1.4, D - 0.8, 6, 2.2, 0.3, 0x880e4f);
+    L.wallShelf('L', 4.8, D - 0.8, 6, 2.2, 0.3, 0x880e4f);
     L.wallShelf('R', 1.4, D - 0.8, 6, 2.2, 0.3, 0x880e4f);
     L.wallShelf('B', 0.8, W - 2.4, 5, 2.2, 0.35, 0x4a148c);
-    L.island(3.2, 8.8, 4.8, 4, 1.4, 0xad1457, 0.9);
-    L.furn(3.5, 1.0, 8.5, 1.8, 0, 1.0, 0x3e2723);
-    L.counterSpot(4.2, 1.4, 1.0, L.faceFront); L.counterSpot(5.4, 1.4, 1.0, L.faceFront); L.counterSpot(6.6, 1.4, 1.0, L.faceFront); L.counterSpot(7.8, 1.4, 1.0, L.faceFront);
+    L.island(3.2, 8.8, 6.3, 4, 1.4, 0xad1457, 0.9);
+    L.furn(0.17, 1.2, 0.9, 4.4, 0, 1.0, 0x3e2723);
+    for (const v of [1.7, 2.5, 3.3, 4.0]) L.counterSpot(0.55, v, 1.0, Math.PI / 2);
     L.counter(W - 2.6, 1.0, W - 0.8, 1.8, 1.0, 0xd81b60);
   },
   food(L, s) {
@@ -440,14 +611,14 @@ const LAYOUTS = {
     L.floorSpot(W - 1.0, 1.5, 0); L.floorSpot(W - 1.0, 3.0, 0);
   },
   racks(L, s) {
-    const W = L.W, D = L.D;
-    // portants (barres) + tables de vêtements pliés
-    for (let u = 3; u < W - 2.5; u += 3.2) {
-      L.furn(u, 3.6, u + 2.2, 3.65, 1.45, 1.5, 0xc0c0c0, { metal: true, collide: false });
-      L.furn(u, 3.6, u + 0.05, 3.65, 0, 1.5, 0x9e9e9e, { metal: true }); L.furn(u + 2.15, 3.6, u + 2.2, 3.65, 0, 1.5, 0x9e9e9e, { metal: true });
-      for (let k = 0; k < 9; k++) L.furn(u + 0.15 + k * 0.22, 3.45, u + 0.3 + k * 0.22, 3.8, 0.6, 1.4, L.rng.pick([0x37474f, 0xc62828, 0x1565c0, 0xfafafa, 0x6d4c41, 0x2e7d32, 0x880e4f]), { collide: false });
-      L.table(u, 5.6, u + 2.2, 6.6, 0.8, 0x6d4c41, 1);
-    }
+    const W = L.W, D = L.D, cx = W / 2, ew = s.w > 1 ? 6 : 4;
+    const colors = [0x37474f, 0xc62828, 0x1565c0, 0xfafafa, 0x6d4c41, 0x2e7d32, 0x880e4f, 0xd7ccc8, 0x212121];
+    // portants de part et d'autre de l'allée d'entrée, tables de pliés derrière l'allée transversale
+    const front = [];
+    for (let u = 1.2; u + 2.2 <= cx - 0.9; u += 2.8) front.push(u);
+    for (let u = cx + 0.9; u + 2.2 <= W - 1.0; u += 2.8) front.push(u);
+    for (const u of front) L.rack(u, u + 2.2, 2.6, colors);
+    for (let u = 1.6; u + 2.2 <= W - 2.6; u += 3.2) L.table(u, 6.0, u + 2.2, 6.9, 0.8, 0x6d4c41, 1);
     L.wallShelf('L', 1.6, D - 3.4, 4, 2.0, 0.45, 0xbcaaa4);
     L.counter(W - 2.8, 1.0, W - 1.0, 1.8, 1.0, s.color);
     // cabines d'essayage
@@ -459,10 +630,11 @@ const LAYOUTS = {
       const p = new THREE.Vector3(L.X(u0 + 0.65), L.y, L.Z(v0 + 0.7));
       L.world.add(new HideSpot(L.world, L.world.newId('hide'), { zone: L.id, name: 'Cabine d\'essayage', box: [Math.min(L.X(u0), L.X(u0 + 1.3)), L.y, Math.min(L.Z(v0), L.Z(D - 0.15)), Math.max(L.X(u0), L.X(u0 + 1.3)), L.y + 2, Math.max(L.Z(v0), L.Z(D - 0.15))], pos: p.toArray(), ry: L.faceFront }));
     }
-    // mannequins : vitrine + allées
-    for (let u = 1.4; u < W - 1; u += 1.6) L.floorSpot(u, 0.8, L.faceFront);
-    for (let u = 2.2; u < W - 2; u += 3.2) L.floorSpot(u, 4.8, L.faceFront + L.rng.range(-0.6, 0.6));
+    // mannequins : vitrine (hors entrée) puis devant chaque portant
+    for (let u = 1.4; u < W - 1; u += 1.6) if (u < cx - ew / 2 - 0.4 || u > cx + ew / 2 + 0.4) L.floorSpot(u, 0.8, L.faceFront);
+    for (const u of front) L.floorSpot(u + 1.1, 3.4, L.faceFront + L.rng.range(-0.6, 0.6));
     for (let a = 1.5; a < D - 2; a += 2) { L.wallHigh('R', a, 1.5); }
+    L.pendant(cx, 6.45, 2.5, 0x212121, 'drum', 0.5);
     L.world.points.modeCenter = L.world.points.modeCenter || (s.id === 'mode' ? new THREE.Vector3(L.X(W / 2), L.y, L.Z(4)) : undefined);
   },
   cases(L, s) {
@@ -487,8 +659,8 @@ const LAYOUTS = {
     const W = L.W, D = L.D;
     for (let a = 1.6; a < D - 0.6; a += 1.0) { L.wallFloor('L', a); L.wallFloor('R', a); }
     for (let u = 1.5; u < W - 2.5; u += 1.2) L.wallFloor('B', u);
-    for (const [u, v, ry] of [[6, 4.5, 0], [12, 4.5, 0], [18, 4.5, 0], [12, 2.0, L.faceIn], [W - 4, 2.0, L.faceIn]]) L.floorSpot(u, v, ry);
-    L.counter(W / 2 - 1.5, 1.0, W / 2 + 1.5, 1.6, 1.0, 0xd500f9);
+    for (const [u, v, ry] of [[6, 6.6, 0], [12, 6.6, 0], [18, 6.6, 0], [8, 2.2, L.faceIn], [W - 3.5, 2.6, L.faceIn]]) L.floorSpot(u, v, ry);
+    L.counter(16, 1.0, 19, 1.6, 1.0, 0xd500f9);
     L.floorSpot(3, 1.3, L.faceIn); L.floorSpot(4.4, 1.3, L.faceIn);
   },
   cinema(L, s) {
@@ -528,16 +700,16 @@ const LAYOUTS = {
     L.wallFloor('B', W - 3); L.wallFloor('B', W - 4.5);
     L.wallShelf('R', 1.6, D - 1.0, 4, 2.0, 0.4, 0xf8bbd0);
     L.counter(W - 2.8, 1.0, W - 1.0, 1.7, 1.0, 0xf06292);
-    L.floorSpot(5, 1.2, L.faceIn);
+    L.floorSpot(3.2, 1.0, L.faceIn);
   },
   music(L, s) {
     const W = L.W, D = L.D;
     L.wallFloor('L', 2.4); L.wallFloor('L', 5.2); L.wallFloor('L', 7.6);
-    L.floorSpot(W * 0.55, 5.5, L.faceFront);
-    L.furn(W * 0.55 - 1.2, 4.6, W * 0.55 + 1.2, 6.6, 0, 0.12, 0x3e2723);
+    L.floorSpot(W * 0.5, 6.6, L.faceFront);
+    L.furn(W * 0.5 - 1.2, 5.6, W * 0.5 + 1.2, 7.6, 0, 0.12, 0x3e2723);
     L.wallShelf('R', 1.6, D - 0.8, 4, 2.1, 0.45, 0x8d6e63);
     L.wallShelf('B', 3.0, W - 2.4, 4, 2.1, 0.4, 0x8d6e63);
-    L.table(4.2, 1.2, 6.8, 2.2, 0.8, 0x5d4037, 2);
+    L.table(1.6, 1.4, 4.2, 2.4, 0.8, 0x5d4037, 2);
     L.counter(W - 2.8, 1.0, W - 1.0, 1.7, 1.0, 0x6d4c41);
   },
   pets(L, s) {
@@ -547,7 +719,7 @@ const LAYOUTS = {
     L.furn(W - 0.8, 4.4, W - 0.17, 6.6, 0, 0.75, 0x37474f);
     L.P.wallFloor.push({ x: L.X(W - 0.55), y: L.y + 0.75, z: L.Z(5.5), ry: -Math.PI / 2, zone: L.id, wall: 'R', raised: true });
     L.floorSpot(W - 1.4, 2.0, -Math.PI / 2); L.floorSpot(4, D - 1.2, L.faceFront);
-    L.island(3.2, 8.8, 4.2, 4, 1.5, 0x80deea, 1.0);
+    L.island(2.8, 8.6, 6.4, 4, 1.5, 0x80deea, 1.0);
     L.wallShelf('B', 5.6, W - 2.4, 4, 2.0, 0.45, 0xb2ebf2);
     L.counter(W - 2.8, 1.0, W - 1.0, 1.6, 1.0, 0x0097a7);
     L.table(1.4, 1.0, 2.6, 1.8, 0.8, 0x6d4c41);
@@ -574,14 +746,14 @@ const LAYOUTS = {
   staff(L, s) {
     const W = L.W, D = L.D;
     for (let a = 1.6; a < D - 0.6; a += 0.5) L.wallFloor('L', a);
-    L.table(4.5, 3.5, 7.5, 5.0, 0.75, 0xbcaaa4);
-    L.floorSpot(4.2, 4.25, Math.PI / 2); L.floorSpot(7.8, 4.25, -Math.PI / 2); L.floorSpot(6, 3.1, L.faceIn); L.floorSpot(6, 5.4, L.faceFront);
-    L.furn(W - 4.8, D - 0.8, W - 1.2, D - 0.15, 0, 0.92, 0xd7ccc8);
-    L.counterSpot(W - 4.3, D - 0.5, 0.92, L.faceFront); L.counterSpot(W - 3.3, D - 0.5, 0.92, L.faceFront);
-    L.board('u', W - 4.7, W - 1.3, D - 0.5, 0.92, 0.5, 0.5, L.faceFront);
+    L.table(3.6, 6.0, 6.6, 7.4, 0.75, 0xbcaaa4);
+    L.floorSpot(3.3, 6.7, Math.PI / 2); L.floorSpot(6.9, 6.7, -Math.PI / 2); L.floorSpot(5.1, 5.6, L.faceIn); L.floorSpot(5.1, 7.8, L.faceFront);
+    L.furn(3.0, D - 0.8, 6.6, D - 0.15, 0, 0.92, 0xd7ccc8);
+    L.counterSpot(3.5, D - 0.5, 0.92, L.faceFront); L.counterSpot(4.5, D - 0.5, 0.92, L.faceFront);
+    L.board('u', 5.0, 6.5, D - 0.5, 0.92, 0.5, 0.5, L.faceFront);
     L.wallFloor('R', 2.0); L.wallFloor('R', 3.4);
     L.wallHigh('R', 6.0, 1.6);
-    L.floorSpot(W - 1.4, 7.4, -Math.PI / 2);
+    L.floorSpot(9.2, 2.2, -Math.PI / 2);
   },
   toilets(L, s) {
     const W = L.W, D = L.D;
@@ -634,21 +806,25 @@ function placeContents(world, dev, ctl, P, s, rng) {
   // articles (produits) : planches puis sol
   const boards = P.boards;
   const floorSpots = P.floor;
-  let bi = 0;
-  const placeOnBoards = (def) => {
-    const w = def.s[0], h = def.s[1], dpt = def.s[2];
-    for (let tries = 0; tries < boards.length; tries++) {
-      const b = boards[(bi + tries) % boards.length];
+  // les rayons du magasin d'abord, ceux de la réserve ensuite (un article trop grand pour les rayons ne doit pas
+  // entraîner tous les suivants en réserve) ; on reste sur la même planche tant qu'elle a de la place (rayons cohérents)
+  const shopBoards = boards.filter(b => !String(b.zone).endsWith('_back')), backBoards = boards.filter(b => String(b.zone).endsWith('_back'));
+  const cursor = new Map([[shopBoards, 0], [backBoards, 0]]);
+  const tryBoards = (list, def) => {
+    const w = def.s[0], h = def.s[1], dpt = def.s[2], start = cursor.get(list);
+    for (let tries = 0; tries < list.length; tries++) {
+      const k = (start + tries) % list.length, b = list[k];
       if (h > b.clear || dpt > b.depth + 0.15) continue;
       const len = b.a1 - b.a0;
       if (b.cur + w + 0.03 > len) continue;
       const a = b.a0 + b.cur + w / 2 + 0.015; b.cur += w + 0.03 + rng.range(0, 0.02);
-      bi = (bi + tries) % boards.length;
+      cursor.set(list, k);
       const pos = b.ax === 'x' ? [a, b.y + h / 2 + 0.002, b.c] : [b.c, b.y + h / 2 + 0.002, a];
       return { pos, ry: b.ry + rng.range(-0.06, 0.06), zone: b.zone };
     }
     return null;
   };
+  const placeOnBoards = (def) => tryBoards(shopBoards, def) || tryBoards(backBoards, def);
   // regrouper : on parcourt les articles dans l'ordre, chaque type à la suite (rayons cohérents)
   for (const [itemId, count] of (s.items || [])) {
     const def = ITEMS[itemId]; if (!def) { console.warn('article inconnu', itemId); continue; }
