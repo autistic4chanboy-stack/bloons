@@ -355,7 +355,7 @@ export class Security {
     if (this.monPage >= pages) this.monPage = 0;
     // 1 à 2 écrans rafraîchis par 1/60 s, jamais plus d'un lot par image : sur un écran 144 Hz on ne refait pas
     // 288 rendus de caméra par seconde, sur une machine lente on ne rattrape pas le retard
-    const n = this.mode === 'desk' ? 2 : 1;
+    const n = this.mode === 'desk' && g.settings.quality !== 'low' ? 2 : 1;
     this.monAcc = Math.min((this.monAcc || 0) + dt * 60 * n, n);
     const todo = Math.floor(this.monAcc); this.monAcc -= todo;
     for (let k = 0; k < todo; k++) {
@@ -365,7 +365,7 @@ export class Security {
       m.cam = c;
       this.drawMonitor(m);
     }
-    g.world.cull(cp, [], g.camera);
+    g.world.cull(cp, [], g.camera, g.settings.quality === 'low' ? 0.8 : 1);
   }
   drawMonitor(m) {
     const g = this.game; const c = m.cam;
@@ -412,7 +412,7 @@ export class Security {
     if (st === 'dead') { R.setRenderTarget(null); R.setClearColor(0x000000, 1); R.clear(); return; }
     const overlay = this.glitchT > 0 && this.glitchFigure ? this.overlayTex : null;
     g.renderer.renderCCTV(this.fsRT.texture, { ir, offline: st === 'offline' || st === 'nosignal', noise: this.mode === 'tablet' ? 0.14 : 0.1, glitch: this.glitchT > 0 ? Math.min(1, 0.4 + this.glitchT * 0.2) : (c?.kind === 'rc' ? 0.05 : 0), overlay, brightness: st === 'blocked' ? 0.35 : 1.12 });
-    g.world.cull(g.camera.position, [], g.camera);
+    g.world.cull(g.camera.position, [], g.camera, g.settings.quality === 'low' ? 0.8 : 1);
   }
   drawFigure() {
     const x = this.overlayCanvas.getContext('2d'); const W = 512, H = 384;
@@ -439,7 +439,7 @@ export class Security {
     if (!c || this.camStatus(c) !== 'ok') return;
     const ir = this.renderCam(c, this.capScene, CAP_W, CAP_H);
     this.capture(c, this.capScene.texture, ir);
-    g.world.cull(g.camera.position, [], g.camera);
+    g.world.cull(g.camera.position, [], g.camera, g.settings.quality === 'low' ? 0.8 : 1);
   }
   maybeCapture(c, tex, ir) {
     if (!this.S.rec || c.kind === 'player' || c.kind === 'rc') return;

@@ -174,7 +174,7 @@ export class Game {
     if (k === 'musicVolume') Audio.setBusVolume('music', s.musicVolume);
     if (k === 'sensitivity') this.input.sensitivity = s.sensitivity;
     if (k === 'invertY') this.input.invertY = s.invertY;
-    if (k === 'renderScale' || k === 'quality') this.renderer.resize();
+    if (k === 'renderScale' || k === 'quality' || k === 'autoScale') { this.renderer.dynScale = 1; this.renderer.resize(); }
     if (k === 'fov') { this.camera.fov = s.fov; this.camera.updateProjectionMatrix(); }
     this.hooks.emit('settings', k);
     this.onSettingsChanged?.(k);
@@ -256,7 +256,7 @@ export class Game {
       this.sync.update(sdt);
     }
     const cam = this.camera;
-    this.world.cull(cam.position, this.security.cullExtras(), cam);
+    this.world.cull(cam.position, this.security.cullExtras(), cam, this.settings.quality === 'low' ? 0.8 : 1);
     this.lighting.update(dt, cam.position);
     this.screens.update(dt, cam.position);
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion), up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);

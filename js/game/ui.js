@@ -237,6 +237,7 @@ export class UI {
         <label>Sensibilité <input type="range" min="0.2" max="3" step="0.1" data-o="sensitivity" value="${s.sensitivity ?? 1}"></label>
         <label>Champ de vision <input type="range" min="55" max="100" step="1" data-o="fov" value="${s.fov ?? 72}"></label>
         <label>Échelle de rendu <input type="range" min="0.4" max="1" step="0.05" data-o="renderScale" value="${s.renderScale ?? 1}"></label>
+        <label><input type="checkbox" data-o="autoScale" ${s.autoScale !== false ? 'checked' : ''}> Résolution dynamique</label>
         <label><input type="checkbox" data-o="shadows" ${s.shadows !== false ? 'checked' : ''}> Ombres de la lampe</label>
         <label><input type="checkbox" data-o="bloom" ${s.bloom !== false ? 'checked' : ''}> Halo lumineux (bloom)</label>
         <label><input type="checkbox" data-o="screamers" ${s.screamers !== false ? 'checked' : ''}> Screamers</label>

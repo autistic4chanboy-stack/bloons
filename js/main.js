@@ -103,6 +103,7 @@ function optionsMenu() {
     <label>Nom du gardien <input data-o="playerName" type="text" maxlength="20" value="${esc(s.playerName)}"></label>
     <label>Qualité <select data-o="quality"><option value="low" ${s.quality === 'low' ? 'selected' : ''}>Basse</option><option value="medium" ${s.quality === 'medium' ? 'selected' : ''}>Moyenne</option><option value="high" ${s.quality === 'high' ? 'selected' : ''}>Haute (anticrénelage)</option></select></label>
     <label>Échelle de rendu <input data-o="renderScale" type="range" min="0.4" max="1" step="0.05" value="${s.renderScale}"></label>
+    <label><input data-o="autoScale" type="checkbox" ${s.autoScale !== false ? 'checked' : ''}> Résolution dynamique (baisse la définition si le jeu rame)</label>
     <label>Volume général <input data-o="volume" type="range" min="0" max="1" step="0.05" value="${s.volume}"></label>
     <label>Musique <input data-o="musicVolume" type="range" min="0" max="1" step="0.05" value="${s.musicVolume}"></label>
     <label>Sensibilité de la souris <input data-o="sensitivity" type="range" min="0.2" max="3" step="0.1" value="${s.sensitivity}"></label>

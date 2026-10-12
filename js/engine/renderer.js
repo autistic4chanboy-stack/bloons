@@ -199,9 +199,10 @@ export class Renderer {
   }
 
   resize() {
-    const w = window.innerWidth, h = window.innerHeight;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const scale = this.settings.renderScale ?? 1;
+    const w = window.innerWidth, h = window.innerHeight, q = this.settings.quality;
+    // écrans haute densité : définition plafonnée selon la qualité (un écran Retina en ×2 quadruple le travail)
+    const dpr = Math.min(window.devicePixelRatio || 1, q === 'high' ? 2 : q === 'low' ? 1 : 1.25);
+    const scale = (this.settings.renderScale ?? 1) * (this.dynScale ?? 1);
     this.gl.setPixelRatio(1);
     this.gl.setSize(w, h, false);
     this.gl.domElement.style.width = w + 'px'; this.gl.domElement.style.height = h + 'px';
@@ -219,6 +220,21 @@ export class Renderer {
     this.compMat.uniforms.resolution.value.set(W, H);
   }
 
+  // Résolution dynamique : si les images tardent (< ~40 i/s), la définition interne baisse par paliers (jusqu'à 55 %),
+  // puis remonte doucement quand la marge revient. Désactivable dans les options.
+  adapt(dt) {
+    if (this.settings.autoScale === false) { if ((this.dynScale ?? 1) !== 1) { this.dynScale = 1; this.resize(); } return; }
+    if (!(dt > 0) || dt >= 0.1) return; // onglet caché, chargement : on ignore
+    this.ema = this.ema == null ? dt : this.ema + (dt - this.ema) * 0.04;
+    this.adaptT = (this.adaptT || 0) + dt;
+    if (this.adaptT < 2.5) return;
+    this.adaptT = 0;
+    const cur = this.dynScale ?? 1; let s = cur;
+    if (this.ema > 0.025) s = Math.max(0.55, cur - 0.1);
+    else if (this.ema < 0.0185) s = Math.min(1, cur + 0.05);
+    if (Math.abs(s - cur) > 0.001) { this.dynScale = s; this.resize(); }
+  }
+
   pass(mat, target) {
     this.fsMesh.material = mat;
     this.gl.setRenderTarget(target);
@@ -228,6 +244,7 @@ export class Renderer {
   // Rendu principal de la scène + post-traitement
   render(scene, camera, dt) {
     this._time += dt;
+    this.adapt(dt);
     const r = this.gl, rts = this.rts, U = this.compMat.uniforms;
     U.time.value = this._time;
     r.setRenderTarget(rts.scene);
