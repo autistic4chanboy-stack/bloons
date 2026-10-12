@@ -633,7 +633,7 @@ function creak(B, t, D, o = {}) {
 
 // ───────────────────────────── catalogue des sons ─────────────────────────────
 // d : durée (s) · v : variantes · sr : 'H' (cadence du contexte) | 'M' 32 kHz | 'L' 22,05 kHz | 'V' 16 kHz
-// g : niveau · loop : son continu (boucle sans couture) · ch : canaux · rev : envoi vers la réverbération
+// g : niveau · pk : crête (nombre, ou liste par variante) · loop : son continu (boucle sans couture) · ch : canaux · rev : envoi vers la réverbération
 // split : variantes ≥ split réservées aux impacts forts (course) · ivol : intensité déduite du volume
 // graph : synthèse temps réel paramétrable · os : durée d'un son continu joué en ponctuel · ref/md : distances
 const SND = {};
@@ -1380,11 +1380,177 @@ def('owl', { d: 3.2, v: 2, sr: 'L', g: 0.55, rev: 0.6, r(B) { // chouette hulott
   hoot(0.05, 0.4); hoot(1.0, 0.12, 1.02); hoot(1.25, 0.12, 1.02); hoot(1.5, 0.9, 1, 16);
   B.lp(1800); B.verb(0.35, 1.4, 0.5, 0.04);
 } });
-def('city_night', { d: 8, loop: true, ch: 2, sr: 'V', g: 0.6, r(B) {
-  B.nz(0, 8, { c: 'b', lp: 300, a: 0.7, ef: B.rnd(0.5, 0.6, 1) });
-  for (let i = 0; i < 2; i++) { const t = B.rr(0, 8), d = B.rr(3, 5); B.nz(t, d, { c: 'p', env: [[0, 0], [d / 2, 1], [d, 0]], lp: 800, hp: 100, a: 0.3 }); }
-  if (B.c === 0) { const t = B.rr(1, 6); B.osc(t, 3.5, { fe: (x) => 650 + 250 * Math.sin(TAU * x / 1.6), env: [[0, 0], [1.5, 1], [3.5, 0]], a: 0.04, lp: 1500 }); } // sirène très lointaine
-  B.nz(0, 8, { c: 'p', bp: 500, q: 0.5, a: 0.1, ef: B.rnd(0.8, 0.2, 1) }); // vent
+def('city_night', { d: 16, loop: true, ch: 2, sr: 'V', g: 0.6, r(B) { // rumeur de la ville la nuit (les sirènes lointaines : amb_far, rares)
+  B.nz(0, B.dur, { lp: 260, lq: 0.6, hp: 24, a: 1, ef: B.rnd(0.35, 0.6, 1) });
+  for (let i = 0; i < 4; i++) { const t = B.rr(0, B.dur), d = B.rr(3, 5); B.nz(t, d, { env: [[0, 0], [d / 2, 1], [d, 0]], lp: 800, hp: 110, a: B.rr(0.15, 0.3), tail: 0.05 }); } // voitures au loin
+  B.nz(0, B.dur, { bp: 500, q: 0.5, a: 0.12, ef: B.rnd(0.6, 0.2, 1) }); // vent
+} });
+
+// ── nuit : fond sonore du bâtiment (« pesant », jamais musical, jamais de sursaut) ──
+// Ton de salle (graphe room_tone : grondement, souffle, houles rares), couches propres aux lieux (boucles longues de
+// bruit blanc filtré : jonctions invisibles), bruits lointains ponctuels joués positionnés par js/game/ambience.js
+// (distance de référence élevée : audibles à 10-40 m, assourdis par les murs, noyés dans la réverbération du lieu).
+def('room_tone', { graph: (...a) => gRoomTone(...a), param: { dark: 1, tension: 0.3, air: 1 }, g: 0.3, os: 6 });
+def('_rt_low', { d: 17, loop: true, sr: 'V', r(B) { // grondement ressenti plus qu'entendu (25-120 Hz), qui pulse lentement
+  B.nz(0, B.dur, { lp: 75, lq: 0.6, hp: 24, a: 1, ef: B.rnd(0.12, 0.55, 1) });
+  B.nz(0, B.dur, { bp: 31, q: 3, a: 2.2, ef: B.rnd(0.09, 0.15, 1) });    // houle infra-grave (pression)
+  B.nz(0, B.dur, { bp: 57, q: 5, a: 1.1, ef: B.rnd(0.15, 0.3, 1) });     // grosse centrale de traitement d'air, très loin
+  B.nz(0, B.dur, { bp: 170, q: 0.8, a: 0.12, ef: B.rnd(0.3, 0.35, 1) }); // bas-médium : présence du bâtiment
+  B.lp(210).lp(260); // rien au-dessus : aucun souffle ne fuit des flancs des passe-bande
+} });
+def('_rt_air', { d: 11, loop: true, ch: 2, sr: 'L', r(B) { // souffle des bouches d'air, sifflement ténu des diffuseurs
+  B.nz(0, B.dur, { hp: 150, lp: 1700, lq: 0.5, pk: [[380, 1.2, 3]], a: 1, ef: B.rnd(0.25, 0.75, 1) });
+  B.nz(0, B.dur, { hp: 2500, lp: 7000, a: 0.16, ef: B.rnd(0.4, 0.55, 1) });
+} });
+def('_rt_swell', { d: 10, v: 3, sr: 'V', r(B) { // houle lente : le bâtiment « respire »
+  const D = B.rr(6.5, 9), lo = B.v === 2;
+  B.nz(0.05, D, { env: [[0, 0], [D * B.rr(0.4, 0.55), 1], [D, 0]], lp: lo ? 85 : 300, hp: lo ? 22 : 45, a: 1, ef: B.rnd(0.7, 0.6, 1), tail: 0.3 });
+  if (!lo) B.nz(0.05, D, { env: [[0, 0], [D * 0.5, 1], [D, 0]], bp: B.rr(150, 240), q: 1.3, a: 0.35, tail: 0.2 });
+  B.lp(lo ? 140 : 520).lp(lo ? 180 : 650);
+} });
+def('hall_air', { d: 16, loop: true, ch: 2, sr: 'L', g: 0.5, r(B) { // galeries, atrium : immense volume vide, l'air qui circule, très large
+  B.nz(0, B.dur, { hp: 110, lp: 1300, lq: 0.5, a: 1, ef: B.rnd(0.16, 0.35, 1) }); // masse d'air
+  for (let i = 0; i < 3; i++) { const t = B.rr(0, B.dur), D = B.rr(4.5, 8); B.nz(t, D, { env: [[0, 0], [D * 0.5, 1], [D, 0]], bp: (x) => 200 + 420 * Math.sin(Math.PI * Math.min(1, x / D)), q: 0.9, a: 0.55, tail: 0.1 }); } // courants d'air
+  B.nz(0, B.dur, { hp: 3500, lp: 9000, a: 0.07, ef: B.rnd(0.3, 0.5, 1) });        // brillance du hall vitré
+  B.nz(0, B.dur, { lp: 80, hp: 24, a: 0.6, ef: B.rnd(0.1, 0.5, 1) });              // mode grave du volume
+} });
+def('glass_roof', { graph: (...a) => gGlassRoof(...a), param: { rain: 0, wind: 0.3, muffle: 0 }, g: 0.5, os: 6 });
+def('_glass_rain', { d: 5, loop: true, ch: 2, sr: 'M', r(B) { // pluie sur la verrière, entendue d'une dizaine de mètres plus bas
+  B.nz(0, B.dur, { hp: 450, lp: 5500, a: 0.45, ef: B.rnd(3, 0.8, 1) });           // ruissellement
+  for (let i = 0; i < 1100; i++) {
+    const t = B.rr(0, B.dur); B.nz(t, 0.0012, { dec: B.rr(0.0002, 0.0006), hp: B.rr(1400, 3200), lp: 8500, a: B.rr(0.04, 0.3), tail: 0.003 });
+    if (B.ch(0.16)) { const f = B.rr(1800, 5000); B.modal(t, [[f, 1, B.rr(0.004, 0.012)], [f * 2.32, 0.4, 0.004]], { ct: 0.0001, a: B.rr(0.02, 0.07) }); } // la goutte fait tinter le verre
+  }
+  for (let i = 0; i < 160; i++) B.nz(B.rr(0, B.dur), 0.006, { dec: 0.0018, bp: B.rr(220, 650), q: 1.4, a: B.rr(0.04, 0.15) }); // le vitrage tambourine
+  B.lp(6500);
+} });
+def('_glass_gust', { d: 13, loop: true, ch: 2, sr: 'L', r(B) { // rafales sur la toiture vitrée : poussées sourdes, un joint qui siffle
+  const gust = B.rnd(0.35, 0, 1);
+  B.nz(0, B.dur, { lp: 360, hp: 35, a: 1, ef: (x) => 0.25 + 0.75 * gust(x) * gust(x) });
+  B.nz(0, B.dur, { bp: 650, q: 0.7, a: 0.25, ef: (x) => gust(x) * gust(x) * gust(x) });
+  B.nz(0, B.dur, { bp: B.rr(950, 1350), q: 14, a: 0.5, ef: (x) => Math.max(0, gust(x) - 0.62) * 2.6 });
+} });
+def('service_hum', { d: 13, loop: true, ch: 2, sr: 'V', g: 0.5, r(B) { // couloirs de service, réserves : machinerie lointaine, eau dans les colonnes
+  B.nz(0, B.dur, { lp: 140, hp: 28, a: 1, ef: B.rnd(0.15, 0.6, 1) });             // machinerie au loin
+  B.nz(0, B.dur, { bp: 100, q: 9, a: 1.6, ef: B.rnd(0.2, 0.5, 1) }); B.nz(0, B.dur, { bp: 50, q: 7, a: 0.9 }); // ronflement secteur instable (bande étroite, pas un son pur)
+  B.nz(0, B.dur, { bp: 520, q: 0.9, a: 0.2, ef: B.rnd(5, 0.55, 1) });             // filet d'eau dans une colonne
+  B.nz(0, B.dur, { hp: 1500, lp: 5000, a: 0.03 });
+} });
+def('boiler_room', { d: 9, loop: true, ch: 2, sr: 'L', g: 0.55, r(B) { // chaufferie : flamme du brûleur, circulateur, roulement
+  B.nz(0, B.dur, { lp: 320, hp: 45, a: 1, ef: B.rnd(7, 0.75, 1) });               // turbulence de la flamme
+  B.nz(0, B.dur, { bp: 140, q: 2, a: 0.5, ef: B.rnd(11, 0.6, 1) });               // vrombissement
+  B.osc(0, B.dur, { w: 'tab', f: 47, harm: [0.4, 1, 0.5, 0.3, 0.15], a: 0.055, ef: B.rnd(0.5, 0.75, 1) }); // moteur du circulateur
+  B.nz(0, B.dur, { bp: 1250, q: 6, a: 0.05 });                                     // roulement
+  B.nz(0, B.dur, { hp: 2000, lp: 8000, a: 0.03, ef: B.rnd(2, 0.5, 1) });           // souffle du brûleur
+} });
+def('garage_air', { d: 15, loop: true, ch: 2, sr: 'V', g: 0.55, r(B) { // parking souterrain : le béton résonne, le vent s'engouffre par la rampe
+  B.nz(0, B.dur, { lp: 160, hp: 22, pk: [[38, 6, 7], [61, 7, 6], [89, 7, 5], [127, 8, 4]], a: 1, ef: B.rnd(0.12, 0.6, 1) }); // modes du volume de béton
+  const gust = B.rnd(0.22, 0, 1);
+  B.nz(0, B.dur, { bp: 480, q: 0.6, a: 0.45, ef: (x) => 0.15 + 0.85 * gust(x) * gust(x) });
+  B.nz(0, B.dur, { hp: 1800, lp: 5500, a: 0.04, ef: (x) => 0.3 + 0.7 * gust(x) });
+} });
+def('vent_air', { d: 7, loop: true, ch: 2, sr: 'L', g: 0.5, r(B) { // dans la gaine : souffle tout proche, la tôle résonne
+  const fl = B.rnd(0.6, 0.6, 1);
+  B.nz(0, B.dur, { lp: 2200, hp: 60, pk: [[150, 6, 5], [290, 10, 9], [575, 12, 7], [870, 12, 5], [1160, 14, 4]], a: 1, ef: fl });
+  B.nz(0, B.dur, { bp: 3200, q: 2, a: 0.05, ef: fl });
+} });
+def('equipment_hum', { d: 6, loop: true, ch: 2, sr: 'L', g: 0.45, r(B) { // poste de sécurité : ventilateurs de l'enregistreur et des moniteurs, transformateur (calme, stable)
+  B.nz(0, B.dur, { hp: 140, lp: 1700, lq: 0.5, a: 1, ef: B.rnd(0.5, 0.92, 1) });
+  B.osc(0, B.dur, { w: 'tab', f: 100, harm: [1, 0.35, 0.5, 0.12, 0.15], a: 0.03 });
+  B.nz(0, B.dur, { bp: 50, q: 4, a: 0.5 });
+  B.nz(0, B.dur, { hp: 4000, lp: 9000, a: 0.02 });
+} });
+// bruits lointains (ponctuels, positionnés) : variantes nombreuses, filtrés comme entendus de loin ou à travers les dalles
+def('amb_creak', { d: 3.4, v: 6, pk: [0.9, 0.9, 0.6, 0.6, 0.4, 0.4], sr: 'L', g: 0.7, rev: 1.6, ref: 6, md: 90, r(B) { // le bâtiment travaille : charpente qui se tasse, cloison, poutre qui se dilate
+  const k = B.v;
+  if (k < 2) creak(B, 0.1, B.rr(1.4, 2.6), { r0: B.rr(4, 8), r1: B.rr(10, 18), wr: 2.5, wd: 0.45, blip: 40, res: [[B.rr(70, 95), 7, 1], [B.rr(140, 170), 8, 0.7], [B.rr(230, 280), 9, 0.5], [B.rr(400, 460), 10, 0.3]], att: 0.3, a: 1 });
+  else if (k < 4) creak(B, 0.05, B.rr(0.5, 1), { r0: B.rr(14, 24), r1: B.rr(35, 60), res: [[B.rr(300, 380), 9, 1], [B.rr(520, 620), 11, 0.6], [B.rr(900, 1100), 12, 0.35]], a: 0.8 });
+  else {
+    const f = B.rr(85, 150), t = 0.05;
+    B.modal(t, [[f, 1, 0.3], [f * 2.31, 0.6, 0.2], [f * 3.9, 0.4, 0.12], [f * 5.6, 0.25, 0.08]], { ct: 0.002, a: 0.9 });
+    B.nz(t, 0.008, { dec: 0.002, hp: 700, lp: 4000, a: 0.35 }); B.thump(t, { f0: 90, f1: 50, dec: 0.05, a: 0.4 });
+    if (B.ch(0.6)) creak(B, t + B.rr(0.15, 0.4), B.rr(0.3, 0.6), { r0: 10, r1: 25, res: [[B.rr(180, 240), 8, 1], [B.rr(380, 450), 10, 0.5]], a: 0.25 });
+  }
+  B.lp(k < 2 ? 1400 : 2600);
+} });
+def('amb_tick', { d: 2.2, v: 6, pk: [0.9, 0.9, 0.9, 0.72, 0.72, 0.54], sr: 'L', g: 0.5, rev: 1.3, ref: 5, md: 70, r(B) { // gaines et tuyaux qui se rétractent dans la fraîcheur de la nuit
+  const k = B.v, hollow = k === 3 || k === 4, n = k === 5 ? B.ri(5, 7) : B.ri(1, 3), f0 = B.rr(1300, 3200);
+  for (let i = 0, t = 0.02; i < n; i++) {
+    const a = B.rr(0.5, 1) * (k === 5 ? 1 - i / (n + 2) : 1);
+    tick(B, t, f0 * B.rr(0.92, 1.08), 0.35 * a, B.rr(0.015, 0.04));
+    if (hollow) { const f = B.rr(160, 300); B.modal(t, [[f, 1, 0.09], [f * 1.6, 0.6, 0.07], [f * 2.45, 0.4, 0.05]], { ct: 0.002, a: 0.5 * a }); } // la tôle de la gaine résonne
+    t += k === 5 ? B.rr(0.06, 0.16) : B.rr(0.18, 0.9);
+  }
+  B.lp(6500);
+} });
+def('amb_thud', { d: 2, v: 4, sr: 'L', g: 0.8, rev: 1.8, ref: 8, md: 100, r(B) { // quelque chose de lourd, très loin (à travers les dalles)
+  const hit2 = (t, a) => {
+    B.thump(t, { f0: B.rr(75, 95), f1: B.rr(36, 45), k: 0.03, dec: B.rr(0.1, 0.18), a, drive: 1.3 }); B.nz(t, 0.25, { dec: 0.06, lp: 300, a: 0.6 * a });
+    const f = B.rr(100, 150); B.modal(t, [[f, 1, 0.07], [f * 1.9, 0.5, 0.05]], { ct: 0.004, a: 0.4 * a });
+  };
+  hit2(0.02, 1); if (B.v >= 2) hit2(0.02 + B.rr(0.15, 0.35), B.rr(0.25, 0.45)); // l'objet se recale
+  B.lp(B.v % 2 ? 650 : 900);
+} });
+def('amb_door', { d: 2.6, v: 4, pk: [0.9, 0.54, 0.9, 0.9], sr: 'L', g: 0.7, rev: 1.9, ref: 8, md: 100, r(B) { // une porte, loin dans le bâtiment
+  const k = B.v;
+  if (k === 0) { const t = B.rr(0.3, 0.45); B.nz(0, t, { att: t * 0.7, dec: 0.2, lp: 400, a: 0.15 }); doorHit(B, t, 0.8); latch(B, t + 0.004, 0.3); } // porte coupe-feu qui se referme
+  else if (k === 1) { B.thump(0.02, { f0: 85, f1: 45, k: 0.025, dec: 0.1, a: 0.8, drive: 1.5 }); const f = B.rr(64, 80); B.modal(0.02, [1, 1.89, 3.11, 4.87, 7.17].map((x, i) => [f * x, 1 / (1 + i * 0.4), 0.35 * Math.pow(0.8, i)]), { ct: 0.002, a: 0.6 }); latch(B, 0.025, 0.3); } // porte métallique
+  else if (k === 2) { creak(B, 0.05, B.rr(0.7, 1.1), { r0: 40, r1: 120, res: [[B.rr(900, 1100), 16, 1], [B.rr(1700, 2000), 20, 0.5]], a: 0.25 }); latch(B, 1.25, 0.35); B.thump(1.25, { f0: 140, f1: 90, dec: 0.02, a: 0.3 }); } // porte qui dérive puis se cale
+  else { tick(B, 0.02, B.rr(1500, 1900), 0.4); B.thump(0.05, { f0: 120, f1: 70, dec: 0.04, a: 0.6 }); tick(B, 0.06, B.rr(1100, 1400), 0.3); doorHit(B, 0.5, 0.5); latch(B, 0.505, 0.4); } // barre anti-panique
+  B.lp(k === 2 ? 2400 : 1700);
+} });
+def('amb_pipe', { d: 3.4, v: 6, pk: [0.57, 0.45, 0.9, 0.9, 0.9, 0.4], sr: 'L', g: 0.65, rev: 1.5, ref: 6, md: 80, r(B) { // canalisations : coup de bélier, dilatation, gargouillis, chasse d'eau lointaine
+  const k = B.v;
+  if (k < 2) {
+    const f = B.rr(160, 250), bang = (t, a) => { B.thump(t, { f0: 150, f1: 100, dec: 0.04, a: 0.5 * a }); B.modal(t, [[f, 1, 0.45], [f * 2.4, 0.7, 0.3], [f * 4.6, 0.4, 0.18], [f * 7.4, 0.25, 0.1]], { ct: 0.0015, a: 0.6 * a }); };
+    bang(0.02, 1); if (k === 1) bang(0.02 + B.rr(0.1, 0.18), 0.5);
+    B.nz(0.3, 0.9, { att: 0.05, dec: 0.35, bp: 800, q: 1.2, a: 0.08, am: [B.rr(15, 25), 0.6] }); // l'eau repart
+  } else if (k < 4) { // tuyau d'eau chaude qui refroidit : tic… tic… de plus en plus espacés
+    const f = B.rr(700, 1400);
+    for (let i = 0, n = B.ri(4, 8), t = 0.02, dt = B.rr(0.12, 0.25); i < n; i++, t += dt, dt *= B.rr(1.05, 1.35)) { B.modal(t, [[f * B.rr(0.95, 1.05), 1, 0.02], [f * 2.7, 0.4, 0.012]], { ct: 0.0003, a: B.rr(0.3, 0.6) }); B.nz(t, 0.003, { dec: 0.0008, hp: 1500, a: 0.15 }); }
+  } else if (k === 4) { drops(B, B.ri(25, 45), 0.05, 1.4, 150, 600, 0.35); B.nz(0.05, 1.5, { att: 0.2, dec: 0.6, lp: 500, a: 0.15, am: [9, 0.5] }); } // gargouillis
+  else { // chasse d'eau lointaine : le réservoir se remplit
+    const D = B.rr(2.2, 2.8); B.nz(0.05, D, { env: [[0, 0], [0.3, 1], [D - 0.4, 0.8], [D, 0]], bp: 2200, q: 0.7, a: 0.4, ef: B.rnd(12, 0.7, 1) });
+    B.nz(0.05, D, { env: [[0, 0], [0.4, 1], [D, 0]], lp: 300, a: 0.3 }); tick(B, D + 0.1, 1800, 0.2);
+  }
+  B.lp(k === 5 ? 3000 : 4000);
+} });
+def('amb_knock', { d: 4.2, v: 4, sr: 'L', g: 0.65, rev: 1.7, ref: 8, md: 100, r(B) { // coups sourds irréguliers, très loin : des pas ? des tuyaux ?
+  const n = B.v === 3 ? 3 : B.ri(2, 5), f = B.rr(110, 160);
+  for (let i = 0, t = 0.05; i < n; i++) {
+    const a = B.rr(0.55, 1);
+    B.thump(t, { f0: B.rr(110, 140), f1: 60, dec: B.rr(0.03, 0.05), a: 0.8 * a });
+    B.modal(t, [[f * B.rr(0.95, 1.05), 1, 0.045], [f * 1.8, 0.6, 0.035], [f * 2.9, 0.35, 0.025]], { ct: 0.0025, a: 0.5 * a });
+    B.nz(t, 0.04, { dec: 0.01, lp: 600, a: 0.3 * a });
+    t += B.v === 3 ? B.rr(0.85, 1.1) : B.ch(0.3) ? B.rr(0.25, 0.4) : B.rr(0.5, 0.95);
+  }
+  B.lp(B.rr(600, 850));
+} });
+def('amb_glass', { d: 2.2, v: 5, pk: [0.32, 0.28, 0.9, 0.9, 0.9], sr: 'L', g: 1, rev: 1.6, ref: 8, md: 100, r(B) { // verrière : profilés qui travaillent, vitrage qui fléchit
+  const k = B.v;
+  if (k < 2) { creak(B, 0.03, B.rr(0.25, 0.5), { r0: 60, r1: 160, res: [[B.rr(900, 1200), 18, 1], [B.rr(1600, 2000), 20, 0.5], [B.rr(2600, 3100), 22, 0.3]], a: 0.5 }); const f = B.rr(1800, 3000); B.modal(0.05, [[f, 1, 0.18], [f * 2.32, 0.4, 0.1]], { ct: 0.0002, a: 0.08 }); }
+  else if (k < 4) {
+    const f = B.rr(190, 380), g = B.rr(2200, 3400);
+    B.modal(0.02, [[f, 1, 0.09], [f * 1.59, 0.7, 0.07], [f * 2.14, 0.5, 0.05], [f * 3, 0.3, 0.04]], { ct: 0.001, a: 0.7 }); // panneau qui fléchit
+    B.modal(0.021, [[g, 1, 0.35], [g * 2.32, 0.3, 0.15]], { ct: 0.0002, a: 0.06 }); B.nz(0.02, 0.006, { dec: 0.0015, hp: 900, lp: 6000, a: 0.25 });
+  } else for (let i = 0, n = B.ri(2, 3), t = 0.02; i < n; i++, t += B.rr(0.25, 0.7)) tick(B, t, B.rr(2400, 3600), 0.25, 0.02);
+  B.lp(6500);
+} });
+def('amb_vent', { d: 1.8, v: 4, pk: [0.57, 0.9, 0.5, 0.9], sr: 'L', g: 0.5, rev: 1.2, ref: 3, md: 40, r(B) { // dans la gaine : tôle qui claque, cliquetis, poussée d'air, vis qui vibre
+  const k = B.v;
+  if (k === 0) { const f = B.rr(110, 150); B.modal(0.02, [[f, 1, 0.22], [f * 1.55, 0.8, 0.18], [f * 2.35, 0.6, 0.14], [f * 3.7, 0.4, 0.1], [f * 5.8, 0.25, 0.07]], { ct: 0.003, a: 0.8 }); tick(B, 0.02, B.rr(1500, 2200), 0.2, 0.02); }
+  else if (k === 1) for (let i = 0, n = B.ri(2, 3), t = 0.02; i < n; i++, t += B.rr(0.2, 0.6)) { tick(B, t, B.rr(1800, 3000), 0.3, 0.03); duct(B, t, 0.15); }
+  else if (k === 2) B.nz(0.02, 1.4, { env: [[0, 0], [0.6, 1], [1.4, 0]], lp: 1300, hp: 80, pk: [[290, 8, 8], [580, 10, 6]], a: 0.8 });
+  else for (let i = 0, n = B.ri(3, 6), t = 0.02; i < n; i++, t += B.rr(0.03, 0.07)) { B.nz(t, 0.003, { dec: 0.0008, hp: 2000, lp: 7000, a: 0.3 }); B.modal(t, [[B.rr(2500, 3500), 1, 0.01]], { ct: 0.0002, a: 0.15 }); }
+} });
+def('amb_far', { d: 6, v: 5, pk: [0.71, 0.9, 0.54, 0.67, 0.48], sr: 'V', g: 0.6, rev: 0.6, ref: 12, md: 160, r(B) { // la ville au loin : voiture, camion, klaxon, scooter, sirène
+  const k = B.v, D = B.rr(3.5, 5);
+  if (k === 0) B.nz(0.05, D, { env: [[0, 0], [D * 0.55, 1], [D, 0]], lp: (x) => 700 + 700 * Math.sin(Math.PI * Math.min(1, x / D)), hp: 90, pk: [[1300, 0.8, 4]], a: 0.6, tail: 0.05 });
+  else if (k === 1) { B.nz(0.05, D, { env: [[0, 0], [D * 0.5, 1], [D, 0]], lp: 320, a: 0.6, tail: 0.05 }); B.osc(0.05, D, { w: 'tab', fe: (x) => 34 + 8 * x / D, harm: [1, 0.8, 0.6, 0.45, 0.3, 0.2], env: [[0, 0], [D * 0.5, 1], [D, 0]], a: 0.25 }); }
+  else if (k === 2) for (let i = 0, t = 0.3; i < 2; i++, t += B.rr(0.2, 0.3)) { const d = B.rr(0.12, 0.22); B.osc(t, d, { w: 'sqr', f: 410, att: 0.01, rel: 0.03, a: 0.25 }); B.osc(t, d, { w: 'sqr', f: 512, att: 0.01, rel: 0.03, a: 0.25 }); }
+  else if (k === 3) B.osc(0.05, D, { w: 'saw', fe: (x) => 95 - 25 * x / D, env: [[0, 0], [D * 0.45, 1], [D, 0]], a: 0.2, lp: 1600 });
+  else B.osc(0.05, 5.5, { fe: (x) => 650 + 250 * Math.sin(TAU * x / 1.6), env: [[0, 0], [2, 1], [5.5, 0]], a: 0.3 });
+  B.lp(1500); B.verb(0.4, 1.4, 0.5, 0.05); // écho des façades
 } });
 
 // ── foule, journée ──
@@ -2077,6 +2243,52 @@ function gRain(E, out, P, pitch, V, t0) {
   apply(t0, 0.01);
   return K.ctl({ set(k) { if (k === 'intensity') apply(E.ctx.currentTime); } });
 }
+// ton de salle nocturne : grondement grave + souffle de ventilation (deux boucles), niveaux qui errent lentement
+// (marche aléatoire : jamais deux fois pareil), rares houles. Que des gains automatisés : coût négligeable.
+// dark 0..1 : pénombre (plus lourd) · tension 0..1 : avancée de la nuit, stress · air 0..1 : ventilation en marche
+function gRoomTone(E, out, P, pitch, V, t0) {
+  const K = new Kit(E, out, t0), p = (k, d) => clamp(num(+P[k], d), 0, 1);
+  const m = K.g(0); m.connect(out); m.gain.setTargetAtTime(1, t0, 1.5);
+  const gL = K.g(0), gA = K.g(0), gS = K.g(1); gS.connect(m);
+  K.chain(K.bn('_rt_low', pitch), gL, m); K.chain(K.bn('_rt_air', pitch), gA, m);
+  let wl = 1, wa = 1, nw = t0 + 2, ns = t0 + 10 + Math.random() * 25;
+  const apply = (t, tc) => {
+    const d = p('dark', 1), te = p('tension', 0.3), a = p('air', 1);
+    smooth(gL.gain, wl * (0.4 + 0.6 * d) * (0.75 + 0.6 * te), t, tc); smooth(gA.gain, wa * 0.3 * (0.1 + 0.9 * a) * (0.75 + 0.25 * d), t, tc);
+  };
+  apply(t0, 0.05);
+  return K.ctl({
+    set() { apply(E.ctx.currentTime, 1.5); },
+    tick(now, until) {
+      if (nw < now) nw = now;
+      while (nw < until) { wl = 0.8 + 0.35 * Math.random(); wa = 0.85 + 0.3 * Math.random(); apply(nw, 1.5 + 2.5 * Math.random()); nw += 3 + 6 * Math.random(); } // ±1,5 dB
+      if (ns < now) ns = now;
+      while (ns < until) { // houle : le bâtiment « respire » (plus souvent quand la nuit avance)
+        const te = p('tension', 0.3);
+        K.shot(E.bufIfReady('_rt_swell', (Math.random() * 3) | 0), ns, (0.35 + 0.4 * Math.random()) * (0.3 + 0.7 * p('dark', 1)) * (0.7 + 0.6 * te), pitch * (0.92 + 0.16 * Math.random()), gS);
+        ns += (25 + 50 * Math.random()) / (0.7 + 0.8 * te);
+      }
+    },
+  });
+}
+// verrière des galeries, entendue d'en dessous : pluie qui crépite sur le vitrage, rafales sourdes, joint qui siffle.
+// rain 0..1 · wind 0..1 · muffle 0..1 (depuis une boutique : fondu vers une version filtrée, aucun filtre automatisé)
+function gGlassRoof(E, out, P, pitch, V, t0) {
+  const K = new Kit(E, out, t0), p = (k, d) => clamp(num(+P[k], d), 0, 1);
+  const m = K.g(0), dry = K.g(1), mf = K.g(0); m.gain.setTargetAtTime(1, t0, 1);
+  K.chain(m, dry, out); K.chain(m, K.f('lowpass', 650, 0.6), mf, out);
+  const gR = K.g(0), gW = K.g(0); K.chain(K.bn('_glass_rain', pitch), gR, m); K.chain(K.bn('_glass_gust', pitch), gW, m);
+  let x = 0.5, next = t0;
+  const apply = (t, tc = 1) => { const r = p('rain', 0), u = p('muffle', 0); smooth(gR.gain, 0.9 * r * (0.5 + 0.5 * r), t, tc); smooth(dry.gain, 1 - u, t, tc); smooth(mf.gain, 0.6 * u, t, tc); };
+  apply(t0, 0.01);
+  return K.ctl({
+    set() { apply(E.ctx.currentTime); },
+    tick(now, until) { // rafales : processus aléatoire lissé, ramené vers la moyenne
+      if (next < now) next = now;
+      while (next < until) { const w = p('wind', 0.3); x = clamp(x + (0.5 - x) * 0.25 + (Math.random() - 0.5) * 0.7, 0.05, 1); smooth(gW.gain, 1.6 * w * (0.2 + 0.8 * x), next, 0.8 + Math.random()); next += 0.8 + 2.4 * Math.random(); }
+    },
+  });
+}
 // feu : grondement + crépitement en boucle, éclats ponctuels plus fréquents quand il grossit
 function gFire(E, out, P, pitch, V, t0) {
   const K = new Kit(E, out, t0), S = () => clamp(num(+P.size, 0.5), 0, 1);
@@ -2214,6 +2426,8 @@ const ZONES = {
   stairs: { rt: 1.9, pre: 0.01, hf: 8000, hi: 0.55, lo: 1.2, er: [10, 3, 45], flut: [0.016, 18, 0.66], wet: 0.3 },
   toilets: { rt: 1.1, pre: 0.008, hf: 10000, hi: 0.7, lo: 1.05, er: [8, 3, 30], flut: [0.012, 10, 0.5], wet: 0.24 }, // carrelage
   outside: { rt: 0.1, pre: 0.003, hf: 5000, hi: 0.6, lo: 1, er: [2, 10, 25], slap: [0.18, 0.18, 0.31, 0.08], wet: 0.07 },
+  // grand hall vide où porte la sono (queue de la chaîne « pa ») : calculé seulement à la première utilisation
+  pahall: { rt: 3.7, pre: 0.03, hf: 4200, hi: 0.5, lo: 1.15, er: [16, 24, 170], slap: [0.23, 0.07, 0.37, 0.045], wet: 0.5, lazy: 1 },
 };
 
 // Réponse impulsionnelle stéréo : queue de bruit à décroissance exponentielle dont les aigus s'éteignent plus
@@ -2286,14 +2500,18 @@ function synth(name, def, k, sr) {
     for (let i = 0; i < n; i++) { const x = d[i]; if (x !== x) { d[i] = 0; continue; } const ax = x < 0 ? -x : x; if (ax > pk) pk = ax; ss += x * x; }
   }
   const rms = Math.sqrt(ss / (n * ch));
-  const gn = pk > 1e-9 ? (loop ? Math.min(0.95 / pk, (def.rms ?? 0.22) / Math.max(rms, 1e-9)) : (def.pk ?? 0.9) / pk) : 0;
+  const pt = Array.isArray(def.pk) ? def.pk[k] ?? 0.9 : def.pk ?? 0.9; // crête visée (par variante : équilibre des sonies)
+  const gn = pk > 1e-9 ? (loop ? Math.min(0.95 / pk, (def.rms ?? 0.22) / Math.max(rms, 1e-9)) : pt / pk) : 0;
   for (const d of data) for (let i = 0; i < n; i++) d[i] *= gn;
   return data;
 }
 
 // ───────────────────────────── moteur ─────────────────────────────
 const RATES = { M: 32000, L: 22050, V: 16000 };
-const BUSES = ['sfx', 'music', 'ambience', 'voice', 'ui'];
+const BUSES = ['sfx', 'music', 'ambience', 'voice', 'ui']; // + 'pa' (sonorisation du centre, chaîne dédiée : Engine.buildPA)
+// sono : haut-parleurs du plafond à des distances différentes : retard (s), niveau, panoramique, passe-bas (air ; 0 = aucun)
+const PA_TAPS = [[0.011, 1, -0.1, 0], [0.019, 0.62, 0.32, 4200], [0.032, 0.45, -0.36, 3600], [0.045, 0.33, 0.16, 3000], [0.058, 0.24, -0.04, 2500]];
+const PA_DRY = 0.35, PA_WET = 0.4; // calibrés : même sonie que le bus musique direct pour une musique ordinaire
 const WORLD_2D = { sfx: 1, ambience: 1, voice: 1 }; // bus 2D « diégétiques » soumis à l'étouffement (musique 2D et UI y échappent : baladeur, interface)
 const SEND_2D = { sfx: 0.16, voice: 0.2 };          // réverbération des sons 2D du joueur (ses propres gestes sonnent dans la pièce)
 const OCC_CUT = [20000, 2500, 900, 400];            // coupure du passe-bas selon le nombre de murs
@@ -2309,7 +2527,7 @@ const PREWARM = ['step_tile', 'step_concrete', 'step_carpet', 'step_metal', 'ste
 const CORE = new Set(PREWARM);
 const PREWARM2 = ['_mb84', '_mb86', '_mb88', '_mb83', '_mb81', '_mb79', '_mb76', '_mb74', '_mb72', '_mb69', '_mb67', 'error', 'success', 'static_burst',
   'phone_pickup', 'phone_hangup', 'phone_ring', 'dial_tone', 'ringback', 'busy_tone', 'knock', 'knock_triple', 'creak', 'whisper', 'thud', 'jumpscare', 'stinger', 'low_boom',
-  'neon_flicker', 'vent_grate', 'footstep_heavy', 'glass_break', 'scream', 'giggle', 'vent_bang', 'door_locked', 'breaker', 'power_down', 'power_up', '_fire_pop', 'escalator'];
+  'neon_flicker', 'vent_grate', 'footstep_heavy', 'glass_break', 'scream', 'giggle', 'vent_bang', 'door_locked', 'breaker', 'power_down', 'power_up', '_fire_pop', 'escalator', '_rt_low', '_rt_air', '_rt_swell'];
 
 const dummy = () => ({ playing: false, setPos() { }, setVolume() { }, setParam() { }, stop() { } });
 const mkGain = (ctx, v) => { const g = ctx.createGain(); g.gain.value = v; return g; };
@@ -2332,8 +2550,9 @@ class Voice {
     this.E = E; this.name = name; this.def = def; this.mode = mode; this.alive = true; this.stopping = false;
     this.t0 = ctx.currentTime; this.endAt = 0; this.src = null; this.ctl = null; this.P = null; this.rg = 1; this.culled = false;
     this.bus = E.bus[o.bus] ? o.bus : def.bus && E.bus[def.bus] ? def.bus : 'sfx';
+    if (this.bus === 'pa') E.paUse();
     const p = vec(o.pos);
-    this.sp = !!p && this.bus !== 'ui';
+    this.sp = !!p && this.bus !== 'ui' && this.bus !== 'pa'; // interface, sono : jamais spatialisées
     this.pos = this.sp ? p : null;
     this.ref = Math.max(0.1, num(+o.ref, def.ref ?? 2)); this.maxD = Math.max(this.ref, num(+o.maxDist, def.md ?? 60));
     this.occ = this.sp && o.occlude !== false; this.walls = 0; this.occT = -1;
@@ -2462,6 +2681,7 @@ class Engine {
       d2.connect(WORLD_2D[b] ? this.world : this.master); sp.connect(this.world); rv.connect(this.revIn);
       this.bus[b] = { d2, sp, rv };
     }
+    this.buildPA();
     this.pumpT = setInterval(() => { try { this.pump(); this.watchdog(); } catch (e) { /* */ } }, 50);
     this.startWorker();
     this.prewarm();
@@ -2545,6 +2765,11 @@ class Engine {
   }
   curve(name) {
     let c = this.curves.get(name); if (c) return c;
+    if (name === 'pa') { // petit ampli, asymétrique (harmoniques paires) ; longueur impaire : 0 → exactement 0, sinon la
+      c = new Float32Array(1025); // chaîne entière (convolution comprise) calculerait sans fin même au repos (plus de silence propagé)
+      for (let i = 0; i < 1025; i++) { const x = i / 512 - 1; c[i] = Math.tanh(1.6 * (x + 0.15 * x * x)) / Math.tanh(1.84); }
+      c[512] = 0; this.curves.set(name, c); return c;
+    }
     c = new Float32Array(1024);
     for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = name === 'peaks' ? Math.pow(Math.max(0, x), 4) : Math.tanh(x * 2.5) / Math.tanh(2.5); }
     this.curves.set(name, c); return c;
@@ -2620,7 +2845,7 @@ class Engine {
   prewarm() {
     const add = (list, all) => { for (const n of list) { const d = SND[n]; if (!d || d.graph) continue; for (let k = all ? 1 : 0; k < (all ? d.v || 1 : 1); k++) this.queue(n + '|' + k); } };
     this.queue('#corridor'); this.queue('#noise'); add(PREWARM, false);
-    for (const z in ZONES) this.queue('#' + z);
+    for (const z in ZONES) if (!ZONES[z].lazy) this.queue('#' + z);
     add(PREWARM, true); add(PREWARM2, false); add(PREWARM2, true);
   }
 
@@ -2639,7 +2864,7 @@ class Engine {
     if (!def) { warnOnce('unk:' + name, `son inconnu : « ${name} »`); if (!loop) this.play('tick', { pos: o.pos, bus: o.bus, volume: num(+o.volume, 1) * 0.3 }, false); return dummy(); }
     const ctx = this.ctx;
     if (!loop && ctx.state !== 'running') return dummy(); // contexte suspendu : pas d'avalanche à la reprise
-    const p = vec(o.pos), sp = !!p && o.bus !== 'ui', t = ctx.currentTime;
+    const p = vec(o.pos), sp = !!p && o.bus !== 'ui' && o.bus !== 'pa', t = ctx.currentTime;
     if (sp && !loop) { const L = this.lis; if (Math.hypot(p.x - L.x, p.y - L.y, p.z - L.z) > num(+o.maxDist, def.md ?? 60) * 1.1) return dummy(); } // trop loin : on ne joue même pas
     if (!loop) { // anti-doublon (rafales d'impacts physiques)
       const l = this.last.get(name);
@@ -2679,8 +2904,8 @@ class Engine {
         const go = (buf, at) => { v.startBuf(buf, rate, false, 0, at); if (o._dur > 0) v.stopAt(at + o._dur, 0.25); };
         if (b || !this.worker) go(b || this.buf(name, k), when);
         else { // pas encore synthétisé : le worker le calcule (≈10-40 ms), joué dès réception plutôt qu'un gel de l'image
-          const t0 = Math.max(when, ctx.currentTime); v.endAt = t0 + 3;
-          this.bufAsync(name, k, (buf) => { if (!v.alive || v.stopping) return; const at = Math.max(when, ctx.currentTime); if (at - t0 > 0.6) { v.end(); return; } go(buf, at); });
+          const t0 = Math.max(when, ctx.currentTime), late = clamp(num(+o.late, 0.6), 0, 10); v.endAt = t0 + 3 + late; // late : retard toléré (bruits d'ambiance)
+          this.bufAsync(name, k, (buf) => { if (!v.alive || v.stopping) return; const at = Math.max(when, ctx.currentTime); if (at - t0 > late) { v.end(); return; } go(buf, at); });
         }
       }
     } catch (e) { warnOnce('play:' + name, 'échec de lecture :', name, e); v.end(); return dummy(); }
@@ -2816,6 +3041,44 @@ class Engine {
     a = clamp(num(+a, 0), 0, 1); const t = this.ctx.currentTime;
     smooth(this.muffle.frequency, 20000 * Math.pow(300 / 20000, a), t, 0.12); smooth(this.world.gain, 1 - 0.3 * a, t, 0.12);
   }
+  // ── sonorisation (bus « pa ») : haut-parleurs du plafond d'un immense centre commercial vide ──
+  // entrée (2D ; une position n'a pas de sens : la sono est partout) → mono → passe-haut → petit ampli qui sature
+  // doucement → couleur de haut-parleur bon marché (≈ 250 Hz-5 kHz, bosse de présence) → plusieurs haut-parleurs à des
+  // distances différentes (retards 11-58 ms, niveaux et aigus décroissants, presque mono) + longue queue de grand hall
+  // (convolution, calculée et branchée à la première utilisation) → monde (étouffement global compris).
+  // Au repos (aucune entrée), WebAudio cesse de calculer la chaîne (propagation du silence) : coût nul.
+  buildPA() {
+    const ctx = this.ctx, B = { d2: mkGain(ctx, 1), sp: mkGain(ctx, 1), rv: mkGain(ctx, 1) };
+    const f = (type, fr, q, g) => { const n = ctx.createBiquadFilter(); n.type = type; n.frequency.value = fr; n.Q.value = q; if (g) n.gain.value = g; return n; };
+    const mono = mkGain(ctx, 1); mono.channelCount = 1; mono.channelCountMode = 'explicit'; mono.channelInterpretation = 'speakers';
+    B.d2.connect(mono); B.sp.connect(mono); B.rv.connect(this.revIn);
+    const ws = ctx.createWaveShaper(); ws.curve = this.curve('pa');
+    const C = [mono, f('highpass', 200, 0.6), mkGain(ctx, 1.6), ws, mkGain(ctx, 0.43), f('highpass', 250, 0.75), f('peaking', 2400, 1.1, 3.5), f('peaking', 750, 1.4, 1.5), f('lowpass', 5000, 0.75), f('lowpass', 5200, 0.6)];
+    for (let i = 1; i < C.length; i++) C[i - 1].connect(C[i]);
+    const col = C[C.length - 1], mix = mkGain(ctx, 1), dry = mkGain(ctx, PA_DRY); dry.connect(mix); mix.connect(this.world);
+    for (const [t, g, pan, lp] of PA_TAPS) {
+      const dl = ctx.createDelay(0.1); dl.delayTime.value = t; let x = mkGain(ctx, g); col.connect(dl); dl.connect(x);
+      if (lp) { const l = f('lowpass', lp, 0.6); x.connect(l); x = l; }
+      if (ctx.createStereoPanner) { const s = ctx.createStereoPanner(); s.pan.value = pan; x.connect(s); x = s; }
+      x.connect(dry);
+    }
+    this.pa = { col, mix, wet: null }; this.bus.pa = B;
+  }
+  paUse() { // première utilisation de la sono : réponse impulsionnelle du hall (worker), puis fondu d'entrée de la queue
+    const P = this.pa; if (!P || P.wet) return;
+    const ctx = this.ctx, wet = P.wet = mkGain(ctx, 0); wet.connect(P.mix);
+    const go = (ir) => { // une seule voie de convolution (moitié moins coûteuse) ; largeur : la voie droite retardée de 17 ms
+      if (!ir) return;
+      try {
+        const m = ctx.createBuffer(1, ir.length, ir.sampleRate); m.getChannelData(0).set(ir.getChannelData(0));
+        const c = ctx.createConvolver(); c.normalize = false; c.buffer = m; P.col.connect(c);
+        const mg = ctx.createChannelMerger(2), dl = ctx.createDelay(0.05); dl.delayTime.value = 0.017; c.connect(mg, 0, 0); c.connect(dl); dl.connect(mg, 0, 1); mg.connect(wet);
+        fadeTo(wet.gain, PA_WET, ctx.currentTime, 0.5);
+      } catch (e) { warnOnce('pa', 'réverbération de la sono indisponible', e); }
+    };
+    if (this.irs.has('pahall') || !this.worker) { go(this.ir('pahall')); return; }
+    const key = '#pahall'; let w = this.waiters.get(key); if (!w) this.waiters.set(key, (w = [])); w.push(go); this.queue(key, true);
+  }
   update() {
     const t = this.ctx.currentTime; this.budget = OCC_BUDGET;
     if (!this.zone) this.setZone('corridor', 0.3);
@@ -2837,7 +3100,7 @@ class Engine {
     const until = t + (typeof document !== 'undefined' && document.hidden ? 1.2 : 0.3);
     for (const v of this.voices) if (v.alive && v.ctl && v.ctl.tick) { try { v.ctl.tick(t, until); } catch (e) { warnOnce('tick:' + v.name, 'erreur de séquenceur :', v.name, e); } }
   }
-  stats() { let loops = 0; for (const v of this.voices) if (!v.shot) loops++; return { voices: this.voices.size, shots: this.shots, loops, spatial: this.spatial.length, hrtf: this.hrtf, cacheMB: +(this.mem / 1e6).toFixed(2), zone: this.active, worker: !!this.worker, queue: this.bg.length + this.inflight.size, state: this.ctx.state }; }
+  stats() { let loops = 0; for (const v of this.voices) if (!v.shot) loops++; return { voices: this.voices.size, shots: this.shots, loops, spatial: this.spatial.length, hrtf: this.hrtf, cacheMB: +(this.mem / 1e6).toFixed(2), zone: this.active, worker: !!this.worker, queue: this.bg.length + this.inflight.size, state: this.ctx.state, pa: !!(this.pa && this.pa.wet) }; }
 }
 
 // ───────────────────────────── façade publique ─────────────────────────────
@@ -2862,16 +3125,20 @@ export const Audio = {
   setListener(pos, forward, up) { if (E) safe('lis', () => E.setListener(pos, forward, up)); },
   setReverbZone(type, fade = 1.5) { if (E) safe('zone', () => E.setZone(type, fade)); },
   setOcclusionFn(fn) { const f = typeof fn === 'function' ? fn : null; pending.occ = f; if (E) E.occFn = f; },
+  // opts : pos, volume, pitch, bus ('sfx'|'music'|'ambience'|'voice'|'ui'|'pa'), occlude, ref, maxDist, intensity, when, param,
+  // late (s : retard toléré si la synthèse n'est pas prête ; 0,6 par défaut, plus pour les bruits d'ambiance non synchronisés)
   play(name, opts) { return E ? safe('play:' + name, () => E.play(String(name), opts, false), dummy()) : dummy(); },
   loop(name, opts) { return E ? safe('loop:' + name, () => E.play(String(name), opts, true), dummy()) : dummy(); },
   dtmf(digit) { return E ? safe('dtmf', () => E.dtmf(digit), dummy()) : dummy(); },
   note(instr, midi, opts) { return E ? safe('note', () => E.note(instr, midi, opts), dummy()) : dummy(); },
   drum(kind, opts) { return E ? safe('drum', () => E.play('_dr_' + (DRUMS[kind] ? kind : 'snare'), opts, false), dummy()) : dummy(); },
-  setBusVolume(bus, v) { pending.bus[bus] = v; if (E) safe('bus', () => E.setBusVolume(bus, v)); },
+  setBusVolume(bus, v) { pending.bus[bus] = v; if (E) safe('bus', () => E.setBusVolume(bus, v)); }, // 'master'|'sfx'|'music'|'ambience'|'voice'|'ui'|'pa'
   setMuffle(amount) { pending.muffle = amount; if (E) safe('muffle', () => E.setMuffle(amount)); },
   update(dt) { if (E) safe('update', () => E.update(dt)); },
-  // pour le module musique : entrée 2D d'un bus, et entrée spatialisée (même traitement que play/loop)
-  output(bus) { return E ? (E.bus[bus] || E.bus.sfx).d2 : null; },
+  // pour le module musique : entrée 2D d'un bus, et entrée spatialisée (même traitement que play/loop).
+  // output('pa') : entrée de la sonorisation du centre (haut-parleurs du plafond, grand hall vide ; cf. Engine.buildPA),
+  // comme play/loop(…, { bus: 'pa' }) ; volume : setBusVolume('pa', v)
+  output(bus) { if (!E) return null; if (bus === 'pa') safe('pa', () => E.paUse()); return (E.bus[bus] || E.bus.sfx).d2; },
   spatial(opts) {
     const none = { input: null, setPos() { }, setVolume() { }, dispose() { } };
     return E ? safe('spatial', () => E.spatialExt(opts && typeof opts === 'object' ? opts : {}), none) : none;
@@ -2882,6 +3149,14 @@ export const Audio = {
   stats() { return E ? E.stats() : null; },
   voices() { return E ? [...E.voices].map((v) => ({ name: v.name, mode: v.mode, bus: v.bus, d: v.sp ? +v.dist.toFixed(1) : null, aud: v.sp ? +v.aud.toFixed(4) : null, hrtf: !!v.hr, culled: v.culled, walls: v.walls })) : []; },
   render(name, variant = 0) { return E ? safe('render', () => E.buf(String(name), variant), null) : null; },
+  // derniers échantillons (mono) de la sortie maître avant limiteur, d'un bus 2D, ou de la sortie de la sono ('pa')
+  probe(bus = 'master') {
+    return E ? safe('probe', () => {
+      const M = E.probes || (E.probes = new Map()); let a = M.get(bus);
+      if (!a) { a = E.ctx.createAnalyser(); a.fftSize = 16384; (bus === 'master' ? E.master : bus === 'pa' ? E.pa.mix : (E.bus[bus] || E.bus.sfx).d2).connect(a); M.set(bus, a); } // (vide au tout premier appel)
+      const d = new Float32Array(a.fftSize); a.getFloatTimeDomainData(d); return d;
+    }, null) : null;
+  },
 };
 
 // ───────────────────────────── worker de synthèse ─────────────────────────────
