@@ -606,7 +606,7 @@ export class Entities {
         if (e.stepT <= 0) {
           e.stepT = e.type === 'cat' || e.type === 'rat' ? 0.5 : 0.75;
           const snd = e.type === 'bobby' || e.type === 'thing' ? 'footstep_heavy' : e.type === 'cat' ? null : e.type === 'rat' ? 'rat_squeak' : e.type === 'mannequin' ? (R() < 0.25 ? 'creak' : null) : e.type === 'crawler' ? 'scratch' : e.inVent ? 'step_vent' : 'step_concrete';
-          if (snd && (e.type !== 'rat' || R() < 0.15)) g.sfx(snd, e.pos.clone().add(V(0, 0.05, 0)), { volume: e.type === 'thing' ? 1 : e.type === 'bobby' ? 0.7 : 0.45, intensity: 0.5 });
+          if (snd && (e.type !== 'rat' || R() < 0.15)) g.sfx(snd, e.pos.clone().add(V(0, 0.05, 0)), { volume: e.type === 'thing' ? 1 : e.type === 'bobby' ? 0.7 : 0.3, intensity: 0.5, maxDist: e.type === 'thing' || e.type === 'bobby' ? 60 : 16 });
         }
       }
     }

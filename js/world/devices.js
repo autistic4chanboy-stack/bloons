@@ -216,7 +216,7 @@ class Boiler extends LoopDev {
   initState() { return { on: true, knocking: true }; }
   prompt(p) { return this.name + (this.state.knocking ? (p.heldDef?.p?.tool === 'wrench' ? '   E : Resserrer les tuyaux' : ' — les tuyaux cognent') : ' — ronronne'); }
   interact(v, actor) { const p = this.g.playerById(actor); if (p?.heldDef?.p?.tool === 'wrench' && this.state.knocking) { this.set({ knocking: false }); this.fx('pipe_knock'); this.toast(actor, 'Les tuyaux ne cognent plus. Pour l\'instant.'); } }
-  onState(p, r) { if (this.state.on) this.loopOn('electric_hum', { volume: 0.4 }); else this.loopOff(); }
+  onState(p, r) { if (this.state.on) this.loopOn('electric_hum', { volume: 0.25, ref: 1.5, maxDist: 9 }); else this.loopOff(); }
 }
 
 class TVDev extends ItemFixture {
@@ -567,7 +567,7 @@ class Aquarium extends ItemFixture {
     const t = performance.now() / 1000; this.excite = Math.max(0, this.excite - dt);
     const W = this.def.s[0] * 0.42, D = this.def.s[2] * 0.35;
     for (const f of this.fish) { f.a += dt * f.s * (1 + this.excite); const x = Math.cos(f.a) * W, z = Math.sin(f.a * 0.7) * D; f.m.position.set(x, f.y + (this.excite ? 0.15 : 0) * Math.sin(t * 5 + f.a), z); f.m.rotation.y = -f.a; }
-    if (this.fish.length && !this._bub) this._bub = this.g.loop('fish_bubble', this.center, { volume: 0.25, ref: 1.5 });
+    if (this.fish.length && !this._bub) this._bub = this.g.loop('fish_bubble', this.center, { volume: 0.2, ref: 1, maxDist: 8 });
   }
   getLight() { if (!this.powered()) return null; return { pos: this.wp([0, this.def.s[1] * 0.4, 0.3]), color: this.meta.fish ? [0.3, 0.7, 1] : [1, 0.7, 0.4], intensity: 1.0, distance: 4, priority: 3 }; }
 }
@@ -678,7 +678,7 @@ class Fountain extends ItemFixture {
   prompt(p) { return p.heldDef?.use === 'coin' ? 'E : Jeter la pièce et faire un vœu' : 'Fontaine de l\'atrium' + (this.state.on ? ' (en marche)' : ' (arrêtée la nuit)'); }
   interact(v, actor, ctx) { const held = this.heldProp(ctx); if (held?.def.use === 'coin') { held.set({ where: 'gone' }); this.set({ wishes: this.state.wishes + 1 }); this.g.sim.emit('fx', { s: 'coin_drop', pos: this.center.toArray(), v: 0.8 }); this.g.hooks.emit('wish', { actor, n: this.state.wishes }); } }
   trigger(p) { this.set({ on: true }); this.startTimer(p.dur || 60); }
-  onState(p, r) { if (this.state.on && !r) this.loopOn('fountain', { volume: 0.8, ref: 4 }); else this.loopOff(); this.g.particles?.fountain(this, this.state.on); }
+  onState(p, r) { if (this.state.on && !r) this.loopOn('fountain', { volume: 0.4, ref: 2, maxDist: 26 }); else this.loopOff(); this.g.particles?.fountain(this, this.state.on); }
 }
 class Generator extends ItemFixture {
   constructor(world, id, def, zone, pos, ry, opts) { super(world, id, def, zone, pos, ry, opts); this.pulls = 0; world.setActive(this, true); this._gauge = null; }
@@ -768,7 +768,7 @@ class Conveyor extends ItemFixture {
   initState() { return { on: false }; }
   prompt() { return (this.state.on ? 'E : Arrêter' : 'E : Démarrer') + ' — ' + this.name; }
   interact() { this.set({ on: !this.state.on }); }
-  onState(p, r) { if (this.state.on && !r) this.loopOn('escalator', { volume: 0.25 }); else this.loopOff(); }
+  onState(p, r) { if (this.state.on && !r) this.loopOn('escalator', { volume: 0.2, maxDist: 15 }); else this.loopOff(); }
   animate(dt) { if (!this.state.on) return; const L = this.def.s[0]; for (const m of this.plates) { m.position.x += dt * 0.3; if (m.position.x > L / 2) m.position.x -= L; } }
 }
 class Gumball extends ItemFixture {

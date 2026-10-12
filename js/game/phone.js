@@ -127,7 +127,7 @@ export class Phone {
     if (this.hold) { this.hold.stop(0.3); this.hold = null; }
     clearTimeout(this._t); this._seq = null;
     g.sfx('phone_hangup', null, { bus: 'ui' });
-    g.speech?.stop();
+    g.speech?.stop('phone');
     this.ui = null;
   }
   answer() {
@@ -149,7 +149,7 @@ export class Phone {
       if (!this.ui) return;
       if (i >= lines.length) { done?.(); return; }
       const [who, text] = lines[i++];
-      g.say(who, text, { voice: !/^\(/.test(text) });
+      g.say(who, text, { voice: !/^\(/.test(text), channel: 'phone' }); // voix dans le combiné
       this._t = setTimeout(next, Math.max(2500, text.length * 65 + 900));
     };
     next();

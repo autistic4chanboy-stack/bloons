@@ -79,7 +79,7 @@ export class Alarms {
       }
       return;
     }
-    if (p.chime) { g.sfx('pa_chime', null, { volume: 0.7, bus: 'ambience' }); setTimeout(voice, 2600); } else voice();
+    if (p.chime) { g.sfx('pa_chime', null, { volume: 0.55, bus: 'ambience' }); setTimeout(voice, 2600); } else voice();
   }
   update(dt) {
     const g = this.game;

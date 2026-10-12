@@ -92,7 +92,7 @@ l'onglet Actions). À faire une seule fois : **Settings → Pages → Build and 
 
 - Moteur : [three.js](https://threejs.org) r170 (fourni dans `vendor/`, licence MIT), modules ES natifs, aucun build.
 - Tout est généré par le code : textures (canvas), modèles, sons et musiques (WebAudio), écrans des télés et jeux
-  d'arcade, voix (synthèse vocale du navigateur). Aucun fichier image ou audio.
+  d'arcade, voix babillées à la Animal Crossing (syllabes synthétisées). Aucun fichier image ou audio.
 - Monde déterministe (même graine pour tous les joueurs), éclairage par zone + lumières dynamiques, ombres de la lampe
   torche, post-traitement maison (bloom, grain, vignettage, effets de stress), caméras de surveillance rendues en
   temps réel.
