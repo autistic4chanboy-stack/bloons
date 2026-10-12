@@ -119,6 +119,7 @@ function jack(A, zn, x, y, Zw, s) {
   box(A, zn, x + 0.62, y + 0.32, 0.36, x + 0.67, y + 1.25, 0.41, Zw, 0x333333);                                    // timon
   box(A, zn, x + 0.6, y + 1.22, 0.2, x + 0.69, y + 1.27, 0.58, Zw, 0x222222);                                      // poignée
   solid(A.world, x + 0.08, y, Zw, 0.72, 0.1, 0.68, 0.35);
+  solid(A.world, x + 0.645, y, Zw, 0.055, 0.2, 0.58, 1.27); // timon et poignée
 }
 
 function shade(c, k) { return (Math.round(((c >> 16) & 255) * k) << 16) | (Math.round(((c >> 8) & 255) * k) << 8) | Math.round((c & 255) * k); }
