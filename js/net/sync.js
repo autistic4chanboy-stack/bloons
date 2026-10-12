@@ -8,10 +8,11 @@ import * as THREE from 'three';
 import { Net } from './net.js';
 import { ITEMS } from '../data/items.js';
 import { COSTUMES } from '../data/costumes.js';
-import { buildHumanoid, animateHumanoid, litHumanoid } from '../game/humanoid.js';
+import { buildHumanoid, animateHumanoid, litHumanoid, torchLens } from '../game/humanoid.js';
 import { avatarOpts } from '../game/player.js';
 
 const MAX_REMOTE_LIGHTS = 3;
+const _lens = new THREE.Vector3();
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function nameSprite(text) {
@@ -96,7 +97,7 @@ export class RemotePlayer {
     // faisceau de la lampe
     const on = this.flashOn && this.alive && a.visible;
     this.beam.visible = on;
-    if (on) { const e = this.eyePos(); const f = this.forward(); this.beam.position.copy(e).addScaledVector(f, 0.3); this.beam.lookAt(e.clone().addScaledVector(f, 5)); }
+    if (on) { const f = this.forward(), L = torchLens(a, _lens), e = L || this.eyePos(); this.beam.position.copy(e).addScaledVector(f, L ? 0.04 : 0.3); this.beam.lookAt(e.clone().addScaledVector(f, 5)); }
   }
   dispose() { this.avatar.removeFromParent(); this.beam.removeFromParent(); if (this.light) this.light.intensity = 0; }
 }
@@ -259,8 +260,8 @@ export class Sync {
     this.lights.forEach((l, i) => {
       const r = list[i];
       if (!r) { l.intensity = 0; return; }
-      const e = r.eyePos(); const f = r.forward();
-      l.position.copy(e).addScaledVector(f, 0.25); l.target.position.copy(e).addScaledVector(f, 6); l.target.updateMatrixWorld();
+      const f = r.forward(), L = torchLens(r.avatar, _lens), e = L || r.eyePos();
+      l.position.copy(e).addScaledVector(f, L ? 0.04 : 0.25); l.target.position.copy(e).addScaledVector(f, 6); l.target.updateMatrixWorld();
       l.intensity = 11; l.distance = 22;
     });
   }
