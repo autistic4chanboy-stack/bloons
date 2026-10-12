@@ -165,7 +165,20 @@ export class Game {
   clockString() { return this.env ? this.env.hhmm() : '22:00'; }
   dayPickupAllowed(prop) { return prop.zone === 'security' || prop.zone === 'cafe' || !prop.home?.zone || this.story?.dayFree; }
   mapText() { return this.ui ? this.ui.mapText() : ''; }
-  say(who, text, opts = {}) { this.lastSubtitle = text; this.ui?.subtitle(who, text, opts.dur); if (opts.voice !== false && this.settings.voices !== false) Speech.say(text, { who, pitch: opts.pitch, rate: opts.rate, voice: opts.voice }); }
+  // Réplique (sous-titre + voix). Avec opts.pos, la voix baisse avec la distance et les murs : pleine à 4 m, muette
+  // au-delà de ~25 m ; au-delà de 35 m on n'entend plus rien du tout (pas de sous-titre non plus)
+  say(who, text, opts = {}) {
+    let vol = 0.9;
+    if (opts.pos && this.camera) {
+      const c = this.camera.position, d = Math.hypot(opts.pos[0] - c.x, opts.pos[1] - c.y, opts.pos[2] - c.z);
+      if (d > 35) return;
+      let walls = 0; try { walls = this.world.physics.countWalls([c.x, c.y, c.z], opts.pos, 3); } catch (e) { /* */ }
+      vol *= Math.max(0, Math.min(1, 1 - (d - 4) / 21)) * Math.pow(0.45, walls);
+      if (d > 15 || walls) who = (who || '') + ' (au loin)';
+    }
+    this.lastSubtitle = text; this.ui?.subtitle(who, text, opts.dur);
+    if (opts.voice !== false && this.settings.voices !== false && vol > 0.05) Speech.say(text, { who, pitch: opts.pitch, rate: opts.rate, voice: opts.voice, volume: vol });
+  }
   mirrorLook(mirror, p) { this.story?.mirrorLook(mirror, p); }
   costumeDesc(c) { return COSTUMES[c]?.desc || ''; }
   applySettings(k) {
@@ -185,7 +198,7 @@ export class Game {
     const S = this.sim;
     S.effect('fx', (p) => { const pos = p.pos ? new THREE.Vector3(...p.pos) : null; this.sfx(p.s, pos, { volume: p.v ?? 1, intensity: p.i ?? p.v ?? 1 }); });
     S.effect('toast', (p) => this.toast(p.text, p.dur));
-    S.effect('say', (p) => this.say(p.who, p.text, { voice: p.voice === 'parrot' ? undefined : p.voice, pitch: p.voice === 'parrot' ? 1.9 : p.pitch, rate: p.voice === 'parrot' ? 1.2 : p.rate }));
+    S.effect('say', (p) => this.say(p.who, p.text, { voice: p.voice === 'parrot' ? undefined : p.voice, pitch: p.voice === 'parrot' ? 1.9 : p.pitch, rate: p.voice === 'parrot' ? 1.2 : p.rate, pos: p.pos }));
     S.effect('note', (p) => Audio.note(p.instr, p.n, { pos: p.pos ? new THREE.Vector3(...p.pos) : null, volume: p.v ?? 0.8 }));
     S.effect('drum', (p) => Audio.drum(p.k, { pos: p.pos ? new THREE.Vector3(...p.pos) : null }));
     S.effect('flash', (p) => this.particles.flash(new THREE.Vector3(...p.pos)));

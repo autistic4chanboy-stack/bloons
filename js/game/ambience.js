@@ -81,7 +81,17 @@ export class Ambience {
     S('distant_traffic', outdoor || zone?.id === 'entrance' || zone?.id === 'ramp' ? 0.25 : t === 'atrium' ? 0.04 : 0);
     const rain = w === 'rain' || w === 'storm';
     S('rain', rain ? (outdoor ? 0.7 : t === 'atrium' ? 0.35 : zone?.floor === 1 || zone?.id === 'entrance' ? 0.15 : 0.05) : 0, { intensity: w === 'storm' ? 1 : 0.5 });
-    S('crowd', g.story?.crowdLevel ? g.story.crowdLevel * (t === 'corridor' || t === 'atrium' ? 0.5 : 0.25) : 0, { density: g.story?.crowdLevel || 0 });
+    // brouhaha des clients : seulement là où il y a du monde (galeries, boutiques), discret, et selon le nombre de
+    // clients autour de soi (rien au poste, dans les couloirs de service, les réserves ou au parking)
+    const crowd = g.story?.crowdLevel || 0;
+    if (crowd > 0.01) {
+      const shop = t === 'shop' || t === 'bigstore', gal = !shop && (t === 'atrium' || zone?.circuit === 'gallery');
+      const place = gal ? 0.16 : shop ? 0.06 : t === 'corridor' || t === 'backroom' ? 0.012 : 0;
+      let near = 0; const c = g.camera.position;
+      for (const e of g.entities?.list?.values?.() || []) if (e.type === 'shopper' && e.pos && e.pos.distanceTo(c) < 18) near++;
+      const k = Math.min(1, near / 5);
+      S('crowd', crowd * place * (0.25 + 0.75 * k), { density: crowd * (0.3 + 0.7 * k) });
+    }
     S('fluorescent_buzz', zone && zone._level > 0.3 && (t === 'corridor' || t === 'backroom' || t === 'garage' || t === 'basement') ? 0.06 : 0);
     S('electric_hum', t === 'basement' ? 0.15 : 0);
     return T;

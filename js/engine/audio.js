@@ -2314,7 +2314,8 @@ function gCrowd(E, out, P, pitch, V, t0) {
   const lp = K.f('lowpass', 2500), gA = K.g(0), gB = K.g(0), sp = (v) => { const n = E.ctx.createStereoPanner ? E.ctx.createStereoPanner() : E.ctx.createGain(); if (n.pan) n.pan.value = v; K.nodes.push(n); return n; };
   K.chain(K.bn('_babble', 0.97 * pitch), gA, sp(-0.65), lp); K.chain(K.bn('_babble', 1.03 * pitch), gB, sp(0.65), lp); lp.connect(m);
   const ev = K.f('lowpass', 3500); ev.connect(m);
-  const apply = (t, tc = 0.8) => { const d = D(); smooth(gA.gain, 2.4 * (0.25 + 0.75 * Math.min(1, d * 1.6)), t, tc); smooth(gB.gain, 2.4 * (0.15 + 0.85 * Math.min(1, d * 1.3)), t, tc); smooth(lp.frequency, 1600 + 2400 * d, t, tc); };
+  // deux nappes de voix lointaines, adoucies (filtre plus bas) : un fond de galerie, pas des gens qui parlent à côté
+  const apply = (t, tc = 0.8) => { const d = D(); smooth(gA.gain, 1.5 * (0.25 + 0.75 * Math.min(1, d * 1.6)), t, tc); smooth(gB.gain, 1.2 * (0.15 + 0.85 * Math.min(1, d * 1.3)), t, tc); smooth(lp.frequency, 1100 + 1500 * d, t, tc); };
   apply(t0, 0.01);
   const tot = CROWD_FX.reduce((s, x) => s + x[1], 0);
   let next = t0 + 1;
@@ -2328,9 +2329,9 @@ function gCrowd(E, out, P, pitch, V, t0) {
           let r = Math.random() * tot, nm = CROWD_FX[0][0];
           for (const [n, w] of CROWD_FX) { r -= w; if (r <= 0) { nm = n; break; } }
           const def = SND[nm];
-          K.shot(E.bufIfReady(nm, (Math.random() * (def.v || 1)) | 0), next, (0.15 + 0.4 * Math.random()) * (def.g || 0.7), (0.95 + Math.random() * 0.1) * pitch, ev, Math.random() * 1.6 - 0.8);
+          K.shot(E.bufIfReady(nm, (Math.random() * (def.v || 1)) | 0), next, (0.08 + 0.25 * Math.random()) * (def.g || 0.7), (0.95 + Math.random() * 0.1) * pitch, ev, Math.random() * 1.6 - 0.8);
         }
-        next += (0.4 + Math.random() * 2.5) / (0.2 + d * 1.5);
+        next += (1.5 + Math.random() * 4) / (0.3 + d); // rires, talons, monnaie : un toutes les 1 à 4 s, pas en rafale
       }
     },
   });
