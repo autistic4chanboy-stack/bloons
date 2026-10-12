@@ -2,7 +2,7 @@
 // scripted : événements à heure fixe (format 'HH:MM'), mêmes primitives « fx » que les événements aléatoires
 //            (voir js/data/events.js). cond (optionnel) : condition évaluée par le moteur.
 //            on (optionnel) : déclencheur d'une mini-quête (js/data/quests.js) ; l'événement part dès que la quête le lance
-//            (le gardien atteint l'étape), au plus tard à son heure.
+//            (le gardien atteint l'étape), au plus tard à son heure (il compte alors comme lancé pour les quêtes).
 // random : {rate: événements aléatoires par heure de jeu, cats: catégories autorisées}
 // entities : présences actives cette nuit (avec niveau d'agressivité 0..1).
 
