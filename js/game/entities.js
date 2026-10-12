@@ -10,7 +10,8 @@ import * as THREE from 'three';
 import { Net } from '../net/net.js';
 import { WorldObject } from '../world/world.js';
 import { LAYER } from '../engine/physics.js';
-import { buildHumanoid, animateHumanoid, setHumanoidLayer, litHumanoid } from './humanoid.js';
+import { buildHumanoid, animateHumanoid, setHumanoidLayer, litHumanoid, disposeHumanoid, rig, skinned, MK } from './humanoid.js';
+import { concatGeometries } from '../engine/geo.js';
 import { NIGHTS } from '../data/story.js';
 import { SHOPS } from '../data/shops.js';
 import { CAM_LAYERS } from './security.js';
@@ -57,6 +58,41 @@ const GERARD_LINES = [
   'Le chat de l\'entrepôt, nourris-le. Les chats voient des choses qu\'on ne voit pas.',
   'La porte blindée tient le coup. Tant qu\'il y a du courant.',
 ];
+
+// Chat : marche au trot (paires diagonales), assis (arrière-train au sol, pattes avant droites, queue enroulée),
+// couché en sphinx, queue levée qui ondule ; rat : course saccadée, queue qui fouette
+function animCat(v, speed, pose, time) {
+  const B = v.userData.bones, walk = speed > 0.2 && pose !== 'sit' && pose !== 'lie';
+  const t = time * (walk ? 5.5 + speed * 2.8 : 1), a = walk ? Math.min(1, 0.55 + speed * 0.14) : 0, s = Math.sin(t), c = Math.cos(t), sw = Math.sin(time * 1.6);
+  for (const n in B) B[n].rotation.set(0, 0, 0);
+  B.body.position.set(0, 0.2, -0.02);
+  if (pose === 'sit') {
+    B.body.position.set(0, 0.118, -0.05); B.body.rotation.x = -0.66;
+    B.fl.rotation.x = B.fr.rotation.x = 0.66; B.neck.rotation.x = 0.26; B.head.rotation.x = 0.4 + sw * 0.04;
+    B.hl.rotation.x = B.hr.rotation.x = -0.62; B.hlk.rotation.x = B.hrk.rotation.x = 2.1; B.hla.rotation.x = B.hra.rotation.x = -0.85;
+    B.hl.rotation.z = -0.12; B.hr.rotation.z = 0.12;
+    B.t1.rotation.set(0.5, 0.5, 0); B.t2.rotation.set(-0.13, 0.75, 0); B.t3.rotation.set(-0.12, 0.8 + sw * 0.08, 0); B.t4.rotation.set(-0.1, 0.7, 0);
+  } else if (pose === 'lie') {
+    B.body.position.set(0, 0.072, -0.02);
+    B.fl.rotation.x = B.fr.rotation.x = -1.3; B.fle.rotation.x = B.fre.rotation.x = 0.22; B.fl.rotation.z = -0.08; B.fr.rotation.z = 0.08;
+    B.hl.rotation.x = B.hr.rotation.x = -1.05; B.hl.rotation.z = -0.45; B.hr.rotation.z = 0.45; B.hlk.rotation.x = B.hrk.rotation.x = 2.1; B.hla.rotation.x = B.hra.rotation.x = -1.2;
+    B.neck.rotation.x = -0.18; B.head.rotation.x = 0.1 + sw * 0.03; B.head.rotation.y = Math.sin(time * 0.3) * 0.25;
+    B.t1.rotation.x = -0.15; B.t1.rotation.y = 0.5; B.t2.rotation.y = 0.5; B.t3.rotation.y = 0.45 + sw * 0.1; B.t4.rotation.y = 0.35;
+  } else {
+    B.body.position.y = 0.2 + Math.abs(c) * 0.006 * a;
+    B.fl.rotation.x = -s * 0.45 * a; B.fle.rotation.x = Math.max(0, c) * 0.75 * a;
+    B.fr.rotation.x = s * 0.45 * a; B.fre.rotation.x = Math.max(0, -c) * 0.75 * a;
+    B.hr.rotation.x = -s * 0.4 * a; B.hrk.rotation.x = Math.max(0, c) * 0.45 * a; B.hra.rotation.x = -Math.max(0, c) * 0.5 * a;
+    B.hl.rotation.x = s * 0.4 * a; B.hlk.rotation.x = Math.max(0, -c) * 0.45 * a; B.hla.rotation.x = -Math.max(0, -c) * 0.5 * a;
+    B.head.rotation.x = c * 0.035 * a; B.head.rotation.y = walk ? 0 : Math.sin(time * 0.4) * 0.3;
+    B.t1.rotation.x = 1.0 + sw * 0.08; B.t2.rotation.x = -0.15; B.t3.rotation.x = -0.35; B.t4.rotation.x = -0.55; B.t2.rotation.y = Math.sin(time * 2.1) * 0.18; B.t4.rotation.y = Math.sin(time * 2.1 - 1) * 0.25;
+  }
+}
+function animRat(v, t) {
+  const B = v.userData.rat;
+  B.body.position.y = 0.035 + Math.abs(Math.sin(t * 22)) * 0.007; B.body.rotation.x = Math.sin(t * 22) * 0.06; B.head.rotation.x = Math.sin(t * 22 + 1) * 0.08;
+  B.t1.rotation.y = Math.sin(t * 9) * 0.35; B.t2.rotation.y = Math.sin(t * 9 - 1.2) * 0.55;
+}
 
 class NpcPick extends WorldObject {
   constructor(world, sys, e) { super(world, 'npc:' + e.id, 'npc'); this.sys = sys; this.e = e; this.name = e.o.name || 'Personne'; this.init({}); this.place(); world.add(this); }
@@ -145,7 +181,7 @@ export class Entities {
   }
   remove(id) {
     const e = this.list.get(id); if (!e) return;
-    if (e.vis) { e.vis.removeFromParent(); }
+    if (e.vis) { e.vis.removeFromParent(); disposeHumanoid(e.vis); } // chaque modèle a sa géométrie et ses matériaux
     if (e.npc) e.npc.dispose();
     if (e.loop) { e.loop.stop(0.4); e.loop = null; }
     this.list.delete(id);
@@ -165,81 +201,162 @@ export class Entities {
     const skins = [0xf1c8a8, 0xe0b090, 0xc68c64, 0x8d5a3c, 0x5c3a24, 0xf5d5c0];
     const hairs = [0x2b1d14, 0x4e342e, 0x8d6e63, 0xd7b46a, 0x1a1a1a, 0x9e9e9e, 0xb5651d];
     const shirts = [0xc62828, 0x1565c0, 0x2e7d32, 0xf9a825, 0x6a1b9a, 0x37474f, 0xef6c00, 0x00838f, 0xad1457, 0x5d4037, 0xeeeeee];
+    const skin = (k, n = 6) => skins[Math.floor(rnd(k) * n)], hair = (k) => hairs[Math.floor(rnd(k) * hairs.length)];
     switch (t) {
-      case 'gerard': v = buildHumanoid({ shirt: 0x2b3a55, pants: 0x1f2a44, hair: 0xbdbdbd, skin: 0xe0b89a, badge: true, hat: 'cap', hatColor: 0x1f2a44, height: 1.74 }); break;
+      case 'gerard': v = buildHumanoid({ outfit: 'guard', shirt: 0x2b3a55, pants: 0x1f2a44, hair: 0xbdbdbd, skin: 0xe0b89a, badge: true, hat: 'cap', hatColor: 0x1f2a44, height: 1.74, mustache: true, belly: 0.014, age: 1, seed: 7 }); break;
       case 'shopper': case 'keeper': {
         const f = o.f ?? rnd(1) < 0.5;
-        v = buildHumanoid({ shirt: o.shirt ?? shirts[Math.floor(rnd(2) * shirts.length)], pants: o.pants ?? [0x263238, 0x1a237e, 0x3e2723, 0x424242, 0x795548][Math.floor(rnd(3) * 5)], skin: skins[Math.floor(rnd(4) * skins.length)], hair: hairs[Math.floor(rnd(5) * hairs.length)], height: f ? 1.6 + rnd(6) * 0.12 : 1.7 + rnd(6) * 0.15, sleeves: rnd(7) < 0.5, badge: t === 'keeper' });
+        v = buildHumanoid({ female: f, seed: seed + 1, outfit: t === 'keeper' ? 'shop' : 'casual', shop: o.keeper, shirt: o.shirt ?? shirts[Math.floor(rnd(2) * shirts.length)], pants: o.pants ?? [0x263238, 0x1a237e, 0x3e2723, 0x424242, 0x795548][Math.floor(rnd(3) * 5)], skin: skin(4), hair: hair(5), height: f ? 1.6 + rnd(6) * 0.12 : 1.7 + rnd(6) * 0.15, sleeves: rnd(7) < 0.5, badge: t === 'keeper', bag: t === 'shopper' && rnd(8) < 0.35 ? 'shopping' : null });
         break;
       }
-      case 'police': v = buildHumanoid({ kind: 'police', shirt: 0x1a237e, pants: 0x0d1450, hat: 'cap', hatColor: 0x0d1450, skin: skins[Math.floor(rnd(1) * 4)] }); break;
-      case 'fireman': v = buildHumanoid({ kind: 'firefighter', shirt: 0x263238, pants: 0x263238, hat: 'firehelmet' }); break;
-      case 'robber': v = buildHumanoid({ shirt: 0x151515, pants: 0x1c1c1c, hat: 'balaclava', shoes: 0x0a0a0a, height: 1.75 + rnd(1) * 0.1 }); break;
-      case 'visitor': v = buildHumanoid({ shirt: 0xc62828, pants: 0x263238, hat: 'cap', hatColor: 0xc62828 }); break;
-      case 'bobby': v = buildHumanoid({ kind: 'bear', glowEyes: true, height: 1.85 }); this.addEyes(v, 0xff2a00, 0.09, 1.85 * 0.93, 0.2, 0.025); break;
-      case 'mannequin': v = buildHumanoid({ kind: 'mannequin' }); if (v.userData.parts.stand) v.userData.parts.stand.visible = false; break;
-      case 'lucie': v = buildHumanoid({ shirt: 0xb71c1c, pants: 0xb71c1c, hair: 0x5d4037, skin: 0xead0b8, height: 1.18, sleeves: false }); break;
+      case 'police': v = buildHumanoid({ kind: 'police', shirt: 0x1a237e, pants: 0x0d1450, hat: 'police', hatColor: 0x0d1450, skin: skin(1, 4), hair: hair(2), hairStyle: rnd(3) < 0.6 ? 'buzz' : 'short', prop: 'torch', seed: seed + 3 }); break;
+      case 'fireman': v = buildHumanoid({ kind: 'firefighter', shirt: 0x263238, pants: 0x263238, hat: 'firehelmet', skin: skin(1, 5), seed: seed + 5 }); break;
+      case 'robber': v = buildHumanoid({ outfit: 'robber', shirt: 0x151515, pants: 0x1c1c1c, hat: 'balaclava', shoes: 0x0a0a0a, skin: skin(2), height: 1.75 + rnd(1) * 0.1, seed: seed + 11 }); break;
+      case 'visitor': v = buildHumanoid({ outfit: 'polo', shirt: 0xc62828, pants: 0x263238, hat: 'cap', hatColor: 0xc62828, bag: 'delivery', skin: skin(2), hair: hair(3), seed: 9 }); break;
+      case 'bobby': v = buildHumanoid({ kind: 'bear', glowEyes: true, height: 1.85 }); this.addEyes(v, 0xff2a00, 0.9); break;
+      case 'mannequin': v = buildHumanoid({ kind: 'mannequin', height: 1.82 }); if (v.userData.parts.stand) v.userData.parts.stand.visible = false; break;
+      case 'lucie': v = buildHumanoid({ child: true, female: true, outfit: 'dress', shirt: 0xa31a1a, pants: 0xa31a1a, hair: 0x3a261c, skin: 0xded6ce, height: 1.18, sleeves: false, hairStyle: 'bob', bow: 0xf2efe8, ghostly: true, seed: 13 }); break;
       case 'shadow': v = this.buildShadow(); break;
-      case 'crawler': v = buildHumanoid({ skin: 0xcfc6b8, shirt: 0xcfc6b8, pants: 0xbdb3a3, hair: 0x111111, shoes: 0xcfc6b8, height: 1.95, sleeves: false }); this.addEyes(v, 0xfff4c0, 0.05, 1.42, 0.12, 0.018); break;
+      case 'crawler': v = buildHumanoid({ kind: 'crawler', skin: 0xc9c0b2, hair: 0x0e0e0e, height: 1.95 }); this.addEyes(v, 0xfff4c0, 0.95); break;
       case 'thing': v = this.buildThing(); break;
       case 'cat': v = this.buildCat(); break;
       case 'rat': v = this.buildRat(); break;
       case 'balloon': v = this.buildBalloon(); break;
       default: return null;
     }
-    if (t !== 'shadow' && t !== 'balloon') litHumanoid(v);
+    if (t !== 'shadow') litHumanoid(v);
     return v;
   }
-  addEyes(root, color, dx, y, z, r) {
-    const m = new THREE.MeshBasicMaterial({ color }); const g = new THREE.SphereGeometry(r, 8, 6);
-    const grp = new THREE.Group(); const head = root.userData.parts?.head;
-    for (const s of [-1, 1]) { const e = new THREE.Mesh(g, m); e.position.set(s * dx, head ? 0.16 : y, head ? z : z); grp.add(e); }
-    if (head) head.add(grp); else { grp.position.y = y; root.add(grp); }
-    root.userData.eyes = grp;
+  // yeux lumineux (un seul mesh pour les deux), placés sur les yeux du modèle (repère de la tête)
+  addEyes(root, color, k = 1) {
+    const head = root.userData.parts?.head, ep = root.userData.eyePos || [0.032, 0.064, 0.074, 0.012], r = ep[3] * k;
+    const s = new THREE.SphereGeometry(r, 10, 8);
+    const eyes = new THREE.Mesh(concatGeometries([-1, 1].map((sx) => ({ geo: s, matrix: new THREE.Matrix4().makeTranslation(sx * ep[0], ep[1], ep[2] + r * 0.25) }))).geometry, new THREE.MeshBasicMaterial({ color }));
+    eyes.castShadow = false;
+    if (head) head.add(eyes); else root.add(eyes);
+    root.userData.eyes = eyes;
   }
+  // l'Ombre : grande silhouette décharnée, doigts longs, noire mate (non éclairée) ; yeux blancs quand elle se révèle
   buildShadow() {
-    const v = buildHumanoid({ shirt: 0x050505, pants: 0x050505, skin: 0x050505, hair: 0x050505, shoes: 0x050505, height: 2.12 });
+    const v = buildHumanoid({ kind: 'shadow', height: 2.12 });
     const black = new THREE.MeshBasicMaterial({ color: 0x000000 });
     v.traverse(o => { if (o.isMesh) { o.material = black; o.castShadow = false; } });
-    v.scale.set(0.85, 1, 0.7);
-    const eyes = new THREE.Group(); const em = new THREE.MeshBasicMaterial({ color: 0xffffff }); const eg = new THREE.SphereGeometry(0.02, 6, 4);
-    for (const s of [-1, 1]) { const m = new THREE.Mesh(eg, em); m.position.set(s * 0.05, 0.16, 0.115); eyes.add(m); }
-    v.userData.parts.head.add(eyes); v.userData.eyes = eyes; eyes.visible = false;
+    v.scale.set(0.94, 1, 0.82);
+    this.addEyes(v, 0xffffff, 0.85); v.userData.eyes.visible = false;
     return v;
   }
+  // la Chose de B-13 : masse noire et luisante, bosselée, voûtée, tentacules articulés (trois os chacun), yeux rouges
   buildThing() {
+    const { Kit, ball, sweep, ell, mix, hash, ss } = MK;
     const root = new THREE.Group(); root.userData.parts = null;
-    const mat = new THREE.MeshStandardMaterial({ color: 0x0b0a0a, roughness: 1 });
-    const body = new THREE.Group(); root.add(body);
-    for (let i = 0; i < 14; i++) { const r = 0.25 + R() * 0.35; const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), mat); m.position.set((R() - 0.5) * 0.7, 0.5 + R() * 1.6, (R() - 0.5) * 0.5); m.castShadow = true; body.add(m); }
-    const tend = [];
-    for (let i = 0; i < 9; i++) { const g = new THREE.CylinderGeometry(0.02, 0.07, 1.6 + R(), 6); g.translate(0, -0.8, 0); const m = new THREE.Mesh(g, mat); m.position.set((R() - 0.5) * 0.6, 1.4 + R() * 0.6, (R() - 0.5) * 0.4); m.rotation.set((R() - 0.5) * 1.2, R() * 6, (R() - 0.5) * 1.2); m.castShadow = true; body.add(m); tend.push(m); }
-    const em = new THREE.MeshBasicMaterial({ color: 0xff1a1a }); const eg = new THREE.SphereGeometry(0.035, 8, 6);
-    const eyes = new THREE.Group();
-    for (const [x, y] of [[-0.12, 2.05], [0.12, 2.05], [-0.22, 1.9], [0.2, 1.88]]) { const m = new THREE.Mesh(eg, em); m.position.set(x, y, 0.32); eyes.add(m); }
-    root.add(eyes); root.userData.eyes = eyes; root.userData.tend = tend; root.userData.body = body;
+    const rng = (i) => hash(i, 17.3, 4.1);
+    const J = { core: [0, 1.0, 0] }, PAR = {}, tend = [];
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + rng(i) * 0.5, y = 1.35 + rng(i + 20) * 0.6, base = [Math.sin(a) * 0.26, y, Math.cos(a) * 0.2 + 0.04], L = 1.5 + rng(i + 40);
+      const out = [Math.sin(a), 0, Math.cos(a)], pts = [];
+      for (let k = 0; k <= 6; k++) { const u = k / 6, r = 0.32 * Math.sin(u * 2.2) + 0.1 * u, curl = 0.12 * Math.sin(u * 5 + i); pts.push([base[0] + out[0] * r + out[2] * curl, base[1] - L * u * 0.85 + 0.1 * Math.sin(u * 3), base[2] + out[2] * r - out[0] * curl]); }
+      for (let k = 0; k < 3; k++) { const n = 't' + i + k; J[n] = pts[k * 2]; PAR[n] = k ? 't' + i + (k - 1) : 'core'; }
+      tend.push({ pts, names: ['t' + i + '0', 't' + i + '1', 't' + i + '2'] });
+    }
+    const b = rig(J, PAR), names = Object.keys(J), I = Object.fromEntries(names.map((n, i) => [n, i]));
+    const K = new Kit(), skinC = (x, y, z) => mix(0x141012, 0x3a0c0c, 0.55 * ss(0.62, 0.95, hash(Math.round(x * 14), Math.round(y * 14), Math.round(z * 14))) * ss(0.3, 0.9, Math.abs(Math.sin(y * 9 + x * 13))));
+    // masse : voûtée vers l'avant, étalée au sol, bosses de chair
+    const F = (x, y, z) => {
+      const u = (y + 1) / 2, lump = 1 + 0.16 * Math.sin(x * 7 + y * 5) * Math.sin(z * 6 - y * 4) + 0.08 * Math.sin(y * 17 + x * 9);
+      const w = (0.34 + 0.26 * Math.sin(u * Math.PI * 0.85) + 0.28 * ss(0.2, 0, u)) * lump;
+      return [x * w, u * 2.15, z * w * 0.82 + 0.22 * ss(0.55, 1, u) * u];
+    };
+    K.add(ball(30, 24, F), { c: skinC, r: 0.32, b: I.core });
+    // avant de la masse à (x, y) : recherche sur la sphère (les yeux affleurent la chair)
+    const front = (ex, ey) => { let best = null, bd = 1e9; for (let i = 0; i <= 40; i++) for (let j = 0; j <= 40; j++) { const ph = 0.15 + i / 40 * 1.2, th = -0.9 + j / 40 * 1.8, d = [Math.sin(ph) * Math.sin(th), Math.cos(ph), Math.sin(ph) * Math.cos(th)], p = F(d[0], d[1], d[2]), e = Math.hypot(p[0] - ex, p[1] - ey); if (e < bd) { bd = e; best = p; } } return best[2]; };
+    for (const t of tend) {
+      const rad = t.pts.map((p, k) => 0.075 * (1 - k / 7) + 0.01);
+      const ws = t.names.map((n) => I[n]), pts = t.pts;
+      K.add(sweep(pts, rad, 8, [1, 0, 0], true, [pts[6][0], pts[6][1] - 0.03, pts[6][2]]), { c: skinC, r: 0.3, w: (x, y) => { const u = Math.min(5.99, Math.max(0, (pts[0][1] - y) / (pts[0][1] - pts[6][1]) * 6)), k = Math.floor(u / 2), f = (u - k * 2) / 2; return k >= 2 ? [[ws[2], 1]] : [[ws[k], 1 - f], [ws[k + 1], f]]; } });
+    }
+    skinned(K, root, names.map((n) => b[n]), b.core, new THREE.Sphere(new THREE.Vector3(0, 1.1, 0), 1.9));
+    const em = new THREE.MeshBasicMaterial({ color: 0xff1a1a }), eg = new THREE.SphereGeometry(0.035, 8, 6);
+    const eyes = new THREE.Mesh(concatGeometries([[-0.12, 2.0], [0.12, 2.0], [-0.22, 1.86], [0.2, 1.84]].map(([x, y]) => ({ geo: eg, matrix: new THREE.Matrix4().makeTranslation(x, y - 1.0, front(x, y) + 0.012) }))).geometry, em);
+    b.core.add(eyes);
+    // gueule : fente sombre et rouge, dents pâles
+    const mz = front(0, 1.62), mK = new Kit();
+    mK.add(ell(0.07, 0.2, 0.03, 12, 10, 0, 1.62 - 1.0, mz - 0.012), { c: 0x2a0606, r: 0.4, b: 0 });
+    for (let i = 0; i < 14; i++) { const s = i % 2 ? 1 : -1, y = 1.47 + (i >> 1) * 0.045; mK.add(MK.loft(MK.T7([[0, 0.009, 0.007, 0.007, 0, 2], [0.04, 0.001, 0.001, 0.001, 0, 2]]), 6), { m: MK.M4(s * 0.055, y - 1.0, mz - 0.005, 0, 0, s * (Math.PI / 2 + 0.25)), c: 0xd8d0b8, r: 0.35, b: 0 }); }
+    const maw = new THREE.Mesh(mK.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4 })); maw.castShadow = false; b.core.add(maw);
+    root.userData.eyes = eyes; root.userData.tend = tend.map((t) => t.names.map((n) => b[n])); root.userData.body = b.core;
     return root;
   }
+  // le chat errant : chat noir à poil court, squelette (colonne, cou, tête, pattes à deux ou trois segments, queue en
+  // quatre os), yeux verts à pupille fendue qui renvoient la lumière, oreilles, truffe, moustaches
   buildCat() {
-    const root = new THREE.Group(); const fur = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.9 });
-    const add = (geo, x, y, z, parent = root) => { const m = new THREE.Mesh(geo, fur); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
-    add(new THREE.BoxGeometry(0.16, 0.15, 0.42), 0, 0.22, 0);
-    const head = new THREE.Group(); head.position.set(0, 0.33, 0.24); root.add(head);
-    add(new THREE.SphereGeometry(0.09, 10, 8), 0, 0, 0, head);
-    for (const s of [-1, 1]) { const ear = add(new THREE.ConeGeometry(0.035, 0.07, 6), s * 0.05, 0.09, -0.01, head); ear.rotation.z = -s * 0.2; }
-    const eyeM = new THREE.MeshBasicMaterial({ color: 0x9cff57 }); const eg = new THREE.SphereGeometry(0.014, 6, 4);
-    const eyes = new THREE.Group(); for (const s of [-1, 1]) { const m = new THREE.Mesh(eg, eyeM); m.position.set(s * 0.035, 0.02, 0.08); eyes.add(m); } head.add(eyes);
-    const legs = []; for (const [x, z] of [[-0.06, 0.15], [0.06, 0.15], [-0.06, -0.15], [0.06, -0.15]]) legs.push(add(new THREE.BoxGeometry(0.04, 0.16, 0.04), x, 0.08, z));
-    const tail = new THREE.Group(); tail.position.set(0, 0.27, -0.2); root.add(tail);
-    const tm = add(new THREE.CylinderGeometry(0.015, 0.025, 0.32, 6), 0, 0.15, -0.04, tail); tm.rotation.x = -0.4;
-    root.userData = { parts: null, head, legs, tail, eyes, cat: true };
+    const { Kit, sweep, ell, ball, loft, T7, M4, mix, hash, ss } = MK;
+    const root = new THREE.Group();
+    const J = { body: [0, 0.2, -0.02], chest: [0, 0.205, 0.075], neck: [0, 0.225, 0.14], head: [0, 0.262, 0.19], fl: [-0.034, 0.185, 0.105], fle: [-0.034, 0.1, 0.1], fr: [0.034, 0.185, 0.105], fre: [0.034, 0.1, 0.1], hl: [-0.04, 0.195, -0.12], hlk: [-0.042, 0.118, -0.088], hla: [-0.04, 0.056, -0.142], hr: [0.04, 0.195, -0.12], hrk: [0.042, 0.118, -0.088], hra: [0.04, 0.056, -0.142], t1: [0, 0.212, -0.185], t2: [0, 0.222, -0.25], t3: [0, 0.238, -0.31], t4: [0, 0.258, -0.365] };
+    const PAR = { chest: 'body', neck: 'chest', head: 'neck', fl: 'chest', fle: 'fl', fr: 'chest', fre: 'fr', hl: 'body', hlk: 'hl', hla: 'hlk', hr: 'body', hrk: 'hr', hra: 'hrk', t1: 'body', t2: 't1', t3: 't2', t4: 't3' };
+    const b = rig(J, PAR), names = Object.keys(J), I = Object.fromEntries(names.map((n, i) => [n, i]));
+    const K = new Kit(), fur = 0x1f1e20, furC = (x, y, z) => mix(fur, 0x302c2a, 0.45 * hash(Math.round(x * 90), Math.round(y * 90), Math.round(z * 90))), fr = 0.68;
+    const blend = (a, bb, t) => [[I[a], 1 - t], [I[bb], t]];
+    // corps (colonne le long de +z), cou
+    K.add(sweep([[0, 0.2, -0.225], [0, 0.203, -0.2], [0, 0.205, -0.15], [0, 0.199, -0.08], [0, 0.196, 0], [0, 0.2, 0.06], [0, 0.208, 0.11], [0, 0.222, 0.15]], [[0.012, 0.012], [0.032, 0.036], [0.05, 0.054], [0.054, 0.06], [0.055, 0.062], [0.05, 0.064], [0.045, 0.058], [0.034, 0.042]], 14, [1, 0, 0], true, [0, 0.226, 0.165]), { c: furC, r: fr, w: (x, y, z) => blend('body', 'chest', ss(-0.04, 0.06, z)) });
+    K.add(sweep([[0, 0.212, 0.115], [0, 0.236, 0.162], [0, 0.256, 0.192]], [0.034, 0.03, 0.028], 10, [1, 0, 0], false, false), { c: furC, r: fr, w: (x, y, z) => { const a = ss(0.12, 0.15, z), c = ss(0.17, 0.195, z); return [[I.chest, 1 - a], [I.neck, a * (1 - c)], [I.head, a * c]]; } });
+    // tête : crâne, joues, museau, menton, truffe, yeux, oreilles, moustaches
+    const hb = I.head;
+    K.add(ball(16, 12, (x, y, z) => [x * 0.041 * (1 + 0.16 * Math.max(0, -y)), 0.268 + y * 0.036, 0.2 + z * 0.038]), { c: furC, r: fr, b: hb });
+    K.add(ell(0.021, 0.016, 0.016, 10, 8, 0, 0.254, 0.232), { c: furC, r: fr, b: hb });
+    K.add(ell(0.012, 0.008, 0.01, 8, 6, 0, 0.243, 0.226), { c: furC, r: fr, b: hb });
+    K.add(ell(0.0058, 0.0042, 0.0042, 8, 6, 0, 0.2615, 0.2475), { c: 0x2a1c1e, r: 0.25, b: hb });
+    for (const s of [-1, 1]) {
+      const ex = s * 0.0175, ey = 0.2765;
+      K.add(ell(0.0094, 0.0086, 0.0062, 10, 8, ex, ey, 0.2295), { c: (x, y) => (Math.abs(x - ex) < 0.0017 && Math.abs(y - ey) < 0.0072 ? 0x050505 : 0x9cff57), r: 0.08, e: (x, y) => (Math.abs(x - ex) < 0.0017 ? 0 : 0.7), b: hb });
+      const em = M4(s * 0.026, 0.296, 0.195, -0.12, 0, s * -0.38);
+      K.add(loft(T7([[0, 0.017, 0.008, 0.008, 0, 2.2], [0.02, 0.01, 0.005, 0.005, 0, 2.2], [0.036, 0.0015, 0.0015, 0.0015, 0, 2]]), 8), { m: em, c: furC, r: fr, b: hb });
+      K.add(loft(T7([[0.002, 0.012, 0.003, 0.003, 0.0035, 2], [0.026, 0.004, 0.002, 0.002, 0.0035, 2]]), 6), { m: em, c: 0x4a2e30, r: 0.6, b: hb });
+      for (let k = 0; k < 3; k++) K.add(sweep([[s * 0.012, 0.252 + k * 0.003, 0.242], [s * 0.04, 0.254 + k * 0.005, 0.243], [s * 0.066, 0.25 + k * 0.009, 0.236]], 0.0007, 3, [0, 1, 0]), { c: 0xcfcac2, r: 0.4, b: hb });
+    }
+    // pattes avant et arrière, coussinets
+    for (const s of [-1, 1]) {
+      const A = s < 0 ? 'l' : 'r', x = s * 0.034, xh = s * 0.041;
+      K.add(sweep([[x, 0.205, 0.108], [x, 0.15, 0.104], [x, 0.1, 0.1], [x, 0.05, 0.106], [x, 0.018, 0.112]], [0.019, 0.0155, 0.012, 0.0102, 0.0098], 9, [1, 0, 0], true, false), { c: furC, r: fr, w: (px, y) => blend('f' + A, 'f' + A + 'e', ss(0.115, 0.085, y)) });
+      K.add(ell(0.0135, 0.009, 0.017, 9, 6, x, 0.009, 0.12), { c: furC, r: fr, b: I['f' + A + 'e'] });
+      K.add(sweep([[xh, 0.218, -0.118], [xh, 0.17, -0.1], [xh, 0.122, -0.086], [xh, 0.09, -0.112], [xh, 0.058, -0.142], [xh, 0.032, -0.138], [xh, 0.013, -0.13]], [0.03, 0.03, 0.019, 0.013, 0.0105, 0.0098, 0.0098], 9, [1, 0, 0], true, false), { c: furC, r: fr, w: (px, y) => { const k = ss(0.13, 0.105, y), a = ss(0.072, 0.05, y); return [[I['h' + A], 1 - k], [I['h' + A + 'k'], k * (1 - a)], [I['h' + A + 'a'], k * a]]; } });
+      K.add(ell(0.0135, 0.009, 0.019, 9, 6, xh, 0.009, -0.122), { c: furC, r: fr, b: I['h' + A + 'a'] });
+    }
+    // queue (quatre os, pointe arrondie)
+    const tp = [[0, 0.214, -0.2], [0, 0.222, -0.25], [0, 0.236, -0.31], [0, 0.255, -0.365], [0, 0.275, -0.41], [0, 0.29, -0.44]], tz = [-0.185, -0.25, -0.31, -0.365], tn = ['t1', 't2', 't3', 't4'];
+    K.add(sweep(tp, [0.0135, 0.0125, 0.011, 0.0095, 0.008, 0.006], 8, [1, 0, 0], true, [0, 0.296, -0.452]), { c: furC, r: fr, w: (x, y, z) => { if (z > tz[0]) return blend('body', 't1', ss(-0.17, -0.2, z)); for (let k = 0; k < 3; k++) if (z > tz[k + 1]) return blend(tn[k], tn[k + 1], (tz[k] - z) / (tz[k] - tz[k + 1])); return [[I.t4, 1]]; } });
+    skinned(K, root, names.map((n) => b[n]), b.body, new THREE.Sphere(new THREE.Vector3(0, 0.18, 0), 0.5));
+    root.userData = { parts: null, bones: b, cat: true };
     return root;
   }
-  buildRat() { const root = new THREE.Group(); const m = new THREE.MeshStandardMaterial({ color: 0x4a4440, roughness: 0.9 }); const b = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), m); b.scale.set(0.8, 0.7, 1.6); b.position.y = 0.04; root.add(b); const t = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.008, 0.14, 4), new THREE.MeshStandardMaterial({ color: 0xc09090 })); t.rotation.x = Math.PI / 2; t.position.set(0, 0.03, -0.13); root.add(t); root.userData.parts = null; return root; }
-  buildBalloon() {
+  // rat : corps fuselé, museau pointu, oreilles rondes, yeux noirs, queue écailleuse (deux os), course saccadée
+  buildRat() {
+    const { Kit, sweep, ell, mix, ss } = MK;
     const root = new THREE.Group();
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 12), new THREE.MeshStandardMaterial({ color: 0xd50000, roughness: 0.25, emissive: 0x220000 })); b.scale.y = 1.2; b.position.y = 1.6; root.add(b);
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 1.4, 3), new THREE.MeshBasicMaterial({ color: 0xdddddd })); s.position.y = 0.75; root.add(s);
+    const J = { body: [0, 0.035, 0], head: [0, 0.036, 0.06], t1: [0, 0.03, -0.08], t2: [0, 0.02, -0.14] }, PAR = { head: 'body', t1: 'body', t2: 't1' };
+    const b = rig(J, PAR), names = Object.keys(J), I = Object.fromEntries(names.map((n, i) => [n, i]));
+    const K = new Kit(), furC = (x, y) => mix(0x4c4540, 0x8a7f76, ss(0.03, 0.016, y)), pink = 0xb89090;
+    K.add(sweep([[0, 0.032, -0.088], [0, 0.036, -0.062], [0, 0.038, -0.02], [0, 0.037, 0.02], [0, 0.034, 0.05], [0, 0.03, 0.075], [0, 0.025, 0.095], [0, 0.021, 0.108]], [[0.012, 0.01], [0.03, 0.028], [0.036, 0.032], [0.034, 0.031], [0.027, 0.025], [0.019, 0.018], [0.011, 0.011], [0.005, 0.005]], 10, [1, 0, 0], true, [0, 0.02, 0.114]), { c: furC, r: 0.8, w: (x, y, z) => [[I.body, 1 - ss(0.03, 0.06, z)], [I.head, ss(0.03, 0.06, z)]] });
+    K.add(ell(0.0042, 0.0036, 0.0036, 6, 5, 0, 0.0205, 0.1135), { c: pink, r: 0.4, b: I.head });
+    for (const s of [-1, 1]) {
+      K.add(ell(0.0035, 0.0035, 0.0035, 6, 5, s * 0.0125, 0.038, 0.082), { c: 0x050505, r: 0.08, b: I.head });
+      K.add(ell(0.009, 0.0105, 0.0028, 8, 6), { m: MK.M4(s * 0.015, 0.053, 0.06, 0, s * 0.5, 0), c: mix(pink, 0x4c4540, 0.4), r: 0.6, b: I.head });
+      for (const z of [0.042, -0.045]) { K.add(ell(0.0065, 0.012, 0.009, 7, 5, s * 0.023, 0.013, z), { c: furC, r: 0.8, b: I.body }); K.add(ell(0.006, 0.003, 0.009, 6, 4, s * 0.024, 0.003, z + 0.004), { c: pink, r: 0.5, b: I.body }); }
+    }
+    const tp = [[0, 0.03, -0.082], [0, 0.022, -0.115], [0.008, 0.014, -0.16], [0.024, 0.009, -0.2], [0.045, 0.006, -0.235], [0.06, 0.005, -0.255]];
+    K.add(sweep(tp, [0.0048, 0.004, 0.0032, 0.0024, 0.0016, 0.001], 6, [0, 1, 0]), { c: pink, r: 0.5, w: (x, y, z) => z > -0.1 ? [[I.body, 1]] : z > -0.15 ? [[I.t1, 1]] : [[I.t2, 1]] });
+    skinned(K, root, names.map((n) => b[n]), b.body, new THREE.Sphere(new THREE.Vector3(0, 0.03, -0.05), 0.25));
+    root.userData = { parts: null, rat: b };
+    return root;
+  }
+  // ballon rouge (latex brillant, nœud, ficelle qui suit le ballon)
+  buildBalloon() {
+    const { Kit, ball, sweep, ell } = MK;
+    const root = new THREE.Group(), K = new Kit();
+    K.add(ball(18, 14, (x, y, z) => { const k = 1 - 0.32 * Math.max(0, -y) ** 1.6; return [x * 0.17 * k, y * (y > 0 ? 0.19 : 0.23), z * 0.17 * k]; }), { c: 0xd50000, r: 0.18, e: 0.08 });
+    K.add(ell(0.012, 0.014, 0.012, 8, 6, 0, -0.238, 0), { c: 0xb00000, r: 0.3, e: 0.05 });
+    K.add(sweep([[0, -0.25, 0], [0.02, -0.6, 0.01], [-0.015, -1.0, -0.01], [0.01, -1.4, 0.005]], 0.0025, 4, [1, 0, 0]), { c: 0xdddddd, r: 0.6 });
+    const b = new THREE.Mesh(K.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.2, metalness: 0 }));
+    b.position.y = 1.6; b.castShadow = true; root.add(b);
     root.userData.parts = null; root.userData.ball = b; return root;
   }
 
@@ -469,15 +586,12 @@ export class Entities {
       const pose = e.pose;
       if (v.userData.parts) {
         if (/^m\d$/.test(pose)) animateHumanoid(v, dt, 0, +pose[1]);
-        else if (pose === 'lie') { animateHumanoid(v, dt, 0, 'idle'); v.rotation.x = -Math.PI / 2; v.position.y = e.pos.y + 0.18; }
+        else if (pose === 'lie') { animateHumanoid(v, dt, 0, 'idle'); v.rotation.x = -Math.PI / 2; v.position.y = e.pos.y + (v.userData.backW ?? 0.115); }
         else { v.rotation.x = 0; animateHumanoid(v, dt, e.speed, pose === 'walk' || pose === 'run' ? 'auto' : pose); }
-      } else if (v.userData.cat) {
-        const t = g.time * (e.speed > 0.2 ? 10 + e.speed * 4 : 2);
-        v.userData.legs.forEach((l, i) => { l.rotation.x = e.speed > 0.2 ? Math.sin(t + (i % 2 ? 0 : Math.PI) + (i > 1 ? Math.PI / 2 : 0)) * 0.6 : 0; });
-        v.userData.tail.rotation.z = Math.sin(g.time * 2) * 0.4; v.userData.tail.rotation.x = e.pose === 'sit' ? 0.8 : 0;
-        v.scale.y = e.pose === 'sit' ? 0.85 : e.pose === 'lie' ? 0.55 : 1;
-      } else if (v.userData.ball) { v.userData.ball.position.y = 1.6 + Math.sin(g.time * 1.3 + e.pos.x) * 0.08; }
-      else if (v.userData.tend) { const t = g.time; v.userData.tend.forEach((m, i) => { m.rotation.x = Math.sin(t * 1.7 + i) * 0.5; m.rotation.z = Math.cos(t * 1.3 + i * 2) * 0.5; }); v.userData.body.scale.set(1 + Math.sin(t * 3) * 0.04, 1 + Math.cos(t * 2.3) * 0.03, 1); }
+      } else if (v.userData.cat) animCat(v, e.speed, e.pose, g.time);
+      else if (v.userData.rat) animRat(v, g.time + e.pos.x * 3);
+      else if (v.userData.ball) { v.userData.ball.position.y = 1.6 + Math.sin(g.time * 1.3 + e.pos.x) * 0.08; v.userData.ball.rotation.z = Math.sin(g.time * 0.9 + e.pos.z) * 0.06; }
+      else if (v.userData.tend) { const t = g.time; v.userData.tend.forEach((ch, i) => ch.forEach((m, k) => { m.rotation.x = Math.sin(t * 1.7 + i + k * 0.9) * (0.22 + k * 0.14); m.rotation.z = Math.cos(t * 1.3 + i * 2 + k * 0.7) * (0.22 + k * 0.14); })); v.userData.body.scale.set(1 + Math.sin(t * 3) * 0.035, 1 + Math.cos(t * 2.3) * 0.025, 1 + Math.sin(t * 2.7) * 0.03); }
       if (e.npc) { e.npcT = (e.npcT || 0) - dt; if (e.npcT <= 0) { e.npcT = 0.2; e.npc.place(); } }
       // pas
       if (e.speed > 0.3 && dist < 22 && !e.camOnly && e.type !== 'balloon' && e.type !== 'shadow') {
