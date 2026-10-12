@@ -461,6 +461,16 @@ const KINDS = {
   spines(x, W, H, I, rnd) {
     const n = I.n || 8; rect(x, 0, 0, W, H, 0x2b2b2b); let px = 0;
     const pal = I.palette || [0x1565c0, 0xc62828, 0x2e7d32, 0xf9a825, 0x4e342e, 0x6a1b9a, 0x37474f, 0xad1457, 0x00838f, 0xef6c00];
+    if (I.books) { // disposition imposée par la géométrie : [x0, x1, hauteur relative, couleur] (un livre = un volume)
+      I.books.forEach(([a, b, hf, c], i) => {
+        const bx = a * W, bw = Math.max(1, (b - a) * W), bh = hf * H, y0 = H - bh, t = I.titles ? I.titles[i % I.titles.length] : (I.name || 'TOME ' + (i + 1));
+        rect(x, bx, y0, bw, bh, c); rect(x, bx, y0 + bh * 0.07, bw, Math.max(1, bh * 0.018), light(c, 0.5)); rect(x, bx, H - bh * 0.1, bw, Math.max(1, bh * 0.018), light(c, 0.5));
+        const g = x.createLinearGradient(bx, 0, bx + bw, 0); g.addColorStop(0, 'rgba(0,0,0,0.28)'); g.addColorStop(0.3, 'rgba(255,255,255,0.10)'); g.addColorStop(0.6, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.3)'); x.fillStyle = g; x.fillRect(bx, y0, bw, bh); // dos arrondi
+        x.save(); x.translate(bx + bw / 2, y0 + bh * 0.47); x.rotate(-Math.PI / 2); txt(x, t, 0, 0, bh * 0.62, bw * 0.62, { color: ink(c), font: COND, weight: 700, lines: 1 }); x.restore();
+        if (bh > 40 && bw > 7) rect(x, bx + bw * 0.3, H - bh * 0.06, bw * 0.4, Math.max(1, bh * 0.025), ink(c)); // logo d'éditeur
+      });
+      return;
+    }
     for (let i = 0; i < n; i++) {
       const bw = W / n * (0.8 + rnd() * 0.4), bh = H * (I.even ? 0.98 : 0.84 + rnd() * 0.16), c = I.bg != null && I.even ? I.bg : pal[(rnd() * pal.length) | 0];
       const bx = Math.min(px, W - bw); rect(x, bx, H - bh, bw - 1, bh, c); rect(x, bx, H - bh + bh * 0.08, bw - 1, Math.max(1, bh * 0.02), light(c, 0.5)); rect(x, bx, H - bh * 0.12, bw - 1, Math.max(1, bh * 0.02), light(c, 0.5));
@@ -513,6 +523,7 @@ const KINDS = {
     for (const k of [0, 1]) { const bx = W * (0.08 + k * 0.06), by = H * 0.86; line(x, bx, by + H * 0.08, bx, by - H * 0.06, pc, Math.max(1, W * 0.008)); poly(x, [bx - W * 0.02, by - H * 0.03, bx, by - H * 0.08, bx + W * 0.02, by - H * 0.03], pc); }
     if (I.fragile) { picto(x, 'glass', W * 0.88, H * 0.84, H * 0.22, 0xffffff); }
     else barcode(x, W * 0.74, H * 0.8, W * 0.2, H * 0.14, rnd);
+    if (I.tape) { rect(x, W * 0.42, 0, W * 0.16, H * 0.14, I.tapeC ?? 0xd9c49a); rect(x, W * 0.42, H * 0.14 - 1, W * 0.16, 1, dark(kraft, 0.2)); } // bout de ruban replié sur le flanc
   },
   // Dessus de carton : kraft + ruban adhésif
   casetop(x, W, H, I) { const kraft = I.bg ?? 0xc8a46e; rect(x, 0, 0, W, H, kraft); rect(x, 0, H * 0.42, W, H * 0.16, I.accent ?? 0xd9c49a); rect(x, 0, H * 0.49, W, Math.max(1, H * 0.02), dark(kraft, 0.25)); },
@@ -531,6 +542,14 @@ const KINDS = {
     circ(x, W * 0.08, H * 0.6, H * 0.1, I.accent ?? 0xffffff);
   },
   // Pile de vêtements pliés (vue de face) : n couches
+  // Rayures verticales (seau de pop-corn, sac rayé) : bg / blanc
+  stripes(x, W, H, I) { rect(x, 0, 0, W, H, 0xffffff); const n = I.n || 8, sw = W / n; for (let i = 0; i < n; i++) rect(x, i * sw, 0, sw / 2, H, I.bg ?? 0xd32f2f); rect(x, 0, H * 0.06, W, Math.max(1, H * 0.06), 0xffffff); },
+  // Flanc des rangées arrière d'un présentoir (niveaux de gris × couleur du produit) : n cylindres ombrés ou n boîtes
+  cols(x, W, H, I) { rect(x, 0, 0, W, H, 0x303030); const n = I.n || 3, cw = W / n; for (let i = 0; i < n; i++) { const g = x.createLinearGradient(i * cw, 0, (i + 1) * cw, 0); if (I.box) { g.addColorStop(0, '#9a9a9a'); g.addColorStop(0.06, '#ffffff'); g.addColorStop(0.9, '#e0e0e0'); g.addColorStop(1, '#5a5a5a'); } else { g.addColorStop(0, '#3a3a3a'); g.addColorStop(0.3, '#d8d8d8'); g.addColorStop(0.45, '#ffffff'); g.addColorStop(0.8, '#9a9a9a'); g.addColorStop(1, '#3a3a3a'); } x.fillStyle = g; x.fillRect(i * cw + (I.box ? cw * 0.04 : 0), 0, I.box ? cw * 0.92 : cw, H); } },
+  // Stries verticales en niveaux de gris (multipliées par la couleur de sommet) : bouchons moletés, couvercles, tranche de pièce
+  ridges(x, W, H, I) { rect(x, 0, 0, W, H, 0xffffff); const n = I.n || 16, sw = W / n; for (let i = 0; i < n; i++) { rect(x, i * sw, 0, sw * 0.42, H, 0x8a8a8a); rect(x, i * sw + sw * 0.42, 0, Math.max(1, sw * 0.12), H, 0xc4c4c4); } },
+  // Tranche de pages (bloc d'un livre) : fines stries crème (verticales si I.v)
+  leaves(x, W, H, I) { rect(x, 0, 0, W, H, 0xf2eadb); const n = I.v ? W : H; for (let i = 1; i < n; i += 2) { const c = i % 6 === 1 ? 0xd9cdb4 : 0xe7dfcc; if (I.v) rect(x, i, 0, 1, H, c); else rect(x, 0, i, W, 1, c); } },
   // Tranche d'une pile de livres / magazines : couvertures colorées et pages crème alternées
   pages(x, W, H, I) {
     const n = I.n || 5, c = I.bg ?? 0x1565c0; rect(x, 0, 0, W, H, 0xf3eee2);
@@ -637,9 +656,142 @@ const KINDS = {
   // Touches de clavier vues de dessus
   keys(x, W, H, I) {
     const bg = I.bg ?? 0x212121; rect(x, 0, 0, W, H, dark(bg, 0.2)); const kc = lum(bg) > 0.5 ? dark(bg, 0.12) : light(bg, 0.25);
-    const rows = 5, cols = 14, kw = W / cols, kh = H / (rows + 0.4);
-    for (let r = 0; r < rows; r++) for (let i = 0; i < cols; i++) { if (r === rows - 1 && i > 3 && i < 10) { if (i === 4) rr(x, 4 * kw + 1, H - kh * 1.1, kw * 6 - 2, kh * 0.86, 2, kc); continue; } rr(x, i * kw + 1, kh * 0.2 + r * kh, kw - 2, kh * 0.86, Math.min(kw, kh) * 0.15, kc); }
+    if (I.calc) { const nx = I.nx || 4, ny = I.ny || 5, kw = W / nx, kh = H / ny; rect(x, 0, 0, W, H, bg); for (let r = 0; r < ny; r++) for (let i = 0; i < nx; i++) { const c = i === nx - 1 ? 0xe65100 : r === 0 ? 0x616161 : kc; rr(x, i * kw + kw * 0.1, r * kh + kh * 0.12, kw * 0.8, kh * 0.74, kh * 0.2, c); const lb = r > 0 && i < 3 ? '7894561230.='.charAt((r - 1) * 3 + i) : r > 0 && i === nx - 1 ? '÷×−+'.charAt(r - 1) : ''; if (kw > 8 && lb) txt(x, lb, i * kw + kw / 2, r * kh + kh / 2, kw * 0.6, kh * 0.5, { color: ink(c), font: SANS, weight: 700, lines: 1 }); } return; } // calculatrice
+    if (I.pad === 'phone') { // pavé de téléphone : appel, navigation, raccrocher, puis 4 × 3 touches
+      rect(x, 0, 0, W, H, bg); const kw = W / 3, kh = H / 5;
+      rr(x, kw * 0.12, kh * 0.2, kw * 0.76, kh * 0.6, kh * 0.25, 0x2e7d32); rr(x, kw * 2.12, kh * 0.2, kw * 0.76, kh * 0.6, kh * 0.25, 0xc62828); circ(x, W / 2, kh * 0.5, Math.min(kw, kh) * 0.42, kc); circ(x, W / 2, kh * 0.5, Math.min(kw, kh) * 0.16, dark(kc, 0.3));
+      for (let r = 0; r < 4; r++) for (let i = 0; i < 3; i++) { const X = i * kw + kw * 0.1, Y = (r + 1) * kh + kh * 0.12; rr(x, X, Y, kw * 0.8, kh * 0.74, kh * 0.3, kc); if (kw > 8) txt(x, '123456789*0#'.charAt(r * 3 + i), X + kw * 0.4, Y + kh * 0.37, kw * 0.5, kh * 0.5, { color: ink(kc), font: SANS, weight: 700, lines: 1 }); }
+      return;
+    }
+    const rows = 5, cols = 14, kw = W / cols, kh = H / (rows + 0.4), gl = ['1234567890°+', 'AZERTYUIOP^$', 'QSDFGHJKLMù*', '<WXCVBN,;:!'], gc = lum(kc) > 0.5 ? dark(kc, 0.55) : light(kc, 0.55);
+    for (let r = 0; r < rows; r++) for (let i = 0; i < cols; i++) {
+      if (r === rows - 1 && i > 3 && i < 10) { if (i === 4) rr(x, 4 * kw + 1, H - kh * 1.1, kw * 6 - 2, kh * 0.86, 2, kc); continue; }
+      rr(x, i * kw + 1, kh * 0.2 + r * kh, kw - 2, kh * 0.86, Math.min(kw, kh) * 0.15, kc);
+      const ch = r < 4 && i > 0 ? gl[r].charAt(i - 1) : ''; if (ch && kw >= 9) txt(x, ch, i * kw + kw * 0.38, kh * 0.2 + r * kh + kh * 0.34, kw * 0.5, kh * 0.42, { color: gc, font: SANS, weight: 700, lines: 1 });
+    }
   },
+  // Écran : verre éteint et reflet (off), cristaux liquides verts (lcd), écran de verrouillage (lock) ; I.bezel :
+  // bord noir (fraction de la largeur, I.bezelY en hauteur), I.frame : couleur du cadre, I.cam : capteur frontal
+  screen(x, W, H, I) {
+    const m = I.mode || 'off', bx = W * (I.bezel ?? 0), by = H * (I.bezelY ?? I.bezel ?? 0), X = bx, Y = by, w = W - 2 * bx, h = H - 2 * by;
+    rect(x, 0, 0, W, H, I.frame ?? 0x0b0b0c);
+    if (m === 'lcd') {
+      rect(x, X, Y, w, h, 0x8bac0f); x.globalAlpha = 0.14; for (let i = 0; i < w; i += 3) rect(x, X + i, Y, 1, h, 0x0f380f); for (let j = 0; j < h; j += 3) rect(x, X, Y + j, w, 1, 0x0f380f); x.globalAlpha = 1;
+      if (I.name) txt(x, I.name, X + w / 2, Y + h * 0.42, w * 0.8, h * 0.2, { color: 0x0f380f, font: BLACK, lines: 1 });
+      if (I.led) circ(x, bx * 0.5, Y + h * 0.35, Math.max(1, bx * 0.18), 0xd50000);
+    } else if (m === 'lock') {
+      const g = x.createLinearGradient(X, Y, X + w, Y + h); g.addColorStop(0, '#1a237e'); g.addColorStop(0.55, '#4a148c'); g.addColorStop(1, '#0d47a1'); x.fillStyle = g; x.fillRect(X, Y, w, h);
+      for (let i = 0; i < 3; i++) { x.globalAlpha = 0.18; circ(x, X + w * (0.2 + i * 0.3), Y + h * (0.6 + 0.1 * (i % 2)), w * (0.25 + 0.1 * i), [0x7c4dff, 0x00b0ff, 0xff4081][i]); } x.globalAlpha = 1;
+      txt(x, I.time || '03:17', X + w / 2, Y + h * 0.22, w * 0.72, h * 0.13, { color: 0xffffff, font: SANS, weight: 300, lines: 1 });
+      txt(x, I.sub || 'vendredi 13', X + w / 2, Y + h * 0.32, w * 0.6, h * 0.04, { color: 0xe0e0ff, font: SANS, lines: 1 });
+      rr(x, X + w * 0.36, Y + h * 0.95, w * 0.28, Math.max(1, h * 0.008), 1, 0xffffff);
+    } else { const g = x.createLinearGradient(X, Y, X + w, Y + h); g.addColorStop(0, '#1c242e'); g.addColorStop(1, '#040608'); x.fillStyle = g; x.fillRect(X, Y, w, h); }
+    // reflet diagonal du verre
+    x.save(); x.beginPath(); x.rect(X, Y, w, h); x.clip(); x.globalAlpha = m === 'off' ? 0.13 : 0.07; x.fillStyle = '#ffffff'; x.beginPath(); x.moveTo(X + w * 0.38, Y); x.lineTo(X + w * 0.72, Y); x.lineTo(X + w * 0.22, Y + h); x.lineTo(X - w * 0.12, Y + h); x.closePath(); x.fill(); x.restore();
+    if (I.cam) circ(x, W / 2, by * 0.5, Math.max(1, Math.min(bx || by, by) * 0.22), 0x263238);
+  },
+  // Cadran d'horloge : graduations (I.bold : barres de gare), chiffres (arabic | roman | none), marque
+  dial(x, W, H, I) {
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2, bg = I.bg ?? 0xffffff, fg = I.fg ?? 0x151515, num = I.num ?? 'arabic';
+    rect(x, 0, 0, W, H, I.rim ?? dark(bg, 0.25)); circ(x, cx, cy, R * 0.995, bg);
+    const g = x.createRadialGradient(cx - R * 0.3, cy - R * 0.3, R * 0.1, cx, cy, R); g.addColorStop(0, 'rgba(255,255,255,0.12)'); g.addColorStop(1, 'rgba(0,0,0,0.12)'); x.fillStyle = g; x.beginPath(); x.arc(cx, cy, R, 0, 7); x.fill();
+    for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2, big = i % 5 === 0, r0 = R * (big ? (I.bold ? 0.7 : 0.82) : (I.bold ? 0.86 : 0.88)), r1 = R * 0.94; line(x, cx + Math.sin(a) * r0, cy - Math.cos(a) * r0, cx + Math.sin(a) * r1, cy - Math.cos(a) * r1, fg, big ? R * (I.bold ? 0.075 : 0.035) : R * (I.bold ? 0.025 : 0.012)); }
+    if (num === 'compass') { ['N', 'E', 'S', 'O'].forEach((l, i) => { const a = i * Math.PI / 2; txt(x, l, cx + Math.sin(a) * R * 0.62, cy - Math.cos(a) * R * 0.62, R * 0.3, R * 0.24, { color: i ? fg : 0xd50000, font: SANS, weight: 700, lines: 1 }); }); }
+    else if (num !== 'none') { const RN = ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI']; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, r = R * 0.66; txt(x, num === 'roman' ? RN[i] : String(i || 12), cx + Math.sin(a) * r, cy - Math.cos(a) * r, R * (num === 'roman' ? 0.34 : 0.26), R * 0.17, { color: fg, font: num === 'roman' ? SERIF : SANS, weight: 700, lines: 1 }); } }
+    if (I.brand) txt(x, I.brand, cx, cy - R * 0.3, R * 0.7, R * 0.11, { color: fg, font: SERIF, italic: true, lines: 1 });
+  },
+  // Billet de banque : fond guilloché, fenêtre en arc, valeur aux coins, bande holographique
+  bill(x, W, H, I) {
+    const bg = I.bg ?? 0x4caf50, v = I.n ?? 50; rect(x, 0, 0, W, H, light(bg, 0.25)); x.globalAlpha = 0.25; for (let i = 0; i < W + H; i += 3) line(x, i, 0, i - H, H, dark(bg, 0.2), 0.6); x.globalAlpha = 1;
+    rr(x, W * 0.36, H * 0.15, W * 0.28, H * 0.7, W * 0.14, light(bg, 0.5)); circ(x, W * 0.5, H * 0.42, Math.min(W, H) * 0.14, dark(bg, 0.2));
+    for (const [cx, cy] of [[W * 0.12, H * 0.24], [W * 0.88, H * 0.76]]) txt(x, String(v), cx, cy, W * 0.18, H * 0.32, { color: dark(bg, 0.45), font: BLACK, lines: 1 });
+    txt(x, 'EURO', W * 0.82, H * 0.2, W * 0.24, H * 0.14, { color: dark(bg, 0.4), font: SANS, weight: 700, lines: 1 }); rect(x, W * 0.7, 0, Math.max(1, W * 0.02), H, 0xc8c8c8);
+  },
+  // Face de pièce : métal en relief, anneau d'étoiles, valeur ; I.inner : cœur d'une autre teinte (bimétal), I.hole : jeton percé
+  coin(x, W, H, I) {
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2, a = I.bg ?? 0xd4af37; rect(x, 0, 0, W, H, a);
+    const g = x.createRadialGradient(cx - R * 0.3, cy - R * 0.3, R * 0.1, cx, cy, R); g.addColorStop(0, css(light(a, 0.3))); g.addColorStop(1, css(dark(a, 0.25))); x.fillStyle = g; x.beginPath(); x.arc(cx, cy, R, 0, 7); x.fill();
+    if (I.inner != null) circ(x, cx, cy, R * 0.66, I.inner);
+    for (let i = 0; i < 12; i++) { const t = i / 12 * Math.PI * 2; star(x, cx + Math.sin(t) * R * 0.84, cy - Math.cos(t) * R * 0.84, R * 0.065, R * 0.028, 5, dark(a, 0.3)); }
+    if (I.hole) circ(x, cx, cy, R * 0.2, dark(a, 0.65)); else txt(x, I.name ?? '2', cx, cy, R * 0.8, R * 0.7, { color: dark(I.inner ?? a, 0.4), font: BLACK, lines: 1 });
+  },
+  // Disque vinyle vu de face : sillons concentriques, reflets, rond central coloré, trou
+  record(x, W, H, I) {
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2; rect(x, 0, 0, W, H, 0x101010); circ(x, cx, cy, R, 0x141414);
+    x.strokeStyle = '#272727'; x.lineWidth = 0.6; for (let r = R * 0.36; r < R * 0.98; r += Math.max(1.2, R * 0.025)) { x.beginPath(); x.arc(cx, cy, r, 0, 7); x.stroke(); }
+    x.globalAlpha = 0.12; x.fillStyle = '#ffffff'; for (const a0 of [-0.9, 2.24]) { x.beginPath(); x.moveTo(cx, cy); x.arc(cx, cy, R, a0, a0 + 0.4); x.closePath(); x.fill(); } x.globalAlpha = 1;
+    circ(x, cx, cy, R * 0.33, I.bg ?? 0xd32f2f); if (I.name) txt(x, I.name, cx, cy - R * 0.15, R * 0.5, R * 0.1, { color: ink(I.bg ?? 0xd32f2f), font: SANS, weight: 700, lines: 1 }); circ(x, cx, cy, R * 0.03, 0x050505);
+  },
+  // Photo : ciel et sol en dégradé, silhouette ; I.strip : bande de n poses (photomaton) ; marge blanche
+  photo(x, W, H, I, rnd) {
+    const n = I.strip || 1, m = Math.min(W, H) * 0.06; rect(x, 0, 0, W, H, I.frame ?? 0xfafafa);
+    for (let i = 0; i < n; i++) {
+      const X = m, w = W - 2 * m, fh = (H - m * (n + 1) - (n === 1 && !I.full ? H * 0.12 : 0)) / n, Y = m + i * (fh + m), sky = [0x1a237e, 0x4e342e, 0x263238, 0x37474f][(rnd() * 4) | 0];
+      const g = x.createLinearGradient(0, Y, 0, Y + fh); g.addColorStop(0, css(sky)); g.addColorStop(0.6, css(light(sky, 0.35))); g.addColorStop(0.61, css(dark(sky, 0.4))); g.addColorStop(1, css(dark(sky, 0.6))); x.fillStyle = g; x.fillRect(X, Y, w, fh);
+      const px = X + w * (0.3 + rnd() * 0.4), sz = fh * 0.32; circ(x, px, Y + fh * 0.42, sz * 0.22, 0x0a0a0a); rr(x, px - sz * 0.25, Y + fh * 0.52, sz * 0.5, fh * 0.48, sz * 0.15, 0x0a0a0a);
+      x.globalAlpha = 0.22; rect(x, X, Y, w, fh, 0xffe0b2); x.globalAlpha = 1;
+    }
+  },
+  // Tableau d'acuité visuelle : lignes de lettres de taille décroissante
+  chart(x, W, H) {
+    rect(x, 0, 0, W, H, 0xfafafa); let y = H * 0.04;
+    ['E', 'F P', 'T O Z', 'L P E D', 'P E C F D', 'E D F C Z P', 'F E L O P Z D', 'D E F P O T E C'].forEach((r, i) => { const sz = H * 0.13 * Math.pow(0.78, i); txt(x, r, W / 2, y + sz / 2, W * 0.86, sz, { color: 0x111111, font: SANS, weight: 700, lines: 1 }); y += sz * 1.18; });
+    rect(x, W * 0.1, H * 0.96, W * 0.8, Math.max(1, H * 0.004), 0xd32f2f);
+  },
+  // Partition : titre, portées, notes
+  sheet(x, W, H, I, rnd) {
+    rect(x, 0, 0, W, H, 0xfbf8f0); const n = 9, sh = H * 0.85 / n; txt(x, I.name || 'Nocturne', W / 2, H * 0.05, W * 0.7, H * 0.05, { color: 0x222222, font: SERIF, italic: true, lines: 1 });
+    for (let i = 0; i < n; i++) { const y0 = H * 0.11 + i * sh; for (let l = 0; l < 5; l++) rect(x, W * 0.06, y0 + l * sh * 0.11, W * 0.88, Math.max(0.6, H * 0.0015), 0x333333); for (let j = 0; j < 9; j++) { const nx = W * (0.14 + j * 0.09), ny = y0 + sh * (0.02 + 0.44 * rnd()); ell(x, nx, ny, sh * 0.06, sh * 0.045, 0x111111, -0.4); rect(x, nx + sh * 0.05, ny - sh * 0.3, Math.max(0.6, W * 0.003), sh * 0.3, 0x111111); } }
+  },
+  // Papier écrit (post-it, page) : lignes manuscrites ondulées, ou texte dactylographié gris (I.print)
+  note(x, W, H, I, rnd) {
+    rect(x, 0, 0, W, H, I.bg ?? 0xfff176);
+    if (I.print) { for (let y = H * 0.08; y < H * 0.92; y += H * 0.045) rect(x, W * 0.08, y, W * (0.6 + rnd() * 0.3), Math.max(1, H * 0.012), 0x5d5d5d); return; }
+    x.strokeStyle = css(I.fg ?? 0x1a3a8a); x.lineWidth = Math.max(1, W * 0.012); for (let y = H * 0.18; y < H * 0.85; y += H * 0.14) { x.beginPath(); x.moveTo(W * 0.1, y); const L = 0.6 + rnd() * 0.25; for (let t = 0; t <= 1; t += 0.05) x.lineTo(W * (0.1 + t * L), y + Math.sin(t * 40 + y) * H * 0.02); x.stroke(); }
+  },
+  // Spirale vue en bout (tapis roulé, rouleau de réglisse) ; I.core : pastille centrale
+  spiral(x, W, H, I) {
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2, c = I.bg ?? 0x7e57c2; rect(x, 0, 0, W, H, c); x.strokeStyle = css(dark(c, 0.45)); x.lineWidth = Math.max(1, R * 0.05); x.beginPath();
+    for (let t = 0; t < 1; t += 0.004) { const a = t * Math.PI * 2 * (I.n || 6), r = R * (0.12 + 0.86 * t), px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r; t ? x.lineTo(px, py) : x.moveTo(px, py); } x.stroke();
+    if (I.core != null) circ(x, cx, cy, R * 0.14, I.core);
+  },
+  // Cadran d'accord de radio : graduations, fréquences, aiguille rouge
+  tuner(x, W, H, I) {
+    const bg = I.bg ?? 0xf3e5c0; rect(x, 0, 0, W, H, dark(bg, 0.55)); rr(x, W * 0.03, H * 0.08, W * 0.94, H * 0.84, H * 0.12, bg);
+    for (let i = 0; i <= 40; i++) { const X = W * (0.08 + 0.84 * i / 40); line(x, X, H * 0.56, X, H * (i % 8 === 0 ? 0.34 : 0.46), 0x3e2723, Math.max(1, W * 0.004)); }
+    [88, 92, 96, 100, 104, 108].forEach((f, i) => txt(x, String(f), W * (0.08 + 0.84 * i / 5), H * 0.73, W * 0.13, H * 0.2, { color: 0x3e2723, font: SANS, weight: 700, lines: 1 }));
+    txt(x, 'FM', W * 0.12, H * 0.22, W * 0.12, H * 0.16, { color: 0xb71c1c, font: SANS, weight: 700, lines: 1 });
+    rect(x, W * 0.58, H * 0.12, Math.max(1.5, W * 0.008), H * 0.76, 0xd50000); gloss(x, 0, 0, W, H, 0.22);
+  },
+  // Grille de haut-parleur : toile tramée (lamelles facultatives) ou perforations (I.holes)
+  grille(x, W, H, I) {
+    const bg = I.bg ?? 0x3e2723; rect(x, 0, 0, W, H, bg);
+    if (I.holes) { const st = Math.max(3, Math.min(W, H) / (I.n || 8)); for (let j = 0; (j + 0.5) * st < H; j++) for (let i = 0; (i + 0.5) * st < W; i++) circ(x, (i + 0.5 + (j % 2) * 0.5) * st, (j + 0.5) * st, st * 0.3, dark(bg, 0.65)); return; }
+    const a = I.accent ?? light(bg, 0.22); x.globalAlpha = 0.4; for (let i = 0; i < W; i += 2) rect(x, i, 0, 1, H, a); for (let j = 0; j < H; j += 2) rect(x, 0, j, W, 1, dark(bg, 0.35)); x.globalAlpha = 1;
+    if (I.slats) for (let i = 1; i < I.slats; i++) rect(x, W * i / I.slats - W * 0.02, 0, W * 0.04, H, I.slatC ?? 0x6d4c41);
+  },
+  // Planisphère équirectangulaire (globe) : océans, continents simplifiés, déserts, glaces, méridiens
+  globe(x, W, H, I) {
+    const P = (lo, la) => [W * (0.5 + lo / 360), H * (90 - la) / 180], land = I.land ?? 0x7cb342, sea = I.bg ?? 0x1565c0;
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, css(dark(sea, 0.25))); g.addColorStop(0.5, css(light(sea, 0.1))); g.addColorStop(1, css(dark(sea, 0.25))); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    const shape = (pts, c) => { x.beginPath(); pts.forEach(([lo, la], i) => { const [px, py] = P(lo, la); i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.closePath(); x.fillStyle = css(c); x.fill(); };
+    const C = [
+      [[-168, 66], [-160, 71], [-140, 70], [-125, 70], [-95, 72], [-80, 73], [-62, 66], [-55, 52], [-66, 44], [-75, 35], [-81, 25], [-90, 30], [-97, 26], [-97, 20], [-88, 16], [-83, 9], [-79, 8], [-87, 13], [-105, 20], [-112, 30], [-118, 34], [-124, 40], [-125, 49], [-135, 57], [-150, 60], [-165, 60]],
+      [[-80, 8], [-62, 11], [-50, 0], [-35, -5], [-39, -15], [-48, -26], [-58, -35], [-65, -42], [-68, -52], [-74, -50], [-72, -35], [-71, -18], [-81, -6], [-80, 0]],
+      [[-10, 36], [-9, 43], [-2, 44], [-5, 48], [2, 51], [8, 54], [10, 58], [5, 62], [15, 70], [28, 71], [40, 67], [45, 60], [40, 46], [28, 41], [24, 38], [20, 40], [16, 38], [12, 44], [8, 44], [3, 43], [0, 38], [-6, 36]],
+      [[-17, 21], [-17, 15], [-10, 5], [8, 4], [10, -2], [13, -12], [12, -18], [18, -34], [26, -34], [32, -28], [40, -15], [40, -3], [51, 11], [44, 12], [37, 22], [33, 31], [20, 32], [10, 37], [-1, 36], [-6, 36], [-10, 30]],
+      [[28, 41], [40, 46], [45, 60], [40, 67], [60, 70], [80, 73], [100, 78], [120, 73], [140, 72], [160, 70], [180, 68], [180, 64], [170, 60], [160, 55], [143, 52], [140, 45], [130, 42], [126, 36], [122, 30], [120, 22], [109, 20], [106, 10], [100, 13], [100, 3], [104, 1], [98, 8], [94, 16], [91, 22], [88, 21], [80, 15], [77, 8], [73, 18], [67, 25], [57, 25], [50, 30], [56, 26], [59, 22], [52, 16], [43, 13], [39, 21], [34, 28], [35, 36]],
+      [[114, -22], [122, -18], [130, -12], [137, -12], [142, -11], [146, -19], [153, -26], [150, -37], [140, -38], [131, -31], [116, -35], [114, -26]],
+      [[-50, 60], [-43, 60], [-20, 70], [-18, 80], [-40, 83], [-60, 82], [-70, 77], [-55, 70]],
+    ];
+    C.forEach((c, i) => shape(c, i === 6 ? 0xf5f5f5 : land));
+    for (const [lo, la, rx, ry, a] of [[-3, 54, 3, 4, 0.3], [138, 37, 3, 7, -0.6], [47, -19, 2.5, 6, 0.2], [172, -41, 3, 6, 0.6], [114, 1, 5, 5, 0], [101, 0, 2.5, 7, -0.7], [141, -5, 7, 3, 0], [-19, 65, 4, 2, 0], [122, 12, 2, 4, 0]]) { const [px, py] = P(lo, la); ell(x, px, py, W * rx / 360, H * ry / 180, land, a); }
+    for (const [lo, la, rx, ry] of [[10, 23, 22, 8], [47, 23, 9, 7], [133, -25, 10, 6], [-112, 33, 6, 5], [100, 42, 14, 4], [-70, -22, 3, 8]]) { const [px, py] = P(lo, la); x.globalAlpha = 0.75; ell(x, px, py, W * rx / 360, H * ry / 180, 0xd9b36c); x.globalAlpha = 1; }
+    rect(x, 0, H * (90 + 66) / 180, W, H, 0xf2f2f2); for (let i = 0; i < 12; i++) ell(x, W * (i + 0.5) / 12, H * (90 + 64) / 180, W / 24, H * 0.03, 0xf2f2f2);
+    x.globalAlpha = 0.25; for (let i = 1; i < 12; i++) line(x, W * i / 12, 0, W * i / 12, H, 0xffffff, 1); for (let j = 1; j < 6; j++) line(x, 0, H * j / 6, W, H * j / 6, 0xffffff, 1); x.globalAlpha = 1;
+  },
+  // Gaufre de Bruxelles vue de dessus : alvéoles carrées, arêtes dorées
+  waffle(x, W, H, I) { const c = I.bg ?? 0xd4a056; rect(x, 0, 0, W, H, light(c, 0.12)); const nx = 6, ny = 4, cw = W / nx, ch = H / ny; for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { rr(x, i * cw + cw * 0.14, j * ch + ch * 0.14, cw * 0.72, ch * 0.72, cw * 0.1, dark(c, 0.18)); rect(x, i * cw + cw * 0.18, j * ch + ch * 0.18, cw * 0.64, Math.max(1, ch * 0.08), dark(c, 0.35)); } },
   // Dessus de pizza
   pizza(x, W, H, I, rnd) {
     const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2; rect(x, 0, 0, W, H, 0xd4a056); circ(x, cx, cy, R * 0.98, 0xd4a056); circ(x, cx, cy, R * 0.84, 0xc62828);
