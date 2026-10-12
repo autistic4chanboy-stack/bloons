@@ -210,6 +210,7 @@ function profile(o, kind) {
   if (kind === 'bear') Object.assign(pr, { sh: [0.215, 1.39, -0.02], hip: 0.105, ar: 1.55, lr: 1.35, torso: T7(TORSO_M.map((q) => [q[0], q[1] * (q[0] < 1.45 ? 1.28 : 1.2), q[2] * (1.3 + 0.55 * G(q[0] - 1.08, 0.14)), q[3] * 1.3, q[4] + 0.03 * G(q[0] - 1.08, 0.14), 2.1])) });
   if (kind === 'crawler' || kind === 'shadow') Object.assign(pr, { gaunt: true, ar: 0.62, lr: 0.68, hd: 1.25, wr: 0.3, el: 0.34, torso: T7(TORSO_M.map((q) => [q[0], q[1] * (q[0] < 1.2 ? 0.74 : 0.86), q[2] * (q[0] < 1.2 ? 0.68 : 0.8), q[3] * 0.8, q[4], q[5]])) });
   if (kind === 'mannequin') Object.assign(pr, { smooth: true, f: true, sh: [0.178, 1.405, -0.022], neck: [1.49, -0.018], head: [1.59, -0.004], ar: 0.85, lr: 0.9, torso: T7(TORSO_F) });
+  if (kind === 'firefighter') Object.assign(pr, { ar: 1.14, lr: 1.12, torso: T7(TORSO_M.map((q) => [q[0], q[1] * 1.07 + 0.006, q[2] * 1.12 + 0.008, q[3] * 1.1 + 0.008, q[4], q[5]])) }); // tenue de feu épaisse
   if (kind === 'astronaut') Object.assign(pr, { ar: 1.5, lr: 1.35, hd: 1.15, ft: 1.15, torso: T7(TORSO_M.map((q) => [q[0], q[1] * 1.18 + 0.01, q[2] * 1.3 + 0.01, q[3] * 1.25 + 0.01, q[4], 2.3])) });
   const nb = pr.neck[0], hb = pr.head[0], nr = kind === 'bear' ? 0.11 : c ? 0.046 : f ? 0.047 : pr.gaunt ? 0.04 : 0.056;
   pr.neckR = T7([[nb - 0.075, nr, nr, nr * 1.1, -0.026], [nb, nr, nr, nr * 1.12, -0.021], [lerp(nb, hb, 0.5), nr * 0.96, nr * 0.96, nr * 1.07, -0.016], [hb - 0.005, nr * 0.93, nr * 0.9, nr * 1.04, -0.013], [hb + 0.025, nr * 0.86, nr * 0.76, nr * 0.96, -0.012]]);
