@@ -1,10 +1,11 @@
 // Appareils fixes fonctionnels. Fabrique : game.devices.create(defId, zone, pos, ry, opts).
 // Tous les états sont répliqués (WorldObject.set) ; les sons/visuels sont produits localement dans onState.
 import * as THREE from 'three';
+import { ARCADE_ART, DK } from './meshes_devices.js'; // formes détaillées des appareils (enregistrées avant toute cuisson)
 import { WorldObject } from './world.js';
 import { Box, LAYER } from '../engine/physics.js';
 import { ITEMS } from '../data/items.js';
-import { buildItemGeometry, itemMeta } from './meshes.js';
+import { buildItemGeometry, itemMeta, quickGeometry } from './meshes.js';
 import { Locker, Container, Seat, Readable, HideSpot, GlassPane } from './fixtures.js';
 import { Net } from '../net/net.js';
 import { LORE } from '../data/lore.js';
@@ -66,19 +67,82 @@ export function textScreen(text) {
   return { canvas: c, w: 256, h: 192, title: text, wantsInput: false, update(dt) { t += dt; for (let i = 0; i < img.data.length; i += 16) { const v = Math.random() * 60; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; } ctx.putImageData(img, 0, 0); ctx.fillStyle = Math.sin(t * 9) > -0.6 ? '#fff' : '#888'; ctx.font = '900 34px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const lines = String(text).split('\n'); lines.forEach((l, i) => ctx.fillText(l, 128 + (Math.random() - 0.5) * 2, 96 + (i - (lines.length - 1) / 2) * 38)); }, key() { }, dispose() { } };
 }
 
+// ───────────────────────── Accessoires modélisés (géométries partagées, matériau « props » éclairé par zone) ─────────────────────────
+const GEO = new Map();
+const shared = (key, atlas, fn) => { let g = GEO.get(key); if (!g) { g = quickGeometry(atlas, fn).geometry; GEO.set(key, g); } return g; };
+// Moniteur LCD : dalle à cadre fin, coque arrière, colonne et pied ovale ; sh = hauteur du centre de l'écran au plan
+// de pose (même encombrement que l'ancien moniteur : écran 0,5 × 0,36 m, pied 0,2 × 0,15 m)
+function monitorGeometry(atlas, sh) {
+  return shared('mon' + sh, atlas, (k) => {
+    const { rbox, fq, lab } = DK, c = 0x1e1f21;
+    rbox(k, 0, 0, 0.018, 0.5, 0.36, 0.024, 0.006, c);
+    fq(k, 0, 0.006, 0.0304, 0.452, 0.312, 0x050607);
+    fq(k, 0, -0.168, 0.0304, 0.05, 0.009, 0, 'Z', lab(k, 'monlogo', 40, 8, { kind: 'plain', bg: c, fg: 0x8a8d90, brand: 'ORION' }));
+    fq(k, 0.21, -0.168, 0.0304, 0.004, 0.003, 0x40c4ff);
+    rbox(k, 0, -0.01, -0.012, 0.32, 0.24, 0.036, 0.014, 0x262729, { skip: 'Z' });
+    const ny0 = -0.06, ny1 = -sh + 0.015;
+    rbox(k, 0, (ny0 + ny1) / 2, -0.035, 0.05, ny0 - ny1, 0.022, 0.008, 0x2b2c2e);
+    rbox(k, 0, -sh + 0.0075, -0.02, 0.2, 0.015, 0.15, 0.007, 0x232426);
+  });
+}
+// Assiette du tapis à sushis (pied, marli) garnie de deux nigiris
+function sushiGeometry(atlas, col, i) {
+  return shared('sushi' + col, atlas, (k) => {
+    const { lat, rbox } = DK;
+    lat(k, [[0.055, -0.02], [0.058, -0.016], [0.06, -0.014, col, 'h'], [0.094, -0.006], [0.1, -0.002], [0.096, 0.0], [0.09, -0.004, 0xf4f1ea, 'h'], [0.05, -0.012], [0.0005, -0.012]], col, { segs: 14, bot: col });
+    const fish = [0xff8a65, 0xd84315, 0xfff3e0][i % 3];
+    for (const dx of [-0.036, 0.036]) { rbox(k, dx, -0.0015, 0, 0.032, 0.021, 0.058, 0.009, 0xf5f2ea); rbox(k, dx, 0.011, 0, 0.036, 0.007, 0.064, 0.003, fish); }
+  });
+}
+// Poisson d'aquarium : corps fuselé comprimé (tête vers +z), nageoire caudale et dorsale, yeux
+function fishGeometry(atlas, col) {
+  return shared('fish' + col, atlas, (k) => {
+    const { lat, extX, M, fq } = DK;
+    lat(k, [[0.0005, -0.03], [0.004, -0.026], [0.0065, -0.012], [0.007, 0.004], [0.0055, 0.02], [0.0028, 0.03], [0.0005, 0.034]], col, { segs: 8, rz: 2.3, m: M(0, 0, 0, Math.PI / 2, 0, 0) });
+    extX(k, [[-0.026, 0], [-0.05, 0.016], [-0.044, 0], [-0.05, -0.016]], -0.001, 0.001, col);
+    extX(k, [[-0.01, 0.012], [0.008, 0.015], [-0.004, 0.022]], -0.0008, 0.0008, col);
+    for (const sx of [-1, 1]) fq(k, sx * 0.0058, 0.003, 0.022, 0.004, 0.004, 0x050505, sx > 0 ? 'X' : 'x');
+  });
+}
+// Marquee lumineux d'une borne : titre en lettres néon sur fond dégradé étoilé, liseré (une texture par jeu)
+const MARQUEES = new Map();
+function marqueeTexture(art) {
+  if (MARQUEES.has(art[3])) return MARQUEES.get(art[3]);
+  const c = document.createElement('canvas'); c.width = 256; c.height = 72; const x = c.getContext('2d');
+  const hex = (v) => '#' + (v & 0xffffff).toString(16).padStart(6, '0');
+  const g = x.createLinearGradient(0, 0, 0, 72); g.addColorStop(0, hex(art[1])); g.addColorStop(0.5, '#05050a'); g.addColorStop(1, hex(art[1])); x.fillStyle = g; x.fillRect(0, 0, 256, 72);
+  let s = art[3].length * 7919; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 46; i++) { x.fillStyle = `rgba(255,255,255,${0.25 + rnd() * 0.75})`; x.fillRect(rnd() * 256, rnd() * 72, 1.6, 1.6); }
+  x.strokeStyle = hex(art[0]); x.lineWidth = 3; x.strokeRect(4, 4, 248, 64);
+  let size = 36; const font = () => `900 ${size}px Impact, "Arial Black", "Liberation Sans", sans-serif`; x.font = font();
+  while (x.measureText(art[3]).width > 228 && size > 14) { size -= 2; x.font = font(); }
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = hex(art[0]); x.shadowBlur = 14; x.fillStyle = '#ffffff'; x.fillText(art[3], 128, 38);
+  x.shadowBlur = 0; x.lineWidth = 1.5; x.strokeStyle = hex(art[0]); x.strokeText(art[3], 128, 38);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; MARQUEES.set(art[3], t); return t;
+}
+
+// Variante de géométrie d'un appareil : couleur imposée et plaque (voitures), armoire réfrigérée vitrée (hypermarché)
+function variantDef(def, opts) {
+  let v = def;
+  if (opts.color) v = { ...v, id: v.id + '_' + opts.color.toString(16), c: opts.color };
+  if (opts.plate) v = { ...v, id: v.id + '_' + opts.plate, plate: opts.plate };
+  if (def.id === 'fridge' && opts.shop === 'hyper') v = { ...v, id: v.id + '_vitre', variant: 'vitre' };
+  return v;
+}
+
 // ───────────────────────── Base ─────────────────────────
 export class ItemFixture extends WorldObject {
   constructor(world, id, def, zone, pos, ry, opts = {}) {
     super(world, id, def.use);
     this.def = def; this.zone = zone; this.opts = opts; this.name = def.name; this.ry = ry; this.p = def.p || {};
-    const g = world.game;
+    const g = world.game, vd = variantDef(def, opts);
     this.group = new THREE.Group(); this.group.position.copy(pos); this.group.rotation.y = ry;
     if (!opts.noMesh) {
-      const geo = buildItemGeometry(opts.color ? { ...def, id: def.id + '_' + opts.color.toString(16), c: opts.color } : def, g.atlas);
+      const geo = buildItemGeometry(vd, g.atlas);
       this.mesh = new THREE.Mesh(geo, g.mats.get('props', zone)); this.mesh.castShadow = true; this.mesh.receiveShadow = true;
       this.group.add(this.mesh);
     }
-    this.meta = itemMeta(opts.color ? def.id + '_' + opts.color.toString(16) : def.id);
+    this.meta = itemMeta(vd.id);
     (world.zone(zone)?.group || world.root).add(this.group);
     this.group.updateMatrixWorld(true);
     const c = Math.abs(Math.cos(ry)), s = Math.abs(Math.sin(ry)); const hx = def.s[0] / 2, hy = def.s[1] / 2, hz = def.s[2] / 2;
@@ -286,11 +350,11 @@ class Register extends ItemFixture {
 class ConsoleDev extends ItemFixture {
   constructor(world, id, def, zone, pos, ry, opts) {
     super(world, id, def, zone, pos, ry, opts);
-    // moniteur posé derrière la console
-    const tvDef = ITEMS.crt_tv;
+    // moniteur posé sur la console (réduit à 0,8 : sa base repose sur le dessus de la console)
+    const tvDef = ITEMS.crt_tv, ty = def.s[1] / 2 + tvDef.s[1] * 0.4;
     const tv = new THREE.Mesh(buildItemGeometry(tvDef, world.game.atlas), world.game.mats.get('props', zone));
-    tv.position.set(0, def.s[1] / 2 + tvDef.s[1] / 2, -0.12); tv.scale.setScalar(0.8); this.group.add(tv);
-    const m = itemMeta('crt_tv').screen; this.makeScreen({ x: m.x * 0.8, y: def.s[1] / 2 + tvDef.s[1] / 2 + m.y * 0.8, z: -0.12 + m.z * 0.8, w: m.w * 0.8, h: m.h * 0.8 });
+    tv.position.set(0, ty, -0.12); tv.scale.setScalar(0.8); this.group.add(tv);
+    const m = itemMeta('crt_tv').screen; this.makeScreen({ x: m.x * 0.8, y: ty + m.y * 0.8, z: -0.12 + m.z * 0.8, w: m.w * 0.8, h: m.h * 0.8 });
     world.game.lighting.addSource(this);
     this.setPick(this.pickBox.min[0] - 0.1, this.pickBox.min[1], this.pickBox.min[2] - 0.1, this.pickBox.max[0] + 0.1, this.pickBox.max[1] + 0.5, this.pickBox.max[2] + 0.1);
   }
@@ -377,7 +441,11 @@ class VCRDev extends ItemFixture {
 class ArcadeDev extends ItemFixture {
   constructor(world, id, def, zone, pos, ry, opts) {
     super(world, id, def, zone, pos, ry, opts); this.makeScreen();
-    if (this.meta.marquee) { const mq = this.meta.marquee; const mm = new THREE.Mesh(new THREE.PlaneGeometry(mq.w, mq.h), new THREE.MeshBasicMaterial({ color: new THREE.Color(def.c === 0x1a1a2e ? 0xd500f9 : def.c).multiplyScalar(2) })); mm.position.set(mq.x, mq.y, mq.z + 0.006); this.group.add(mm); this.marquee = mm; }
+    if (this.meta.marquee) {
+      const mq = this.meta.marquee, art = def.shape === 'claw' ? ARCADE_ART.claw : def.s[0] > 1 ? ARCADE_ART.dance : (ARCADE_ART[this.p.game] || ARCADE_ART.invaders);
+      const mm = new THREE.Mesh(new THREE.PlaneGeometry(mq.w, mq.h), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.6, 1.6), map: marqueeTexture(art) }));
+      mm.position.set(mq.x, mq.y, mq.z + 0.006); this.group.add(mm); this.marquee = mm;
+    }
     world.game.lighting.addSource(this);
   }
   initState() { return { attract: true, ghost: false }; }
@@ -486,7 +554,7 @@ class Aquarium extends ItemFixture {
     this.fish = [];
     if (this.meta.fish) {
       const cols = [0xff7043, 0xffeb3b, 0x29b6f6, 0xe91e63, 0x76ff03, 0xffffff];
-      for (let i = 0; i < 9; i++) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.08, 4), new THREE.MeshBasicMaterial({ color: cols[i % cols.length] })); f.rotation.z = Math.PI / 2; this.group.add(f); this.fish.push({ m: f, a: Math.random() * 6, r: 0.2 + Math.random() * 0.3, y: (Math.random() - 0.5) * def.s[1] * 0.5, s: 0.5 + Math.random() }); }
+      for (let i = 0; i < 9; i++) { const f = new THREE.Mesh(fishGeometry(world.game.atlas, cols[i % cols.length]), world.game.mats.get('props', zone)); f.scale.setScalar(0.8 + (i % 3) * 0.25); this.group.add(f); this.fish.push({ m: f, a: Math.random() * 6, r: 0.2 + Math.random() * 0.3, y: (Math.random() - 0.5) * def.s[1] * 0.5, s: 0.5 + Math.random() }); }
     }
     world.setActive(this, true); world.game.lighting.addSource(this);
     this.excite = 0;
@@ -663,18 +731,14 @@ class Computer extends ItemFixture {
     if (opts.monitor) {
       // monitor: true → tour au sol, écran posé sur le bureau au-dessus ; 'left' / 'right' → tour posée sur le bureau,
       // écran sur pied à côté d'elle (côté x local négatif / positif)
+      // (sans côté : écran posé sur le plateau du bureau, 0,54 m au-dessus du centre de la tour)
       const side = opts.monitor === 'left' ? -1 : opts.monitor === 'right' ? 1 : 0;
-      const mp = side ? [side * 0.4, 0.005, 0.03] : [0, 0.62, -0.25];
-      const monMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
-      const mon = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.36, 0.06), monMat);
-      mon.position.set(mp[0], mp[1], mp[2]); this.group.add(mon);
-      if (side) {
-        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.015, 0.15), monMat); foot.position.set(mp[0], -0.2175, mp[2] - 0.02); this.group.add(foot);
-        const neck = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 0.025), monMat); neck.position.set(mp[0], -0.19, mp[2] - 0.04); this.group.add(neck);
-      }
+      const mp = side ? [side * 0.4, 0.005, 0.03] : [0, 0.83, -0.25];
+      const mon = new THREE.Mesh(monitorGeometry(world.game.atlas, side ? 0.225 : 0.29), world.game.mats.get('props', zone));
+      mon.position.set(mp[0], mp[1], mp[2]); mon.castShadow = mon.receiveShadow = true; this.group.add(mon);
       this.makeScreen({ x: mp[0], y: mp[1], z: mp[2] + 0.033, w: 0.44, h: 0.3 });
       if (side) this.pickFromObject(this.group, 0.04);
-      else this.setPick(this.pickBox.min[0] - 0.1, this.pickBox.min[1], this.pickBox.min[2] - 0.1, this.pickBox.max[0] + 0.1, this.pickBox.max[1] + 0.6, this.pickBox.max[2] + 0.1);
+      else this.setPick(this.pickBox.min[0] - 0.1, this.pickBox.min[1], this.pickBox.min[2] - 0.1, this.pickBox.max[0] + 0.1, this.pickBox.max[1] + 0.81, this.pickBox.max[2] + 0.1); // couvre l'écran posé sur le bureau
     } else this.makeScreen({ x: 0, y: this.def.s[1] * 0.3, z: this.def.s[2] / 2 + 0.002, w: this.def.s[0] * 0.6, h: this.def.s[1] * 0.2 });
     this.setScreen('computer:' + (opts.os || this.p.os || 'shop'), 0.9);
     world.game.lighting.addSource(this);
@@ -699,7 +763,7 @@ class Printer extends ItemFixture {
 class Conveyor extends ItemFixture {
   constructor(world, id, def, zone, pos, ry, opts) {
     super(world, id, def, zone, pos, ry, opts); world.setActive(this, true);
-    this.plates = []; for (let i = 0; i < 7; i++) { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.02, 12), new THREE.MeshStandardMaterial({ color: [0xd32f2f, 0x1565c0, 0xfdd835][i % 3] })); m.position.set(-def.s[0] / 2 + i * (def.s[0] / 7), def.s[1] / 2 + 0.02, 0); this.group.add(m); this.plates.push(m); }
+    this.plates = []; for (let i = 0; i < 7; i++) { const m = new THREE.Mesh(sushiGeometry(world.game.atlas, [0xd32f2f, 0x1565c0, 0xfdd835][i % 3], i), world.game.mats.get('props', zone)); m.position.set(-def.s[0] / 2 + i * (def.s[0] / 7), def.s[1] / 2 + 0.02, 0); this.group.add(m); this.plates.push(m); }
   }
   initState() { return { on: false }; }
   prompt() { return (this.state.on ? 'E : Arrêter' : 'E : Démarrer') + ' — ' + this.name; }
