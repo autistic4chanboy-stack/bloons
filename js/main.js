@@ -182,7 +182,7 @@ function animateStatic(c) {
     if (!document.body.contains(c)) return;
     requestAnimationFrame(draw);
     if (now - last < 50) return; last = now; // ~20 images/s, comme une vieille caméra
-    const t = (now - t0) / 1000;
+    const t = Math.max(0, (now - t0) / 1000); // l'horodatage de la première image peut précéder t0
     ctx.drawImage(bg, 0, 0);
     // silhouette au bout de la galerie, quelques instants toutes les ~9 s, un peu plus près à chaque fois
     const cyc = Math.floor(t / 9), ph = t % 9;

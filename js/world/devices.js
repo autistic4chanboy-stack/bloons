@@ -62,7 +62,8 @@ function fallbackScreen(kind) {
 // Écran de texte (messages fantômes sur les TV)
 export function textScreen(text) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 192; const ctx = c.getContext('2d'); let t = 0;
-  return { canvas: c, w: 256, h: 192, title: text, wantsInput: false, update(dt) { t += dt; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 256, 192); const img = ctx.getImageData(0, 0, 256, 192); for (let i = 0; i < img.data.length; i += 16) { const v = Math.random() * 60; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; } ctx.putImageData(img, 0, 0); ctx.fillStyle = Math.sin(t * 9) > -0.6 ? '#fff' : '#888'; ctx.font = '900 34px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const lines = String(text).split('\n'); lines.forEach((l, i) => ctx.fillText(l, 128 + (Math.random() - 0.5) * 2, 96 + (i - (lines.length - 1) / 2) * 38)); }, key() { }, dispose() { } };
+  const img = ctx.createImageData(256, 192); for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255; // neige réutilisée (pas de relecture du canvas)
+  return { canvas: c, w: 256, h: 192, title: text, wantsInput: false, update(dt) { t += dt; for (let i = 0; i < img.data.length; i += 16) { const v = Math.random() * 60; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; } ctx.putImageData(img, 0, 0); ctx.fillStyle = Math.sin(t * 9) > -0.6 ? '#fff' : '#888'; ctx.font = '900 34px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const lines = String(text).split('\n'); lines.forEach((l, i) => ctx.fillText(l, 128 + (Math.random() - 0.5) * 2, 96 + (i - (lines.length - 1) / 2) * 38)); }, key() { }, dispose() { } };
 }
 
 // ───────────────────────── Base ─────────────────────────

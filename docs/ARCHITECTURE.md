@@ -33,6 +33,9 @@ Sons spatiaux : PannerNode HRTF, modèle 'inverse', `ref`/`maxDist`. Occlusion :
 BiquadFilter passe-bas par source (0 mur : 20 kHz ; 1 : ~2.5 kHz ; 2 : ~900 Hz ; 3+ : ~400 Hz) et une atténuation
 (-4 dB / mur), et augmente le ratio wet de la réverbération. Réverb : ConvolverNode avec réponses impulsionnelles générées
 (bruit filtré à décroissance exponentielle, early reflections), une par type de zone, crossfade entre zones.
+Le panoramique HRTF (coûteux) est réservé aux 16 sources les plus audibles et réattribué toutes les 0,25 s ; un son proche
+qui démarre prend aussitôt la place de la source HRTF la moins audible (les autres passent en `equalpower`).
+Débogage : `Audio.stats()`, `Audio.voices()` (nom, distance, audibilité, HRTF, hors de portée, murs).
 
 ### Noms de sons (`Audio.play` / `Audio.loop`)
 Pas : `step_tile, step_concrete, step_metal, step_carpet, step_wood, step_vent, step_grass, step_heels, step_sneakers, land`
@@ -101,6 +104,18 @@ Modules sans dépendance, exportent des objets. Utilisés par le jeu et par le w
 Toute modification du monde passe par une **action** (`game.sim.do(name, payload)`, exécutée sur l'hôte) qui produit des
 **effets** (`game.sim.emit(name, payload, {to, exceptHost})`, appliqués sur tous les pairs). En solo, ce navigateur est
 l'hôte : même code. L'état des objets du monde (`WorldObject.set(patch)`) passe par l'effet `obj`.
+`set(patch, true)` applique l'état sans transition (`onState(patch, isReset = true)`) : rideaux remis en place au
+chargement d'une nuit, par exemple.
+
+## Rendu : visibilité des zones (`World.cull(pos, extras, cam, range)`)
+Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) avec la position de la caméra de rendu.
+- Distance : une zone est dessinée si sa boîte est à moins de `zone.cull` mètres (× `range` : 0,65 pour les écrans du
+  poste en basse définition).
+- Niveaux : 0 sous-sol/parking, 1 rez-de-chaussée, 2 étage, 3 toit (bandes de hauteur). Un niveau n'est dessiné depuis
+  un autre qu'à 8 m d'un passage (arêtes du graphe de navigation qui changent de niveau : escaliers, escalators, rampe)
+  ou près d'un vide (`void: true`, l'atrium : 10 m, ou 45 m s'il est dans le champ de `cam`).
+- Depuis un magasin, les magasins mitoyens du même côté sont masqués ; une réserve ne se voit qu'à moins de 14 m.
+- Personnages : les pièces rigides de chaque segment sont fusionnées (couleurs par sommet, ~10 meshes par personnage).
 
 ## Vidéosurveillance : `js/game/security.js`
 - Objet monde `security` : `{rec, blocked: {camId: true}, mounted, rc: {car, driver} | null, erased}`.
