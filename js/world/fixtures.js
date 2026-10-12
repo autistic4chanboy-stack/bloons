@@ -111,7 +111,7 @@ export class Door extends WorldObject {
       return;
     }
     if (verb === 'code') {
-      if (String(ctx.code) === String(this.o.code)) { this.set({ sealed: false, locked: false, open: 1 }); g.flagSet('b13_opened', true); g.hooks.emit('door_code_ok', this); }
+      if (String(ctx.code) === String(this.o.code)) { this.set({ sealed: false, locked: false, open: 1 }); g.flagSet(this.o.codeFlag || 'b13_opened', true); g.hooks.emit('door_code_ok', this); }
       else g.sim.emit('fx', { s: 'error', pos: this.pos.toArray() });
       return;
     }

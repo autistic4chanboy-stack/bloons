@@ -558,7 +558,7 @@ class Hoop extends ItemFixture {
 }
 
 class Safe extends ItemFixture {
-  initState(o) { const c = o.shop === 'direction' ? ['cash', 'b13_key', 'usb_key'] : o.shop === 'bijouterie' ? ['diamond_ring', 'watch', 'cash', 'cash'] : ['cash']; return { open: 0, code: o.shop === 'direction' ? '1411' : o.shop === 'bijouterie' ? '7319' : '0000', contents: c, cracked: false }; }
+  initState(o) { const c = o.contents || (o.shop === 'direction' ? ['cash', 'b13_key', 'usb_key'] : o.shop === 'bijouterie' ? ['diamond_ring', 'watch', 'cash', 'cash'] : ['cash']); return { open: 0, code: o.code || (o.shop === 'direction' ? '1411' : o.shop === 'bijouterie' ? '7319' : '0000'), contents: [...c], cracked: false }; }
   prompt() { return this.state.open ? (this.state.contents.length ? 'E : Prendre   R : Refermer' : 'Coffre vide   R : Refermer') : 'E : Composer le code — ' + this.name; }
   local(v, p) { if (!this.state.open && v === 'use') { this.g.ui.keypad(this.name, 4, (code) => { if (code) this.g.sim.do('interact', { id: this.id, verb: 'code', code }); }); return true; } return false; }
   interact(v, actor, ctx) {

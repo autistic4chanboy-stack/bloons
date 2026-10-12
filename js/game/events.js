@@ -118,7 +118,7 @@ export class EventSystem {
       case 'garage_gate': return W.points.garageGate.clone().setY(-3);
       case 'generator': return W.points.generator.clone().setY(-3.5);
       case 'entrance_glass': return new THREE.Vector3(80.6, 1.6, R() * 10 - 5);
-      case 'skylight': return new THREE.Vector3(R() * 40 - 20, 11.6, R() * 6 - 3);
+      case 'skylight': return new THREE.Vector3(R() * 120 - 60, 13.2, R() < 0.5 ? -0.9 : 0.9); // debout sur la verrière, près du faîtage
       case 'escalator': return new THREE.Vector3(-20, 2.5, -1.6);
       case 'cinema_seat': return W.points.rowM13?.clone() || new THREE.Vector3();
       case 'mirror': return W.points.toiletMirror?.clone() || p.pos.clone();

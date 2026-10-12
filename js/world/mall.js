@@ -18,6 +18,19 @@ import { RNG } from '../engine/rng.js';
 
 export const Y0 = 0, Y1 = 5, YB = -4.5, YR = 10.5;
 export const CEIL0 = 4.6, CEIL1 = 10;
+// Vide central de l'étage (|z| < VOID_Z) le long des galeries, traversé par des passerelles (x des trous)
+export const VOID_Z = 4;
+export const VOID_HOLES = [[-61.5, -46.5], [-43.5, -28], [-24, 24], [28, 43.5], [46.5, 61.5]];
+export const BRIDGES_X = [-63, -45, -27, 27, 45, 63]; // nœuds de navigation reliant les deux rives à l'étage
+const holesIn = (x0, x1) => VOID_HOLES.filter(([a, b]) => b > x0 && a < x1).map(([a, b]) => ({ x0: Math.max(a, x0), z0: -VOID_Z, x1: Math.min(b, x1), z1: VOID_Z }));
+const galZone = (x, f) => (Math.abs(x) <= 24 ? 'atrium' : (f ? 'gallery1_' : 'gallery0_') + (x < 0 ? 'w' : 'e'));
+// Bureaux de l'administration : [zone, nom, [x0, z0, x1, z1]] (étage, y 5 → plafond suspendu 8.6)
+const ADMIN_ROOMS = [
+  ['adm_accueil', 'Administration — accueil', [-70, 1, -66, 7]], ['adm_reunion', 'Salle de réunion', [-70, 7, -66, 13]],
+  ['adm_compta', 'Comptabilité', [-70, -7, -66, -1]], ['adm_coffre', 'Salle des coffres', [-70, -12, -66, -7]], ['adm_archives', 'Archives', [-70, -22, -66, -12]],
+  ['adm_info', 'Salle informatique', [-76, 1, -72, 7]], ['adm_repro', 'Reprographie', [-76, 7, -72, 13]],
+  ['adm_rh', 'Ressources humaines', [-76, -7, -72, -1]], ['adm_market', 'Marketing & événements', [-76, -14, -72, -7]], ['adm_infirm', 'Infirmerie', [-76, -22, -72, -14]],
+];
 
 export function buildMall(world) {
   const g = world.game;
@@ -38,7 +51,11 @@ export function buildMall(world) {
   Z('stairsW', 'Escalier de service ouest', 'stairs', 0, [-76, -4.5, 13, -66, 13.5, 22], { circuit: 'service', area: 'service' });
   Z('westwing0', 'Aile ouest — couloir', 'corridor', 0, [-80, 0, -25, -76, 4.6, 25], { circuit: 'service', area: 'service' });
   Z('westwing1', 'Aile ouest — couloir (étage)', 'corridor', 1, [-80, 5, -25, -76, 10, 25], { circuit: 'service', area: 'service' });
-  Z('archives', 'Archives', 'backroom', 1, [-76, 5, -22, -66, 10, 13], { circuit: 'service', area: 'gallery1' });
+  // Administration du centre (étage du bloc ouest) : couloir en croix + bureaux
+  const AZ = (id, name, type, b, o = {}) => Z(id, name, type, 1, [b[0], 5, b[1], b[2], 10, b[3]], { circuit: 'service', area: 'gallery1', lightColor: [1, 0.97, 0.92], lightLevel: 0.62, cull: 45, ...o });
+  AZ('adm_couloir', 'Administration — couloir', 'corridor', [-72, -22, -70, 13]);
+  world.zone('adm_couloir').extra.push([-76, 5, -1, -72, 10, 1], [-70, 5, -1, -66, 10, 1]);
+  for (const [id, name, b] of ADMIN_ROOMS) AZ(id, name, 'backroom', b);
   Z('gallery0_w', 'Galerie RDC — ouest', 'corridor', 0, [-66, 0, -8, -24, 4.6, 8], { circuit: 'gallery', area: 'gallery0', cull: 70 });
   Z('atrium', 'Atrium', 'atrium', 0, [-24, 0, -8, 24, 12, 8], { circuit: 'gallery', area: 'gallery0', cull: 80, void: true });
   Z('gallery0_e', 'Galerie RDC — est', 'corridor', 0, [24, 0, -8, 66, 4.6, 8], { circuit: 'gallery', area: 'gallery0', cull: 70 });
@@ -68,42 +85,56 @@ export function buildMall(world) {
   Z('vent_w', 'Conduit ouest', 'vent', 0, [-79.1, 3.5, -24.1, -77.9, 4.55, 24.1], { area: 'vents', cull: 35 });
   Z('vent_sec', 'Conduit du poste', 'vent', 0, [-79, 3.2, -0.6, -68.3, 4.55, 0.6], { area: 'vents', cull: 35 });
   Z('outside', 'Parking extérieur', 'outside', 0, [80, -1, -120, 260, 30, 120], { area: 'outside', outdoor: true, alwaysVisible: true });
+  // vides centraux sous la verrière (aucune géométrie : relient les niveaux pour la visibilité)
+  Z('void_w', 'Vide central — ouest', 'void', 1, [-64, -0.5, -VOID_Z, -24, 14.5, VOID_Z], { area: 'gallery1', void: true, cull: 120 });
+  Z('void_e', 'Vide central — est', 'void', 1, [24, -0.5, -VOID_Z, 64, 14.5, VOID_Z], { area: 'gallery1', void: true, cull: 120 });
 
   // ═══════════════════════════ GALERIE ═══════════════════════════
   // Sol RDC galerie + atrium
   A.floor('gallery0_w', 'terrazzo', -66, -8, -24, 8, 0, 0.6, { faces: 'Y' });
   A.floor('atrium', 'terrazzo', -24, -8, 24, 8, 0, 0.6, { faces: 'Y' });
   A.floor('gallery0_e', 'terrazzo', 24, -8, 66, 8, 0, 0.6, { faces: 'Y' });
-  // Dalle de l'étage avec le vide de l'atrium
-  A.slabWithHoles('gallery1_w', 'terrazzo', -66, -8, -24, 8, 5, 0.4, [], { faces: 'Y' });
-  A.slabWithHoles('atrium', 'terrazzo', -24, -8, 24, 8, 5, 0.4, [{ x0: -24, z0: -4, x1: 24, z1: 4 }], { faces: 'xXzZY' });
-  A.slabWithHoles('gallery1_e', 'terrazzo', 24, -8, 66, 8, 5, 0.4, [], { faces: 'Y' });
-  // Plafond RDC (dessous de la dalle)
-  A.ceiling('gallery0_w', 'ceiling', -66, -8, -24, 8, 4.6, 0.02, { collide: false });
-  A.ceiling('gallery0_e', 'ceiling', 24, -8, 66, 8, 4.6, 0.02, { collide: false });
-  for (const [x0, x1, z0, z1] of [[-24, 24, -8, -4], [-24, 24, 4, 8]]) A.ceiling('atrium', 'ceiling', x0, z0, x1, z1, 4.6, 0.02, { collide: false });
-  // Plafond étage (dessous du toit) avec la verrière
-  A.ceiling('gallery1_w', 'ceiling', -66, -8, -24, 8, 10, 0.02, { collide: false });
-  A.ceiling('gallery1_e', 'ceiling', 24, -8, 66, 8, 10, 0.02, { collide: false });
-  for (const [x0, x1, z0, z1] of [[-24, 24, -8, -4], [-24, 24, 4, 8]]) A.ceiling('atrium', 'ceiling', x0, z0, x1, z1, 10, 0.02, { collide: false });
-  // Néons de la galerie
-  for (let x = -63; x <= 63; x += 6) {
-    const zn0 = x < -24 ? 'gallery0_w' : x > 24 ? 'gallery0_e' : 'atrium';
-    const zn1 = x < -24 ? 'gallery1_w' : x > 24 ? 'gallery1_e' : 'atrium';
-    if (Math.abs(x) > 24) { A.panel(zn0, x, 4.6, 0, 2.4, 0.5, (x + 63) % 12 === 0); A.panel(zn1, x, 10, 0, 2.4, 0.5, (x + 63) % 12 === 0); }
-    else { A.panel(zn0, x, 4.6, -6, 2.4, 0.4, (x + 63) % 12 === 0); A.panel(zn0, x, 4.6, 6, 2.4, 0.4, false); A.panel(zn1, x, 10, -6, 2.4, 0.4, (x + 63) % 12 === 0); A.panel(zn1, x, 10, 6, 2.4, 0.4, false); }
+  // Dalle de l'étage : vide central sur toute la longueur, passerelles aux paliers des escalators, au milieu des
+  // galeries et aux extrémités
+  for (const [zn, x0, x1] of [['gallery1_w', -66, -24], ['atrium', -24, 24], ['gallery1_e', 24, 66]]) {
+    A.slabWithHoles(zn, 'terrazzo', x0, -8, x1, 8, 5, 0.4, holesIn(x0, x1), { faces: 'xXzZY' });
+    // plafond du RDC (sous la dalle) et plafond de l'étage (sous le toit, ouvert sur la verrière)
+    A.slabWithHoles(zn === 'atrium' ? 'atrium' : zn.replace('1', '0'), 'ceiling', x0, -8, x1, 8, 4.62, 0.02, holesIn(x0, x1), { collide: false, faces: 'y' });
+    A.slabWithHoles(zn, 'ceiling', x0, -8, x1, 8, 10.02, 0.02, [{ x0: Math.max(x0, -64), z0: -VOID_Z, x1: Math.min(x1, 64), z1: VOID_Z }], { collide: false, faces: 'y' });
   }
-  // Rambardes vitrées autour du vide
-  const rail = (x0, z0, x1, z1) => {
-    const zone = 'atrium';
-    A.box(zone, 'chrome', x0, 6.05, z0 - 0.04, x1, 6.12, z1 + 0.04, { collide: false });
-    A.box(zone, 'glass', x0, 5, z0 - 0.015, x1, 6.05, z1 + 0.015, { collide: false });
-    world.physics.add(new Box(Math.min(x0, x1) - 0.05, 5, Math.min(z0, z1) - 0.06, Math.max(x0, x1) + 0.05, 6.15, Math.max(z0, z1) + 0.06, LAYER.GLASS));
+  // Retombées de dalle (bandeaux plâtre + jonc inox) côté RDC, garde-corps vitrés côté étage
+  const railSeg = (x0, z0, x1, z1) => {
+    const zone = galZone((x0 + x1) / 2, 1), zone0 = galZone((x0 + x1) / 2, 0);
+    const alongX = Math.abs(x1 - x0) >= Math.abs(z1 - z0);
+    const lx = Math.min(x0, x1), hx = Math.max(x0, x1), lz = Math.min(z0, z1), hz = Math.max(z0, z1);
+    // boîte « épaissie » perpendiculairement au garde-corps
+    const bx = (y0, y1, th, mat, zn, ext = 0) => alongX ? A.box(zn, mat, lx - ext, y0, lz - th, hx + ext, y1, hz + th, { collide: false }) : A.box(zn, mat, lx - th, y0, lz - ext, hx + th, y1, hz + ext, { collide: false });
+    bx(4.1, 4.62, 0.06, 'plaster_f2efe8', zone0, 0.06);   // retombée de dalle
+    bx(4.1, 4.16, 0.066, 'aluminium', zone0, 0.066);       // jonc inox
+    bx(5.0, 5.05, 0.05, 'aluminium', zone, 0.02);         // sabot
+    bx(5.05, 6.05, 0.012, 'glass', zone);                 // vitrage
+    bx(6.05, 6.12, 0.04, 'aluminium', zone, 0.03);        // main courante
+    const len = alongX ? hx - lx : hz - lz, n = Math.max(1, Math.round(len / 1.5));
+    for (let i = 0; i <= n; i++) { const t = (alongX ? lx : lz) + len * i / n; if (alongX) A.box(zone, 'aluminium', t - 0.02, 5.0, lz - 0.025, t + 0.02, 6.05, hz + 0.025, { collide: false }); else A.box(zone, 'aluminium', lx - 0.025, 5.0, t - 0.02, hx + 0.025, 6.05, t + 0.02, { collide: false }); }
+    world.physics.add(new Box(lx - 0.06, 5, lz - 0.06, hx + 0.06, 6.15, hz + 0.06, LAYER.GLASS));
   };
-  rail(-24, -4, 24, -4); rail(-24, 4, 24, 4);
-  rail(-24, -4, -24, -2.7); rail(-24, 2.7, -24, 4); rail(24, -4, 24, -2.7); rail(24, 2.7, 24, 4);
-  // garde-corps (petits murets visibles sous les vitres)
-  A.box('atrium', 'chrome', -24, 4.6, -4.06, 24, 5.0, -3.94, { collide: false }); A.box('atrium', 'chrome', -24, 4.6, 3.94, 24, 5.0, 4.06, { collide: false });
+  for (const [a, b] of VOID_HOLES) {
+    railSeg(a, -VOID_Z, b, -VOID_Z); railSeg(a, VOID_Z, b, VOID_Z);
+    for (const xe of [a, b]) {
+      if (Math.abs(xe) === 24) { railSeg(xe, -VOID_Z, xe, -2.7); railSeg(xe, 2.7, xe, VOID_Z); } // arrivée des escalators
+      else railSeg(xe, -VOID_Z, xe, VOID_Z);
+    }
+  }
+  world.voidHoles = VOID_HOLES;
+  // Éclairage : sous les coursives au RDC, plafond des coursives à l'étage, suspensions dans le vide
+  for (let x = -63; x <= 63; x += 6) {
+    const zn0 = galZone(x, 0), zn1 = galZone(x, 1);
+    for (const z of [-6, 6]) { A.panel(zn0, x, 4.6, z, 2.4, 0.4, (x + 63) % 12 === 0 && z < 0); A.panel(zn1, x, 10, z, 2.4, 0.4, (x + 63) % 12 === 0 && z > 0); }
+    if (x % 12 === 3 || x % 12 === -9) { // luminaires suspendus à la charpente
+      A.panel(zn1, x, 9.0, 0, 3.2, 0.22, true);
+      A.box(zn1, 'steel_dark', x - 1.2, 9.0, -0.01, x - 1.18, 11.2, 0.01, { collide: false }); A.box(zn1, 'steel_dark', x + 1.18, 9.0, -0.01, x + 1.2, 11.2, 0.01, { collide: false });
+    }
+  }
 
   // Escalators (escaliers + habillage)
   const escalator = (xBottom, dir, laneZ) => {
@@ -135,7 +166,7 @@ export function buildMall(world) {
     dev('bench', zn, x, 0.225, z, ry);
   }
   for (const [x, z] of [[-34, 0], [34, 0], [-60, 3], [60, -3]]) dev('trash_can', x < 0 ? 'gallery0_w' : 'gallery0_e', x, 0.4, z, 0, { contents: ['banana_peel', 'newspaper'] });
-  for (const [x, z, ry] of [[-30, -2.5, 0], [30, 2.5, Math.PI], [-50, 2.5, Math.PI], [50, -2.5, 0]]) dev('bench', x < 0 ? 'gallery1_w' : 'gallery1_e', x, 5.225, z, ry);
+  for (const [x, z, ry] of [[-31, -4.7, 0], [31, 4.7, Math.PI], [-52, 4.7, Math.PI], [52, -4.7, 0], [-38, 4.7, Math.PI], [38, -4.7, 0]]) dev('bench', x < 0 ? 'gallery1_w' : 'gallery1_e', x, 5.225, z, ry);
   dev('massage_chair', 'gallery1_e', 60, 5.6, -5.5, Math.PI / 2);
   dev('water_fountain', 'gallery0_w', -64.5, 0.6, 6.5, Math.PI / 2);
   dev('fire_alarm', 'gallery0_w', -65.8, 1.4, -6.5, -Math.PI / 2);
@@ -238,20 +269,7 @@ export function buildMall(world) {
   A.wallZ('westwing1', 'block', -22, 13, -76, 5, 10, 0.2, [{ a: -0.6, b: 0.6, y0: 5, y1: 7.1 }]);
   A.wallZ('westwing1', 'block', 13, 22, -76, 5, 10, 0.2, [{ a: 17.25, b: 18.25, y0: 5, y1: 7.1 }]);
   for (let z = -21; z <= 21; z += 7) A.panel('westwing1', -78, 10, z, 0.3, 1.2, z % 14 === 0);
-  A.floor('archives', 'lino', -76, -22, -66, 13, 5, 0.4, { faces: 'Y' });
-  A.ceiling('archives', 'ceiling', -76, -22, -66, 13, 10, 0.05, { collide: false });
-  A.wallX('archives', 'block', -76, -66, -22, 5, 10, 0.2);
-  A.panel('archives', -71, 10, -15, 1.2, 0.3); A.panel('archives', -71, 10, 2, 1.2, 0.3, false);
-  door('arch_g', { zone: 'archives', x: -66, y: 5, z: 0, axis: 'z', width: 1.2, mat: 'wood', lock: 'keys', locked: true, name: 'Archives', swing: 1 });
-  door('arch_w', { zone: 'archives', x: -76, y: 5, z: 0, axis: 'z', width: 1.2, mat: 'wood', name: 'Archives (couloir)', swing: -1 });
-  for (let i = 0; i < 4; i++) shelfUnit(A, 'archives', -74 + i * 2.2, -20, 'x', 1.8, 0x8d8d8d, 4, 14);
-  for (let i = 0; i < 10; i++) {
-    const c = new Container(world, world.newId('box'), { zone: 'archives', name: 'Carton d\'archives ' + (1987 + i * 4), contents: i === 3 ? ['lore_page'] : i === 7 ? ['old_newspaper'] : rng.chance(0.6) ? [rng.pick(['paper', 'photo_frame', 'notebook', 'magazine'])].filter(x => x !== 'paper') : [], box: [-75.5 + (i % 5) * 1.9, 5, -11 + Math.floor(i / 5) * 6, -74.7 + (i % 5) * 1.9, 5.5, -10.3 + Math.floor(i / 5) * 6] });
-    world.add(c); A.furn('archives', c.pickBox.min[0], 5, c.pickBox.min[2], c.pickBox.max[0], 5.5, c.pickBox.max[2], 0xa1887f, { collide: true });
-  }
-  dev('crt_tv', 'archives', -67.2, 5.98, 9, -Math.PI / 2, { channel: 'channel:testcard' });
-  A.furn('archives', -68, 5, 7.8, -66.4, 5.73, 10.2, 0x5d4037);
-  dev('desk_phone', 'archives', -67, 5.78, 7.2, -Math.PI / 2);
+  buildAdmin(world, A, door, dev, rng);
 
   // ═══════════════════════════ BLOC EST ═══════════════════════════
   // Hall d'entrée
@@ -460,6 +478,131 @@ function planterSmall(A, zn, x, z) {
 
 function posterAt(world, zone, x, y, z, ry, i) { poster(world, zone, x, y, z, ry, i); }
 
+// ───────────────────────── ADMINISTRATION ─────────────────────────
+// Étage du bloc ouest : accès depuis la galerie (porte « Administration ») et depuis le couloir de service.
+function buildAdmin(world, A, door, dev, rng) {
+  const g = world.game; const y = 5, yc = 8.6;
+  const wall = 'plaster_ece8df';
+  // sols et plafonds suspendus
+  const FLOOR = { adm_accueil: 'marble', adm_reunion: 'office_carpet', adm_compta: 'office_carpet', adm_rh: 'office_carpet', adm_market: 'office_carpet', adm_coffre: 'lino', adm_archives: 'lino', adm_info: 'rubber', adm_repro: 'lino', adm_infirm: 'toilet_tiles' };
+  A.floor('adm_couloir', 'lino_blue', -72, -22, -70, 13, y, 0.4, { faces: 'Y' });
+  A.floor('adm_couloir', 'lino_blue', -76, -1, -72, 1, y, 0.4, { faces: 'Y' }); A.floor('adm_couloir', 'lino_blue', -70, -1, -66, 1, y, 0.4, { faces: 'Y' });
+  A.ceiling('adm_couloir', 'ceiling', -76, -22, -66, 13, yc, 0.05, { collide: false });
+  for (const [id, , b] of ADMIN_ROOMS) { A.floor(id, FLOOR[id], b[0], b[1], b[2], b[3], y, 0.4, { faces: 'Y' }); A.panel(id, (b[0] + b[2]) / 2, yc, (b[1] + b[3]) / 2, 1.2, 0.6, true); if (b[3] - b[1] > 7) A.panel(id, (b[0] + b[2]) / 2, yc, (b[1] + b[3]) / 2 + 2.6, 1.2, 0.6, false); }
+  for (let z = -19; z <= 11; z += 6) A.panel('adm_couloir', -71, yc, z, 0.6, 1.2, z % 12 === -7);
+  A.panel('adm_couloir', -74, yc, 0, 1.2, 0.4, false); A.panel('adm_couloir', -68, yc, 0, 1.2, 0.4, true);
+  A.wallX('adm_archives', 'block', -76, -66, -22, 5, 10, 0.2);
+  // cloisons du couloir (x = -72 et -70) avec portes, passage en croix au milieu (z ∈ [-1, 1])
+  const dz = { adm_reunion: 10, adm_compta: -4, adm_coffre: -9.5, adm_archives: -17, adm_info: 4, adm_repro: 10, adm_rh: -4, adm_market: -10.5, adm_infirm: -18 };
+  for (const xw of [-72, -70]) {
+    const ops = [{ a: -1, b: 1, y0: y, y1: y + 2.6 }];
+    for (const [id, , b] of ADMIN_ROOMS) if ((xw === -70 ? b[0] === -70 : b[2] === -72) && dz[id] !== undefined) ops.push({ a: dz[id] - 0.5, b: dz[id] + 0.5, y0: y, y1: y + 2.1 });
+    if (xw === -70) ops.push({ a: 2.2, b: 5.8, y0: y + 1.05, y1: y + 2.3 }); // guichet de l'accueil
+    A.wallZ('adm_couloir', wall, -22, 13, xw, y, yc, 0.12, ops);
+  }
+  A.box('adm_couloir', 'wood_dark', -70.25, y + 1.0, 2.15, -69.75, y + 1.06, 5.85); // tablette du guichet
+  // cloisons entre bureaux
+  for (const [x0, x1, zs] of [[-70, -66, [7, -7, -12]], [-76, -72, [7, -7, -14]]]) for (const zw of zs) A.wallX('adm_couloir', wall, x0, x1, zw, y, yc, 0.12);
+  // bras du couloir en croix : cloisons z = ±1 (accueil ouvert sur le hall par une baie vitrée)
+  A.wallX('adm_couloir', wall, -76, -72, 1, y, yc, 0.12); A.wallX('adm_couloir', wall, -76, -72, -1, y, yc, 0.12); A.wallX('adm_couloir', wall, -70, -66, -1, y, yc, 0.12);
+  A.wallX('adm_couloir', wall, -70, -66, 1, y, yc, 0.12, [{ a: -68.8, b: -67.2, y0: y, y1: y + 2.2 }]);
+  // portes (badges en façade : nom du service)
+  const labels = { adm_reunion: 'RÉUNION', adm_compta: 'COMPTA', adm_coffre: 'COFFRES', adm_archives: 'ARCHIVES', adm_info: 'INFORMATIQUE', adm_repro: 'REPRO', adm_rh: 'RH', adm_market: 'MARKETING', adm_infirm: 'INFIRMERIE' };
+  for (const [id, name, b] of ADMIN_ROOMS) {
+    if (dz[id] === undefined) continue;
+    const xw = b[0] === -70 ? -70 : -72;
+    const o = { zone: id, x: xw, y, z: dz[id], axis: 'z', width: 0.95, mat: 'wood', name, label: labels[id], swing: xw === -70 ? 1 : -1 };
+    if (id === 'adm_compta' || id === 'adm_archives' || id === 'adm_info') Object.assign(o, { lock: 'keys', locked: true });
+    if (id === 'adm_coffre') Object.assign(o, { mat: 'metal', sealed: true, code: '0412', codeFlag: 'coffre_admin', color: 0x6a7076, window: false });
+    if (id === 'adm_reunion' || id === 'adm_repro') o.window = true;
+    door(id, o);
+  }
+  door('arch_g', { zone: 'adm_couloir', x: -66, y, z: 0, axis: 'z', width: 1.2, mat: 'wood', lock: 'keys', locked: true, name: 'Administration', label: 'ADMINISTRATION', swing: 1, window: true });
+  door('arch_w', { zone: 'adm_couloir', x: -76, y, z: 0, axis: 'z', width: 1.2, mat: 'wood', name: 'Administration (couloir de service)', swing: -1 });
+  door('adm_acc', { zone: 'adm_accueil', x: -68, y, z: 1, axis: 'x', width: 1.4, mat: 'glass', name: 'Accueil de l\'administration', swing: 1 });
+  const wh = (zn, x, yy, z, ry, title, lines) => { // tableau blanc lisible
+    const c = document.createElement('canvas'); c.width = 512; c.height = 320; const x2 = c.getContext('2d');
+    x2.fillStyle = '#f4f6f6'; x2.fillRect(0, 0, 512, 320); x2.strokeStyle = '#9aa'; x2.lineWidth = 8; x2.strokeRect(4, 4, 504, 312);
+    x2.fillStyle = '#1a3a8a'; x2.font = 'bold 30px "Comic Sans MS", cursive'; x2.fillText(title, 24, 50);
+    x2.font = '22px "Comic Sans MS", cursive'; lines.forEach((l, i) => { x2.fillStyle = i % 3 === 2 ? '#b71c1c' : '#1f2f3f'; x2.fillText(l, 28, 92 + i * 32); });
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.12), new THREE.MeshStandardMaterial({ map: t, roughness: 0.4 })); m.position.set(x, yy, z); m.rotation.y = ry; world.zone(zn).group.add(m);
+    world.add(new Readable(world, world.newId('read'), { zone: zn, name: title, title, text: lines.join('\n'), box: [x - 0.9 * Math.abs(Math.cos(ry)) - 0.05, yy - 0.6, z - 0.9 * Math.abs(Math.sin(ry)) - 0.05, x + 0.9 * Math.abs(Math.cos(ry)) + 0.05, yy + 0.6, z + 0.9 * Math.abs(Math.sin(ry)) + 0.05] }));
+  };
+  const desk = (zn, x0, z0, x1, z1, col = 0x6b4f3a) => { A.furn(zn, x0, y, z0, x1, y + 0.72, z1, col); A.furn(zn, x0 - 0.02, y + 0.72, z0 - 0.02, x1 + 0.02, y + 0.76, z1 + 0.02, 0x3e2c1e, { collide: false }); };
+  const cabinet = (zn, x, z, ry, name, contents, h = 1.32) => { // armoire / classeur à tiroirs
+    const w = 0.5, d = 0.62; const ax = Math.abs(Math.sin(ry)) > 0.5;
+    const bx = ax ? [x - d / 2, z - w / 2, x + d / 2, z + w / 2] : [x - w / 2, z - d / 2, x + w / 2, z + d / 2];
+    A.furn(zn, bx[0], y, bx[1], bx[2], y + h, bx[3], 0x8d949a, { metal: true });
+    world.add(new Container(world, world.newId('cab'), { zone: zn, name, contents, box: [bx[0] - 0.02, y, bx[1] - 0.02, bx[2] + 0.02, y + h, bx[3] + 0.02] }));
+  };
+  // ── accueil ──
+  A.furn('adm_accueil', -69.6, y, 2.3, -68.9, y + 1.05, 5.7, 0xe8e0d0); A.furn('adm_accueil', -69.7, y + 1.05, 2.2, -68.8, y + 1.1, 5.8, 0x5d4037);
+  dev('desk_phone', 'adm_accueil', -69.2, y + 1.18, 3.0, Math.PI / 2); dev('pc_tower', 'adm_accueil', -69.2, y + 1.3, 4.8, Math.PI / 2, { os: 'shop', monitor: true });
+  dev('office_chair', 'adm_accueil', -68.2, y + 0.55, 4.0, -Math.PI / 2);
+  for (const z of [2.2, 3.4]) dev('chair', 'adm_accueil', -66.6, y + 0.45, z, -Math.PI / 2);
+  planterSmall(A, 'adm_accueil', -66.5, 6.4); dev('water_fountain', 'adm_accueil', -66.5, y + 0.6, 5.2, -Math.PI / 2);
+  posterAt(world, 'adm_accueil', -66.12, y + 1.8, 4.3, -Math.PI / 2, 4);
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.36), new THREE.MeshBasicMaterial({ map: signTexture('ADMINISTRATION — DIRECTION DU CENTRE', 0x90a4ae, { h: 100, fontSize: 44, font: 'Arial' }) }));
+  sign.position.set(-65.83, 7.75, 0); sign.rotation.y = Math.PI / 2; world.zone('gallery1_w').group.add(sign); world.zone('adm_couloir').signMats.push(sign.material);
+  // ── salle de réunion ──
+  A.furn('adm_reunion', -69.0, y, 8.3, -67.0, y + 0.74, 11.8, 0x4e3a2a);
+  for (const z of [8.8, 9.9, 11.0]) { dev('office_chair', 'adm_reunion', -69.4, y + 0.55, z, Math.PI / 2); dev('office_chair', 'adm_reunion', -66.6, y + 0.55, z, -Math.PI / 2); }
+  wh('adm_reunion', -68, y + 1.6, 12.87, Math.PI, 'Réunion du lundi', ['- Sécurité : nouveau gardien de nuit (essai)', '- Bobby : costume à faire nettoyer ?!', '- NE PAS rouvrir le sous-sol B (ordre de M. D.)', '- Budget Noël : guirlandes atrium', '- Plaintes : bruits la nuit (galerie étage)']);
+  dev('crt_tv', 'adm_reunion', -66.5, y + 1.2, 12.3, -Math.PI * 0.75, { channel: 'channel:news' });
+  A.furn('adm_reunion', -66.9, y, 11.9, -66.1, y + 0.9, 12.7, 0x5d4037);
+  // ── comptabilité ──
+  desk('adm_compta', -69.7, -6.4, -68.3, -4.9); desk('adm_compta', -67.7, -6.4, -66.3, -4.9);
+  dev('pc_tower', 'adm_compta', -69.0, y + 0.95, -6.1, 0, { os: 'shop', monitor: true }); dev('pc_tower', 'adm_compta', -67.0, y + 0.95, -6.1, 0, { os: 'shop', monitor: true });
+  dev('office_chair', 'adm_compta', -69.0, y + 0.55, -4.3, Math.PI); dev('office_chair', 'adm_compta', -67.0, y + 0.55, -4.3, Math.PI);
+  dev('desk_phone', 'adm_compta', -68.5, y + 0.83, -5.2, 0);
+  cabinet('adm_compta', -66.45, -2.0, -Math.PI / 2, 'Classeur — factures', ['notebook']); cabinet('adm_compta', -66.45, -2.6, -Math.PI / 2, 'Classeur — paies', []);
+  world.add(new Readable(world, world.newId('read'), { zone: 'adm_compta', name: 'Post-it sur l\'écran', title: 'Post-it', text: 'Coffres : 0412\n(ne PAS laisser traîner — Martine)', box: [-67.3, y + 0.95, -6.25, -66.7, y + 1.2, -6.0] }));
+  // ── salle des coffres ──
+  dev('safe', 'adm_coffre', -66.7, y + 0.55, -10.6, -Math.PI / 2, { shop: 'adm', code: '2711', contents: ['cash', 'cash', 'cash', 'cash_drawer_money'] });
+  dev('safe', 'adm_coffre', -66.7, y + 0.55, -8.6, -Math.PI / 2, { shop: 'adm', code: '1987', contents: ['cash', 'old_newspaper', 'photo_album'] });
+  desk('adm_coffre', -69.6, -11.6, -68.4, -10.2, 0x4a4f55);
+  A.furn('adm_coffre', -69.4, y + 0.76, -11.3, -68.8, y + 0.98, -10.8, 0x2b2f33, { metal: true }); // compteuse de billets
+  dev('cash', 'adm_coffre', -68.6, y + 0.78, -10.5, 0.2, { prop: true }); dev('cash', 'adm_coffre', -68.7, y + 0.8, -10.9, 1.1, { prop: true });
+  world.add(new Readable(world, world.newId('read'), { zone: 'adm_coffre', name: 'Registre des fonds', title: 'Registre des fonds', text: 'Coffre n°1 : recettes de la semaine (code changé le 27/11).\nCoffre n°2 : « effets personnels — dossier 1987 ». Ne pas ouvrir sans M. Desmarais.', box: [-69.6, y + 0.76, -10.2, -69.1, y + 0.82, -9.9] }));
+  // ── archives (cartons historiques, étagères, vieille télé) ──
+  for (let i = 0; i < 3; i++) shelfUnit(A, 'adm_archives', -69.8, -21.6 + i * 3.3, 'z', 2.6, 0x8d8d8d, 4, 2.3, 0.45, y);
+  for (let i = 0; i < 10; i++) {
+    const bx = -67.2 + (i % 2) * 0.75, bz = -21.6 + Math.floor(i / 2) * 1.4;
+    const c = new Container(world, world.newId('box'), { zone: 'adm_archives', name: 'Carton d\'archives ' + (1987 + i * 4), contents: i === 3 ? ['lore_page'] : i === 7 ? ['old_newspaper'] : rng.chance(0.6) ? [rng.pick(['photo_frame', 'notebook', 'magazine'])] : [], box: [bx, y, bz, bx + 0.6, y + 0.45, bz + 0.45] });
+    world.add(c); A.furn('adm_archives', bx, y, bz, bx + 0.6, y + 0.45, bz + 0.45, 0xa1887f, { collide: true });
+  }
+  dev('crt_tv', 'adm_archives', -67.0, y + 0.98, -13.0, Math.PI, { channel: 'channel:testcard' });
+  A.furn('adm_archives', -67.9, y, -13.6, -66.2, y + 0.73, -12.4, 0x5d4037);
+  dev('desk_phone', 'adm_archives', -67.6, y + 0.78, -12.8, Math.PI);
+  // ── salle informatique : baies de serveurs ──
+  for (let i = 0; i < 4; i++) { const z = 1.8 + i * 1.25; A.furn('adm_info', -75.6, y, z, -74.8, y + 2.1, z + 0.9, 0x1c1f22, { metal: true }); for (let k = 0; k < 6; k++) A.box('adm_info', 'furniture', -74.79, y + 0.4 + k * 0.28, z + 0.1, -74.78, y + 0.42 + k * 0.28, z + 0.8, { collide: false, color: k % 2 ? 0x00e676 : 0x29b6f6, flat: true }); }
+  dev('fan', 'adm_info', -72.6, y + 0.3, 6.5, -Math.PI / 2);
+  dev('pc_tower', 'adm_info', -73.0, y + 0.95, 2.0, -Math.PI / 2, { os: 'security', monitor: true }); desk('adm_info', -73.4, 1.4, -72.4, 2.8, 0x37474f);
+  dev('office_chair', 'adm_info', -73.8, y + 0.55, 2.1, Math.PI / 2);
+  // ── reprographie ──
+  dev('printer', 'adm_repro', -75.4, y + 0.95, 9.0, Math.PI / 2); A.furn('adm_repro', -75.9, y, 8.3, -74.9, y + 0.88, 9.7, 0xd0d0d0, { metal: true });
+  A.furn('adm_repro', -75.9, y, 10.4, -75.1, y + 1.05, 11.4, 0xbfc5c8, { metal: true }); // photocopieuse
+  cabinet('adm_repro', -72.6, 12.2, Math.PI / 2, 'Armoire à fournitures', ['notebook', 'battery', 'duct_tape']);
+  shelfUnit(A, 'adm_repro', -75.9, 7.4, 'x', 2.8, 0x9e9e9e, 4, 2.0, 0.4, y);
+  // ── ressources humaines ──
+  desk('adm_rh', -75.6, -5.8, -74.0, -4.4); dev('pc_tower', 'adm_rh', -75.0, y + 0.95, -5.5, Math.PI / 2, { os: 'shop', monitor: true }); dev('office_chair', 'adm_rh', -73.6, y + 0.55, -5.1, -Math.PI / 2);
+  cabinet('adm_rh', -75.55, -2.0, Math.PI / 2, 'Dossiers du personnel', ['notebook']); cabinet('adm_rh', -75.55, -2.6, Math.PI / 2, 'Dossiers du personnel (anciens)', ['old_newspaper']);
+  wh('adm_rh', -73.0, y + 1.6, -6.87, 0, 'Planning des gardiens', ['Lun–Dim : nuit (22 h – 6 h)', 'Gérard D. → départ en retraite', 'Remplaçant : à l\'essai (10 nuits)', 'Rappel : rondes toutes les heures !', '« Ne jamais descendre après 3 h 33 » ???']);
+  // ── marketing ──
+  desk('adm_market', -75.6, -12.8, -74.0, -11.2); dev('pc_tower', 'adm_market', -75.0, y + 0.95, -12.4, Math.PI / 2, { os: 'shop', monitor: true }); dev('office_chair', 'adm_market', -73.6, y + 0.55, -12.0, -Math.PI / 2);
+  for (const [z, i] of [[-8.0, 0], [-9.0, 6], [-10.0, 7]]) posterAt(world, 'adm_market', -75.87, y + 1.7, z, Math.PI / 2, i);
+  A.furn('adm_market', -73.2, y, -8.2, -72.6, y + 1.8, -7.6, 0xffb300); // présentoir en carton « Bobby »
+  // ── infirmerie ──
+  A.furn('adm_infirm', -75.7, y, -21.2, -74.7, y + 0.62, -19.2, 0xe0e0e0); A.furn('adm_infirm', -75.7, y + 0.62, -21.2, -74.7, y + 0.7, -19.2, 0x80cbc4, { collide: false });
+  world.add(new Seat(world, world.newId('seat'), { zone: 'adm_infirm', x: -75.2, y, z: -20.2, ry: Math.PI / 2, name: 'Lit de repos' }));
+  cabinet('adm_infirm', -72.6, -15.0, -Math.PI / 2, 'Armoire à pharmacie', ['first_aid', 'first_aid'], 1.8);
+  dev('sink', 'adm_infirm', -72.4, y, -17.2, -Math.PI / 2);
+  // caméras
+  world.cameras.push({ id: 'cam_admin', name: 'Administration — couloir', area: 'gallery1', zone: 'adm_couloir', pos: new THREE.Vector3(-71.6, 8.3, 12.4), yaw: 0, pitch: -0.3, fov: 70 });
+  world.cameras.push({ id: 'cam_coffre', name: 'Salle des coffres', area: 'gallery1', zone: 'adm_coffre', pos: new THREE.Vector3(-69.6, 8.3, -7.4), yaw: -0.65, pitch: -0.55, fov: 75 });
+}
+
 // ───────────────────────── ESCALIER OUEST ─────────────────────────
 function buildStairsW(world, A, door) {
   const zn = 'stairsW';
@@ -667,27 +810,18 @@ function buildWarehouse(world, A, dev, rng) {
 // ───────────────────────── TOIT ─────────────────────────
 function buildRoof(world, A, door, dev, rng) {
   const zn = 'roof'; const y = 10.5;
-  // dalle de toit (dessus) avec la verrière et la cage d'escalier
-  A.slabWithHoles(zn, 'asphalt', -80.4, -25.4, 80.4, 25.4, y, 0.5, [{ x0: -24, z0: -4, x1: 24, z1: 4 }, { x0: -76, z0: 13, x1: -66, z1: 22 }], { faces: 'xXzZY' });
+  // dalle de toit (dessus) avec la trémie de la verrière (toute la longueur des galeries) et la cage d'escalier
+  A.slabWithHoles(zn, 'asphalt', -80.4, -25.4, 80.4, 25.4, y, 0.5, [{ x0: -64, z0: -VOID_Z, x1: 64, z1: VOID_Z }, { x0: -76, z0: 13, x1: -66, z1: 22 }], { faces: 'xXzZY' });
   // acrotère
   A.wallX(zn, 'block_dark', -80.6, 80.6, -25.5, y, y + 1.1, 0.3); A.wallX(zn, 'block_dark', -80.6, 80.6, 25.5, y, y + 1.1, 0.3);
   A.wallZ(zn, 'block_dark', -25.5, 25.5, -80.5, y, y + 1.1, 0.3); A.wallZ(zn, 'block_dark', -25.5, 25.5, 80.5, y, y + 1.1, 0.3);
-  // verrière : muret + vitres (marchables, cassables)
-  A.wallX(zn, 'metal', -24.2, 24.2, -4.1, y, y + 1.0, 0.2); A.wallX(zn, 'metal', -24.2, 24.2, 4.1, y, y + 1.0, 0.2);
-  A.wallZ(zn, 'metal', -4.1, 4.1, -24.1, y, y + 1.0, 0.2); A.wallZ(zn, 'metal', -4.1, 4.1, 24.1, y, y + 1.0, 0.2);
+  // costière autour de la trémie + verrière à deux pans
+  A.wallX(zn, 'steel_dark', -64.25, 64.25, -VOID_Z - 0.12, y, y + 0.6, 0.24); A.wallX(zn, 'steel_dark', -64.25, 64.25, VOID_Z + 0.12, y, y + 0.6, 0.24);
+  A.wallZ(zn, 'steel_dark', -VOID_Z, VOID_Z, -64.12, y, y + 0.6, 0.24); A.wallZ(zn, 'steel_dark', -VOID_Z, VOID_Z, 64.12, y, y + 0.6, 0.24);
+  buildGlassRoof(world, A, y + 0.6);
   world.skylightPanes = [];
-  for (let x = -24; x < 24; x += 4) {
-    for (const [z0, z1] of [[-4, 0], [0, 4]]) {
-      const gp = new GlassPane(world, world.newId('glass'), { zone: 'atrium', x0: x, x1: x + 4, z0, z1, y0: y + 1.0, y1: y + 1.0, name: 'Verrière', horizontal: true, skylight: true });
-      gp.mesh.geometry.dispose(); gp.mesh.geometry = new THREE.PlaneGeometry(4, 4); gp.mesh.rotation.set(-Math.PI / 2, 0, 0); gp.mesh.position.set(x + 2, y + 1.0, (z0 + z1) / 2);
-      gp.col.set(x, y + 0.96, z0, x + 4, y + 1.04, z1); world.physics.update(gp.col); gp.setPick(x, y + 0.9, z0, x + 4, y + 1.1, z1);
-      world.add(gp); world.skylightPanes.push(gp);
-    }
-    A.box(zn, 'metal', x - 0.04, y + 0.95, -4, x + 0.04, y + 1.06, 4, { collide: false });
-  }
-  A.box(zn, 'metal', -24, y + 0.95, -0.04, 24, y + 1.06, 0.04, { collide: false });
   // climatiseurs, antenne
-  for (const [x, z] of [[-50, -15], [-35, 15], [40, -15], [55, 12], [5, 18], [-10, -18]]) {
+  for (const [x, z] of [[-50, -15], [-35, 15], [40, -15], [55, 19], [5, 18], [-10, -18]]) {
     A.furn(zn, x - 1.5, y, z - 1, x + 1.5, y + 1.6, z + 1, 0xb0bec5, { metal: true });
     const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y + 1.62, z), new THREE.Quaternion(), new THREE.Vector3(1.6, 0.05, 1.6)); A.shape(zn, 'furniture_metal', new THREE.CylinderGeometry(0.5, 0.5, 1, 16), m, 0x37474f);
   }
@@ -695,6 +829,52 @@ function buildRoof(world, A, door, dev, rng) {
   world.points.antenna = new THREE.Vector3(61, y + 9.2, -20);
   dev('extinguisher_box', zn, -79.9, y + 0.5, 15, Math.PI / 2);
   world.points.roof = new THREE.Vector3(-70, y, 0);
+}
+
+// ───────────────────────── VERRIÈRE À DEUX PANS ─────────────────────────
+// Toute la longueur des galeries (x -64 … 64) au-dessus du vide central : fermes métalliques tous les 4 m
+// (arbalétriers, entrait, poinçon, contrefiches), pannes, faîtage, chéneaux, vitrages et pignons vitrés.
+function quadGeo(p) { // 4 points (sens trigonométrique vu de l'extérieur)
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(p.flat(), 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1].slice(0, p.length * 2), 2));
+  g.setIndex(p.length === 4 ? [0, 1, 2, 0, 2, 3] : [0, 1, 2]); g.computeVertexNormals(); return g;
+}
+function buildGlassRoof(world, A, y0) {
+  const W = VOID_Z, yr = y0 + 2.75, X0 = -64, X1 = 64, I = new THREE.Matrix4();
+  const zoneAt = (x) => galZone(x, 1);
+  const L = Math.hypot(W, yr - y0), ang = Math.asin((yr - y0) / L);
+  const beam = (zone, mat, cx, cy, cz, sx, sy, sz, rx = 0, rz = 0, color = 0xffffff) => A.shape(zone, mat, new THREE.BoxGeometry(1, 1, 1), new THREE.Matrix4().compose(new THREE.Vector3(cx, cy, cz), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, rz)), new THREE.Vector3(sx, sy, sz)), color);
+  // fermes
+  for (let x = X0; x <= X1 + 0.01; x += 4) {
+    const zn = zoneAt(x);
+    for (const sg of [-1, 1]) {
+      beam(zn, 'steel', x, (y0 + yr) / 2 - 0.12, sg * W / 2, 0.14, 0.24, L, sg < 0 ? -ang : ang); // arbalétrier
+      const hp = (yr - y0) / 2 - 0.12; beam(zn, 'steel', x, y0 + hp / 2, sg * W / 2, 0.08, hp, 0.08); // aiguille (entrait → arbalétrier)
+    }
+    beam(zn, 'steel', x, y0 + 0.05, 0, 0.1, 0.1, W * 2); // entrait
+    beam(zn, 'steel', x, (y0 + yr) / 2, 0, 0.09, yr - y0 - 0.1, 0.09); // poinçon
+  }
+  // pannes, faîtage, chéneaux, montants des vitrages (par zone)
+  for (const [x0, x1] of [[X0, -24], [-24, 24], [24, X1]]) {
+    const zn = zoneAt((x0 + x1) / 2), len = x1 - x0, cx = (x0 + x1) / 2;
+    for (const t of [0.34, 0.68]) for (const sg of [-1, 1]) beam(zn, 'steel', cx, y0 + (yr - y0) * t - 0.12, sg * W * (1 - t), len, 0.12, 0.1, sg < 0 ? -ang : ang);
+    beam(zn, 'steel', cx, yr - 0.05, 0, len, 0.16, 0.22); // faîtage
+    for (const sg of [-1, 1]) { beam(zn, 'steel_dark', cx, y0 - 0.05, sg * (W + 0.06), len, 0.16, 0.3); } // chéneaux
+    for (let x = x0 + 1; x < x1 - 0.5; x += 1) for (const sg of [-1, 1]) beam(zn, 'aluminium', x, (y0 + yr) / 2 + 0.02, sg * W / 2, 0.04, 0.05, L, sg < 0 ? -ang : ang);
+    // vitrages : deux pans
+    A.shape(zn, 'glass_roof', quadGeo([[x1, y0, -W], [x0, y0, -W], [x0, yr, 0], [x1, yr, 0]]), I); // normales vers l'extérieur
+    A.shape(zn, 'glass_roof', quadGeo([[x0, y0, W], [x1, y0, W], [x1, yr, 0], [x0, yr, 0]]), I);
+  }
+  // pignons vitrés
+  for (const xe of [X0, X1]) {
+    const zn = zoneAt(xe);
+    A.shape(zn, 'glass_roof', quadGeo(xe < 0 ? [[xe, y0, -W], [xe, y0, W], [xe, yr, 0]] : [[xe, y0, W], [xe, y0, -W], [xe, yr, 0]]), I);
+    for (const sg of [-1, 0, 1]) if (sg) beam(zn, 'aluminium', xe, (y0 + yr) / 2 - 0.3, sg * W * 0.5, 0.05, (yr - y0) * 0.5, 0.05);
+  }
+  // collision : on ne marche pas sur la verrière (et les objets lancés rebondissent dessus)
+  world.physics.add(new Box(X0 - 0.1, YR, -W - 0.1, X1 + 0.1, yr + 0.3, W + 0.1, LAYER.GLASS));
+  world.points.glassRoof = { x0: X0, x1: X1, w: W, y0, yr };
 }
 
 // ───────────────────────── CONDUITS D'AÉRATION ─────────────────────────
@@ -831,7 +1011,7 @@ function buildNav(world, doors) {
       const zone = Math.abs(x) <= 24 ? 'atrium' : zn;
       N(`g${f}n${x}`, x, y, 6, zone); N(`g${f}s${x}`, x, y, -6, zone);
       if (x > -63) { L(`g${f}n${x - 6}`, `g${f}n${x}`); L(`g${f}s${x - 6}`, `g${f}s${x}`); }
-      if (Math.abs(x) > 24 || (f === 0 && Math.abs(x) === 9)) L(`g${f}n${x}`, `g${f}s${x}`);
+      if (f === 0 ? (Math.abs(x) > 24 || Math.abs(x) === 9) : BRIDGES_X.includes(x)) L(`g${f}n${x}`, `g${f}s${x}`);
     }
   }
   // escalators
@@ -886,13 +1066,25 @@ function buildNav(world, doors) {
   N('trashr', 73, 0, -15, 'trash'); L('trashr', 'ent', { door: doors.entr_trash.id }); L('trashr', 'sv0s75', { door: doors.trash_svc.id });
   N('hvacr', 73, 5, -15, 'hvac'); L('hvacr', 'mez', { door: doors.mez_hvac.id }); L('hvacr', 'sv1s75', { door: doors.hvac_svc.id });
   // archives
-  N('arch', -71, 5, 0, 'archives'); L('arch', 'g1n-63', { door: doors.arch_g.id }); L('arch', 'g1s-63', { door: doors.arch_g.id }); L('arch', 'ww1_1', { door: doors.arch_w.id });
+  N('arch', -71, 5, 0, 'adm_couloir'); L('arch', 'g1n-63', { door: doors.arch_g.id }); L('arch', 'g1s-63', { door: doors.arch_g.id }); L('arch', 'ww1_1', { door: doors.arch_w.id });
+  // couloir de l'administration : chaîne de nœuds le long de x = -71, chaque bureau relié au nœud face à sa porte
+  const ac = [11, 8, 4, 0, -4, -8, -12, -16, -20].map(z => { const id = z === 0 ? 'arch' : 'adm_c' + z; if (z) N(id, -71, 5, z, 'adm_couloir'); return [z, id]; });
+  for (let i = 1; i < ac.length; i++) L(ac[i - 1][1], ac[i][1]);
+  N('adm_acc', -68, 5, 3.5, 'adm_accueil'); L('arch', 'adm_acc', { door: doors.adm_acc.id });
+  for (const [id, , b] of ADMIN_ROOMS) {
+    const d = doors[id]; if (!d) continue;
+    N(id + '_n', (b[0] + b[2]) / 2, 5, (b[1] + b[3]) / 2, id);
+    const dzz = d.o.z; let best = ac[0]; for (const e of ac) if (Math.abs(e[0] - dzz) < Math.abs(best[0] - dzz)) best = e;
+    L(id + '_n', best[1], { door: d.id });
+  }
   // entrepôt
   N('wh', -90, 0, -12.7, 'warehouse'); N('wh2', -100, 0, -8, 'warehouse'); N('wh3', -96, 0, 1, 'warehouse'); L('wh', 'ww0_-11', { door: doors.wh_a.id }); L('wh', 'wh2'); L('wh2', 'wh3'); L('wh', 'wh3');
   // toit
   N('roofA', -78, 10.5, 17.75, 'roof'); L('roofA', 'stWR', { door: doors.stW_R.id });
-  for (const [k, x, z] of [['roofB', -50, 0], ['roofC', -30, 10], ['roofD', 0, 12], ['roofE', 30, -10], ['roofF', 60, 0]]) N(k, x, 10.5, z, 'roof');
-  nav.chain(['roofA', 'roofB', 'roofC', 'roofD', 'roofE', 'roofF']);
+  // le toit se parcourt autour de la verrière (rives nord et sud reliées aux deux pignons)
+  const RN = [['roofN1', -78, 23.6], ['roofN2', -62, 23.6], ['roofB', -50, 12], ['roofC', -25, 12], ['roofD', 0, 12], ['roofE', 25, 12], ['roofF', 50, 12], ['roofF2', 68, 10], ['roofG', 72, 0], ['roofH2', 68, -10], ['roofH', 50, -12], ['roofI', 25, -12], ['roofJ', 0, -12], ['roofK', -25, -12], ['roofL', -50, -12], ['roofM', -70, -10], ['roofN', -78, 8]];
+  for (const [k, x, z] of RN) N(k, x, 10.5, z, 'roof');
+  nav.chain(['roofA', ...RN.map(r => r[0]), 'roofA']);
   // conduits (graphe séparé, relié par les grilles)
   const vy = world.ventY + 0.06;
   for (let x = -78; x <= 64; x += 6) { N(`vs${x}`, x, vy, -23.5, 'vent_s', ['vent']); N(`vn${x}`, x, vy, 23.5, 'vent_n', ['vent']); if (x > -78) { L(`vs${x - 6}`, `vs${x}`, { vent: true }); L(`vn${x - 6}`, `vn${x}`, { vent: true }); } }
