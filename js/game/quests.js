@@ -174,7 +174,11 @@ export class Quests {
   initMem(st, ss, key, nm) {
     const g = this.game, m = this.mem[key] = {};
     if (st.test === 'gen_fuel') m.f0 = g.power.state.gen.fuel;
-    if (st.kind === 'items' && st.mode === 'place') { const zs = arr(st.zone); m.cands = g.props.find(st.def).filter(pr => !this.inZones(pr.state.pos, zs)).map(pr => pr.id); this.placeTarget(st, ss, m, true); }
+    if (st.kind === 'items' && st.mode === 'place') { // objets candidats : hors de la zone (posés, en rayon ou déjà en main)
+      const zs = arr(st.zone);
+      m.cands = g.props.find(st.def, { any: true }).filter(pr => pr.state.where === 'held' || ((pr.state.where === 'home' || pr.state.where === 'world') && !this.inZones(pr.state.pos, zs))).map(pr => pr.id);
+      this.placeTarget(st, ss, m, true);
+    }
     if (st.kind === 'items' && st.mode === 'shelve') m.taken = [];
     if (st.kind === 'answer') { m.next = nm; m.missed = 0; m.ringing = false; }
     return m;
@@ -287,7 +291,13 @@ export class Quests {
   // cible du suivi pour « rapporter un objet » : le candidat le plus proche d'un gardien (mise à jour par sauts de 3 m)
   placeTarget(st, ss, m, force) {
     const g = this.game; let best = null, bd = 1e9; const ref = g.alivePlayers()[0]?.pos;
-    for (const id of m.cands || []) { const pr = g.props.get(id); if (!pr || pr.state.where === 'gone' || pr.state.where === 'held') continue; const p = V(...pr.state.pos); const d = ref ? p.distanceTo(ref) : 0; if (d < bd) { bd = d; best = p; } }
+    let held = false;
+    for (const id of m.cands || []) {
+      const pr = g.props.get(id); if (!pr || pr.state.where === 'gone') continue;
+      if (pr.state.where === 'held') { held = true; break; }
+      const p = V(...pr.state.pos); const d = ref ? p.distanceTo(ref) : 0; if (d < bd) { bd = d; best = p; }
+    }
+    if (held || (best && bd < 2.5)) { const z = g.world.zone(arr(st.zone)[0]); if (z) best = V((z.min[0] + z.max[0]) / 2, z.min[1] + 1, (z.min[2] + z.max[2]) / 2); } // en main ou poussé : vers la destination
     if (!best) return;
     const cur = ss.at ? V(...ss.at) : null;
     if (force || !cur || cur.distanceTo(best) > 3) { ss.at = best.toArray().map(v => +v.toFixed(2)); this.dirty = true; }
