@@ -3,7 +3,7 @@
 const KEY = 'nuitblanche.v1';
 
 export const DEFAULT_SETTINGS = {
-  volume: 0.9, musicVolume: 0.8, sensitivity: 1, fov: 72, renderScale: 1, quality: 'medium', autoScale: true, shadows: true, bloom: true, volumetric: true,
+  volume: 0.9, musicVolume: 0.8, sensitivity: 1, fov: 72, renderScale: 1, quality: 'medium', autoScale: true, shadows: true, bloom: true, volumetric: true, bodycam: true,
   screamers: true, subtitles: true, voices: true, invertY: false, showClock: true, playerName: 'Gardien', costume: 'guard', serverUrl: '',
 };
 

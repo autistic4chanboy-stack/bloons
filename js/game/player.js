@@ -8,12 +8,18 @@ import { FLASHLIGHTS, COSTUMES } from '../data/costumes.js';
 import { buildItemGeometry } from '../world/meshes.js';
 import { FLOORS } from '../world/shopbuilder.js';
 import { GLOBAL_UNIFORMS } from '../engine/materials.js';
+import { flashlightCookie } from '../engine/textures.js';
 import { buildHumanoid, animateHumanoid, setHumanoidLayer, litHumanoid } from './humanoid.js';
 import { useHeld } from './behaviors.js';
 import { Audio } from '../engine/audio.js';
 
 const FLASH_ITEMS = ['flashlight_tac', 'flashlight', 'headlamp', 'flashlight_uv', 'flashlight_spare', 'mobile_phone', 'smartphone'];
 const SLOT_COUNT = 10;
+// Lampe torche : atténuation physique en 1/d² (decay 2) ; le profil du faisceau (point chaud, halo, anneaux) vient du
+// masque projeté par la SpotLight. FLASH_GAIN rattrape la portée perdue par rapport à l'ancienne atténuation adoucie.
+const FLASH_GAIN = 1.35;
+const _white = (() => { const t = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); t.needsUpdate = true; return t; })();
+const clampA = (v, a) => (v < -a ? -a : v > a ? a : v);
 
 export class Inventory {
   constructor(p) { this.p = p; this.slots = new Array(SLOT_COUNT).fill(null); this.sel = 0; this.version = 0; }
@@ -61,13 +67,20 @@ export class Player {
     this.cart = null; this.zoom = 1; this.lean = 0;
     const cam = game.camera; this.camera = cam;
     // lampe torche
-    const sl = new THREE.SpotLight(0xfff1d6, 0, 26, 0.42, 0.45, 1.25); // atténuation adoucie : pas de sol brûlé à un mètre
-    sl.castShadow = game.settings.shadows !== false;
+    const sl = new THREE.SpotLight(0xfff1d6, 0, 26, 0.42, 0.32, 2);
+    sl.map = flashlightCookie(); this.cookie = sl.map;
+    // ombres : castShadow reste fixe (pas de recompilation des shaders à chaque clic), la carte n'est recalculée
+    // que lampe allumée (shadow.autoUpdate)
+    sl.castShadow = game.settings.shadows !== false; sl.shadow.autoUpdate = false;
     sl.shadow.mapSize.set(game.settings.quality === 'low' ? 512 : 1024, game.settings.quality === 'low' ? 512 : 1024);
     sl.shadow.camera.near = 0.15; sl.shadow.camera.far = 30; sl.shadow.bias = -0.0004; sl.shadow.normalBias = 0.03;
     game.scene.add(sl); game.scene.add(sl.target);
     this.spot = sl; this.flashDir = new THREE.Vector3(0, 0, -1); this.flashPos = new THREE.Vector3();
-    // faisceau volumétrique
+    this._fwd = new THREE.Vector3(); this._right = new THREE.Vector3(); this._off = new THREE.Vector3(); this._tmp = new THREE.Vector3();
+    // caméra-piéton : retard / dépassement de l'image sur les rotations rapides (ressorts), roulis
+    this.lag = { y: 0, vy: 0, p: 0, vp: 0, r: 0, vr: 0, lyaw: 0, lpitch: 0 };
+    // faisceau volumétrique de secours (qualité basse, et pour les caméras de surveillance : calque 1) ; en qualité
+    // moyenne/haute, la vue principale reçoit le faisceau calculé en post-traitement (renderer.setBeam)
     const coneGeo = new THREE.ConeGeometry(1, 1, 24, 1, true); coneGeo.translate(0, -0.5, 0); coneGeo.rotateX(-Math.PI / 2);
     this.beam = new THREE.Mesh(coneGeo, new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
@@ -105,6 +118,8 @@ export class Player {
     this.yaw = yaw; this.pitch = 0; this.mode = 'walk'; this.inVent = false; this.hiddenIn = null; this.seat = null; this.cart = null;
     this.lastGroundY = pos.y; this.fallStartY = pos.y;
     this.updateCamera(0);
+    this.flashDir?.set(0, 0, -1).applyQuaternion(this.camera.quaternion); // le faisceau suit la nouvelle orientation sans balayer le sol
+    this.game.renderer?.resetAdaptation?.(); // téléportation : l'exposition automatique se recale aussitôt
   }
 
   _buildHands() {
@@ -381,22 +396,27 @@ export class Player {
     if (want && kindDef.flicker && Math.random() < 0.03) I *= 0.2;
     if (want && this.flashKind === 'lighter') I *= 0.8 + Math.random() * 0.4;
     // position : main droite, avec un léger retard (inertie)
-    const fwd = this.forward();
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
-    const off = kindDef.head ? new THREE.Vector3(0, 0.08, 0) : right.clone().multiplyScalar(0.2).add(new THREE.Vector3(0, -0.18, 0));
+    const fwd = this._fwd.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    const off = kindDef.head ? this._off.set(0, 0.08, 0) : this._off.set(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(0.2);
+    if (!kindDef.head) off.y -= 0.18;
     this.flashDir.lerp(fwd, Math.min(1, dt * (kindDef.head ? 30 : 14))).normalize();
     // la source est placée juste devant la lentille : la lampe tenue en main ne s'éclaire pas elle-même
     this.flashPos.copy(cam.position).add(off).addScaledVector(this.flashDir, kindDef.head ? 0.12 : 0.38);
     sl.position.copy(this.flashPos);
     sl.target.position.copy(this.flashPos).addScaledVector(this.flashDir, 5);
-    sl.intensity = I; sl.angle = kindDef.angle; sl.distance = kindDef.range || 1; sl.color.set(kindDef.color); sl.penumbra = this.flashKind === 'lighter' ? 1 : 0.45;
-    sl.castShadow = g.settings.shadows !== false && I > 0;
-    // faisceau
+    const lighter = this.flashKind === 'lighter';
+    sl.intensity = I * (lighter ? 1 : FLASH_GAIN); sl.angle = kindDef.angle; sl.distance = kindDef.range || 1; sl.color.set(kindDef.color); sl.penumbra = lighter ? 1 : 0.32;
+    sl.map = lighter ? _white : this.cookie; // flamme : lumière uniforme, sans masque de réflecteur
+    sl.castShadow = g.settings.shadows !== false; sl.shadow.autoUpdate = I > 0;
+    // faisceau : volumétrique en post-traitement si disponible, sinon cône additif
+    const vol = g.renderer.volumetric, beamOn = I > 0 && g.settings.volumetric !== false && !lighter;
+    g.renderer.setBeam(sl, beamOn ? (g.isDay ? 0.3 : 1) : 0);
     const len = Math.min(kindDef.range * 0.55, 9);
-    this.beam.visible = I > 0 && g.settings.volumetric !== false && this.flashKind !== 'lighter';
+    this.beam.visible = beamOn;
+    this.beam.layers.set(vol ? 1 : 0);
     if (this.beam.visible) {
       this.beam.position.copy(this.flashPos).addScaledVector(this.flashDir, 0.15);
-      this.beam.lookAt(this.flashPos.clone().addScaledVector(this.flashDir, -1));
+      this.beam.lookAt(this._tmp.copy(this.flashPos).addScaledVector(this.flashDir, -1));
       const r = Math.tan(kindDef.angle * 0.8) * len; this.beam.scale.set(r, r, len);
       this.beam.material.uniforms.strength.value = (I / 13) * 0.05 * (g.isDay ? 0.2 : 1);
       this.beam.material.uniforms.color.value.set(kindDef.color);
@@ -410,15 +430,33 @@ export class Player {
   }
 
   updateCamera(dt) {
-    const cam = this.camera, b = this.body;
-    let eyeH = 1.62 - this.crouchT * 0.72;
+    const cam = this.camera, b = this.body, g = this.game, bc = g.settings.bodycam !== false;
+    let eyeH = (bc ? 1.56 : 1.62) - this.crouchT * 0.72;
     let x = b.pos[0], y = b.pos[1] + eyeH, z = b.pos[2];
     if (this.mode === 'sit' && this.seat) { x = this.seat.pos.x; y = this.seat.pos.y + 0.75; z = this.seat.pos.z; }
     if (this.mode === 'hide') { y = b.pos[1] + 1.0; }
     if (this.mode === 'dead') { y = b.pos[1] + 0.3; }
-    // balancement
+    // balancement ; caméra-piéton (sur la poitrine) : rebond sec à chaque pas, balancement latéral et léger roulis
     const bobA = Math.min(1, Math.hypot(b.vel[0], b.vel[2]) / 5);
-    const by = Math.sin(this.bob * 2) * 0.035 * bobA, bx = Math.cos(this.bob) * 0.025 * bobA;
+    let by, bx, bodyRoll = 0, bodyPitch = 0;
+    if (bc) {
+      by = (Math.abs(Math.sin(this.bob)) - 0.64) * 0.045 * bobA; bx = Math.sin(this.bob) * 0.02 * bobA;
+      bodyRoll = Math.sin(this.bob) * 0.01 * bobA; bodyPitch = (Math.abs(Math.cos(this.bob)) - 0.64) * 0.006 * bobA;
+      bodyPitch += Math.sin(g.time * 1.7) * 0.0012; bodyRoll += Math.sin(g.time * 0.9 + 1.3) * 0.001; // respiration
+    } else { by = Math.sin(this.bob * 2) * 0.035 * bobA; bx = Math.cos(this.bob) * 0.025 * bobA; }
+    // retard / léger dépassement sur les rotations rapides : ressorts amortis vers un décalage proportionnel à la vitesse
+    const lg = this.lag;
+    if (bc && dt > 0) {
+      const dy = Math.atan2(Math.sin(this.yaw - lg.lyaw), Math.cos(this.yaw - lg.lyaw)) / dt, dp = (this.pitch - lg.lpitch) / dt;
+      const ty = clampA(-dy * 0.006, 0.03), tp = clampA(-dp * 0.004, 0.02), tr = clampA(dy * 0.004, 0.022);
+      for (let st = Math.min(dt, 0.1); st > 1e-6;) {
+        const h = Math.min(st, 1 / 120), w2 = 26 * 26, k = 2 * 0.55 * 26; st -= h;
+        lg.vy += (w2 * (ty - lg.y) - k * lg.vy) * h; lg.y += lg.vy * h;
+        lg.vp += (w2 * (tp - lg.p) - k * lg.vp) * h; lg.p += lg.vp * h;
+        lg.vr += (w2 * (tr - lg.r) - k * lg.vr) * h; lg.r += lg.vr * h;
+      }
+    } else if (!bc) { lg.y = lg.p = lg.r = lg.vy = lg.vp = lg.vr = 0; }
+    lg.lyaw = this.yaw; lg.lpitch = this.pitch;
     const s = Math.sin(this.yaw), c = Math.cos(this.yaw);
     x += c * bx; z -= s * bx; y += by - this.landShake * 0.12;
     this.landShake *= Math.max(0, 1 - dt * 6);
@@ -428,12 +466,14 @@ export class Player {
     const stress = this.stats.stress / 100;
     if (stress > 0.6) { sx += Math.sin(this.game.time * 13) * 0.002 * stress; sy += Math.cos(this.game.time * 11) * 0.002 * stress; }
     cam.position.set(x, y, z);
-    let roll = 0;
+    let roll = bodyRoll + lg.r;
     if (this.hasEffect('drunk')) roll = Math.sin(this.game.time * 0.7) * 0.05;
     if (this.effects.slip) roll = Math.sin(this.effects.slip * 10) * 0.2;
-    cam.rotation.set(this.pitch + sy, this.yaw + sx, roll, 'YXZ');
-    const targetFov = (this.game.settings.fov || 72) / this.zoom;
-    if (Math.abs(cam.fov - targetFov) > 0.1) { cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 10); cam.updateProjectionMatrix(); }
+    cam.rotation.set(this.pitch + sy + bodyPitch + lg.p, this.yaw + sx + lg.y, roll, 'YXZ');
+    // champ élargi selon le barillet de l'objectif (le centre de l'image garde le champ choisi dans les options)
+    const lens = g.renderer.lensScale ? g.renderer.lensScale() : 1, f = (g.settings.fov || 72) / this.zoom;
+    const targetFov = 2 * Math.atan(Math.tan(f * Math.PI / 360) * lens) * 180 / Math.PI;
+    if (Math.abs(cam.fov - targetFov) > 0.1) { cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 10 || 1); cam.updateProjectionMatrix(); }
   }
 
   updateViewmodel(dt) {

@@ -34,6 +34,7 @@ export class UI {
     this.rear = el('canvas', 'nb-rear'); this.rear.width = 320; this.rear.height = 180; r.appendChild(this.rear);
     this.chatEl = el('div', 'nb-chat'); r.appendChild(this.chatEl);
     this.netEl = el('div', 'nb-net'); r.appendChild(this.netEl);
+    this.osd = el('div', 'nb-osd'); r.appendChild(this.osd); this._osdKey = ''; // incrustation de la caméra-piéton
     this.slotsVersion = -1; this.subQueue = []; this.subT = 0;
     this.objective = '';
     window.addEventListener('keydown', (e) => this.onKey(e));
@@ -240,6 +241,7 @@ export class UI {
         <label><input type="checkbox" data-o="autoScale" ${s.autoScale !== false ? 'checked' : ''}> Résolution dynamique</label>
         <label><input type="checkbox" data-o="shadows" ${s.shadows !== false ? 'checked' : ''}> Ombres de la lampe</label>
         <label><input type="checkbox" data-o="bloom" ${s.bloom !== false ? 'checked' : ''}> Halo lumineux (bloom)</label>
+        <label><input type="checkbox" data-o="bodycam" ${s.bodycam !== false ? 'checked' : ''}> Effet caméra-piéton</label>
         <label><input type="checkbox" data-o="screamers" ${s.screamers !== false ? 'checked' : ''}> Screamers</label>
         <label><input type="checkbox" data-o="subtitles" ${s.subtitles !== false ? 'checked' : ''}> Sous-titres</label>
         <label><input type="checkbox" data-o="voices" ${s.voices !== false ? 'checked' : ''}> Voix de synthèse</label>
@@ -343,10 +345,25 @@ export class UI {
     const hideHud = !!this.modal || p.mode === 'desk' || g.security?.fullscreen;
     this.root.classList.toggle('hud-hidden', hideHud);
     this.root.classList.toggle('cctv-on', !!g.security?.fullscreen);
+    this.updateOSD();
     if (Net.online) this.netEl.textContent = `🌐 ${Net.room} · ${Net.playerCount} joueur(s)${Net.isHost ? ' · hôte' : ''} · ${Math.round(Net.latency)} ms`;
     this.netEl.style.display = Net.online ? 'block' : 'none';
   }
 }
+
+// Incrustation de la caméra-piéton : « ● REC HÉLIOS SÉCURITÉ · AGENT 04 · 14/11 02:13:44 » (horloge du jeu, date de la
+// nuit en cours, le jour change à minuit). Le DOM n'est réécrit qu'une fois par seconde réelle : l'horloge du jeu
+// tourne ~32 fois plus vite la nuit, les secondes avancent donc par sauts, comme un enregistrement en accéléré.
+UI.prototype.updateOSD = function () {
+  const g = this.game, on = g.settings.bodycam !== false && g.player.alive;
+  this.osd.style.display = on ? '' : 'none';
+  if (!on) return;
+  const key = Math.floor(performance.now() / 1000) + '|' + g.night; if (key === this._osdKey) return; this._osdKey = key;
+  const t = (((g.env ? g.env.minutes : 1320) % 1440) + 1440) % 1440, sec = Math.floor(t * 60);
+  const d = new Date(2026, 10, 13 + (g.night || 1) + (t < 720 ? 1 : 0)), p2 = (v) => String(v).padStart(2, '0');
+  const agent = Net.online ? p2((parseInt(String(Net.myId).replace(/\D/g, ''), 10) || 4) % 100) : '04';
+  this.osd.innerHTML = `<span class="rec">●</span> REC&nbsp; HÉLIOS SÉCURITÉ · AGENT ${agent} · ${p2(d.getDate())}/${p2(d.getMonth() + 1)} ${p2(Math.floor(sec / 3600) % 24)}:${p2(Math.floor(sec / 60) % 60)}:${p2(sec % 60)}`;
+};
 
 export function drawScreamFace(ctx, kind) {
   const W = 400, H = 400;

@@ -93,7 +93,8 @@ export class Particles {
     const pts = new THREE.Points(g, m); pts.frustumCulled = false; pts.renderOrder = 7; return pts;
   }
   setFlash(pos, dir, angle, intensity) {
-    const U = this.motes.material.uniforms; U.fpos.value.copy(pos); U.fdir.value.copy(dir); U.fcos.value = Math.cos(angle); U.fint.value = Math.min(1, intensity / 14) * 0.6; U.center.value.copy(this.game.camera.position);
+    const U = this.motes.material.uniforms; U.fpos.value.copy(pos); U.fdir.value.copy(dir); U.fcos.value = Math.cos(angle); U.center.value.copy(this.game.camera.position);
+    U.fint.value = Math.min(1, intensity / 14) * (this.game.isDay ? 0.25 : 0.5);
   }
 
   // ── émetteurs ──
@@ -114,9 +115,12 @@ export class Particles {
   bubbles(pos, dir) { for (let i = 0; i < 4; i++) { const v = dir.clone().multiplyScalar(1.5).add(new THREE.Vector3(R(), Math.random() * 0.5, R())); this.glow.emit(pos, v, new THREE.Color(0.5, 0.7, 0.9), 8 + Math.random() * 12, 3 + Math.random() * 3); } }
   sparkle(pos) { for (let i = 0; i < 40; i++) this.sparks.emit(pos, new THREE.Vector3(R() * 2, Math.random() * 2, R() * 2), new THREE.Color().setHSL(Math.random(), 1, 0.7), 3, 0.8 + Math.random()); }
   snow(pos) { for (let i = 0; i < 30; i++) this.dust.emit(pos.clone().add(new THREE.Vector3(R() * 0.1, Math.random() * 0.1, R() * 0.1)), new THREE.Vector3(R() * 0.2, 0.3, R() * 0.2), 0xffffff, 2, 2); }
+  // éclair de flash : emprunte une lumière du pool (priorité maximale) au lieu d'ajouter une PointLight à la scène,
+  // ce qui forcerait la recompilation de tous les shaders (le nombre de lumières fait partie du programme)
   flash(pos) {
-    const l = new THREE.PointLight(0xffffff, 40, 12, 2); l.position.copy(pos); this.game.scene.add(l);
-    this.flashes.push({ l, t: 0.15 });
+    const f = { pos: pos.clone(), t: 0.15 };
+    f.getLight = () => (f.t > 0 ? { pos: f.pos, color: [1, 0.98, 0.95], intensity: 40 * Math.max(0, f.t / 0.15), distance: 12, priority: 0.02 } : null);
+    this.game.lighting.addSource(f); this.flashes.push(f);
   }
   fountain(dev, on) { if (on) this.fountains.add(dev); else this.fountains.delete(dev); }
 
@@ -150,8 +154,10 @@ export class Particles {
 
   update(dt) {
     for (const s of [this.sparks, this.smoke, this.dust, this.glow, this.water, this.shardsP]) s.update(dt);
-    for (const f of this.flashes) { f.t -= dt; f.l.intensity = Math.max(0, f.t / 0.15) * 40; if (f.t <= 0) this.game.scene.remove(f.l); }
-    this.flashes = this.flashes.filter(f => f.t > 0);
+    if (this.flashes.length) {
+      for (const f of this.flashes) { f.t -= dt; if (f.t <= 0) this.game.lighting.removeSource(f); }
+      this.flashes = this.flashes.filter(f => f.t > 0);
+    }
     for (const dev of this.fountains) {
       const top = dev.wp(dev.meta.water || [0, 0.9, 0]);
       for (let i = 0; i < 6; i++) { const a = Math.random() * 6.28; this.water.emit(top, new THREE.Vector3(Math.cos(a) * 1.4, 3 + Math.random(), Math.sin(a) * 1.4), new THREE.Color(0.6, 0.75, 0.85), 6, 1.0); }
