@@ -37,6 +37,7 @@ export class Quests {
     H.on('fire_started', () => this.mark('fire'));
     H.on('phone_answered', (d) => { const k = d?.data?.key || d?.caller; if (k) this.mark('answer:' + k, d.actor); });
     H.on('taken', (d) => this.onTaken(d));
+    H.on('became_host', () => this.takeover());
   }
   get nm() { return this.game.env?.nightMinutes ?? 0; }
   mark(k, actor) { if (!Net.isHost || !this.state) return; this.seen[k] = { nm: this.nm, actor: actor || null }; }
@@ -104,6 +105,7 @@ export class Quests {
 
   // ───────────────────────── boucle (hôte) ─────────────────────────
   update(dt) {
+    if (Net.isHost && !this.state && this.view) this.takeover(); // nouvel hôte, ou client resté seul (connexion perdue)
     if (!Net.isHost || !this.state) return;
     const ph = this.game.story?.phase; if (ph !== 'night' && ph !== 'dusk') return;
     const nm = this.nm;
@@ -159,17 +161,32 @@ export class Quests {
     this.run(q.onStart, { q });
   }
   startStep(q, st, nm) {
-    const key = q.id + '.' + st.id, ss = this.state.s[key], m = this.mem[key] = {};
+    const key = q.id + '.' + st.id, ss = this.state.s[key];
     ss.s = 'active'; ss.t0 = nm; this.dirty = true;
-    const g = this.game;
     if (st.kind === 'ronde') { ss.got = []; ss.n = this.rondePoints(st).length; ss.p = 0; }
-    if (st.count) ss.p = 0;
-    if (st.test === 'gen_fuel') m.f0 = g.power.state.gen.fuel;
-    if (st.kind === 'items' && st.mode === 'place') { const zs = arr(st.zone); m.cands = g.props.find(st.def).filter(pr => !this.inZones(pr.state.pos, zs)).map(pr => pr.id); this.placeTarget(st, ss, m, true); }
-    if (st.kind === 'items' && st.mode === 'shelve') { m.taken = []; ss.p = 0; }
-    if (st.kind === 'answer') { m.next = nm; m.missed = 0; m.ringing = false; }
+    if (st.count || (st.kind === 'items' && st.mode === 'shelve')) ss.p = 0;
+    this.initMem(st, ss, key, nm);
     this.run(st.onStart, { q, st, ss });
     if (st.at === 'dev' && !ss.at && this.state.m.dev) ss.at = this.state.m.dev;
+  }
+  // mémoire de travail d'une étape (hôte seulement, non répliquée : refaite par un nouvel hôte)
+  initMem(st, ss, key, nm) {
+    const g = this.game, m = this.mem[key] = {};
+    if (st.test === 'gen_fuel') m.f0 = g.power.state.gen.fuel;
+    if (st.kind === 'items' && st.mode === 'place') { const zs = arr(st.zone); m.cands = g.props.find(st.def).filter(pr => !this.inZones(pr.state.pos, zs)).map(pr => pr.id); this.placeTarget(st, ss, m, true); }
+    if (st.kind === 'items' && st.mode === 'shelve') m.taken = [];
+    if (st.kind === 'answer') { m.next = nm; m.missed = 0; m.ringing = false; }
+    return m;
+  }
+  // Migration d'hôte : ce pair reprend les objectifs là où l'état reçu les a laissés (minuteries d'effets perdues :
+  // chaque déclencheur différé a une heure de repli)
+  takeover() {
+    if (!Net.isHost || this.state || !this.view) return;
+    const st = JSON.parse(JSON.stringify(this.view)); delete st.silent;
+    this.state = st; this.mode = st.mode; this.night = st.n; if (!this.defs.length) this.defs = this.buildDefs(st.mode, st.n);
+    this.mem = {}; this.seen = {}; this.timers = []; this.cache = {}; this.pollT = 0;
+    for (const q of this.defs) for (const s of q.steps) { const k = q.id + '.' + s.id; if (st.s[k]?.s === 'active') this.initMem(s, st.s[k], k, this.nm); }
+    this.push(true);
   }
   tickStep(q, st, ss, nm, pdt) {
     const key = q.id + '.' + st.id, m = this.mem[key] || (this.mem[key] = {});
