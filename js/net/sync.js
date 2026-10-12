@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { Net } from './net.js';
 import { ITEMS } from '../data/items.js';
 import { COSTUMES } from '../data/costumes.js';
-import { buildHumanoid, animateHumanoid, litHumanoid, torchLens } from '../game/humanoid.js';
+import { buildHumanoid, animateHumanoid, litHumanoid, torchLens, disposeHumanoid } from '../game/humanoid.js';
 import { avatarOpts } from '../game/player.js';
 
 const MAX_REMOTE_LIGHTS = 3;
@@ -46,7 +46,7 @@ export class RemotePlayer {
   }
   build() {
     const g = this.game;
-    if (this.avatar) this.avatar.removeFromParent();
+    if (this.avatar) { this.avatar.removeFromParent(); disposeHumanoid(this.avatar); } // (l'étiquette du nom, un sprite, est réutilisée)
     this.avatar = buildHumanoid(avatarOpts(this.costume, this.wear)); litHumanoid(this.avatar);
     this.label = this.label || nameSprite(this.name);
     this.label.position.set(0, 2.15, 0); this.avatar.add(this.label);
@@ -99,7 +99,7 @@ export class RemotePlayer {
     this.beam.visible = on;
     if (on) { const f = this.forward(), L = torchLens(a, _lens), e = L || this.eyePos(); this.beam.position.copy(e).addScaledVector(f, L ? 0.04 : 0.3); this.beam.lookAt(e.clone().addScaledVector(f, 5)); }
   }
-  dispose() { this.avatar.removeFromParent(); this.beam.removeFromParent(); if (this.light) this.light.intensity = 0; }
+  dispose() { this.avatar.removeFromParent(); disposeHumanoid(this.avatar); this.beam.removeFromParent(); if (this.light) this.light.intensity = 0; }
 }
 
 export class Sync {
