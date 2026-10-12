@@ -59,11 +59,11 @@ const FACE = {
 };
 const AXK = [['x', 'X'], ['y', 'Y'], ['z', 'Z']];
 const ax3 = (v) => (v[0] ? 0 : v[1] ? 1 : 2);
-// Quadrilatère plaqué sur une face (orientation de FACE[f]) : décors, fentes, voyants, étiquettes (R)
+// Quadrilatère plaqué sur une face (orientation de FACE[f]) : décors, fentes, voyants, étiquettes (R, teintée par c)
 function fq(k, x, y, z, w, h, c, f = 'Z', R = null) {
   const [, u, v] = FACE[f], hu = w / 2, hv = h / 2;
   const P = (su, sv) => [x + u[0] * su * hu + v[0] * sv * hv, y + u[1] * su * hu + v[1] * sv * hv, z + u[2] * su * hu + v[2] * sv * hv];
-  k.quad(P(-1, -1), P(1, -1), P(1, 1), P(-1, 1), R ? 0xffffff : c, R);
+  k.quad(P(-1, -1), P(1, -1), P(1, 1), P(-1, 1), R ? (c || 0xffffff) : c, R); // étiquette : c (sinon blanc) la teinte
 }
 // même chose avec un dégradé vertical (bas → haut) : vitres, reflets
 function fqg(k, x, y, z, w, h, c0, c1, f = 'Z') {
@@ -411,7 +411,7 @@ function arcadeCab(k, s, c, d) {
   const w = s[0], h = s[1], dd = s[2], t = 0.019, wi = w / 2 - t, W = 2 * wi, A = artOf(d), acc = A[0], body = mix(c, A[1], 0.6), g = d.p?.game || 'x';
   const sz = dd / 0.8, sy = h / 1.8, Z = (z) => z * sz, Y = (y) => y * sy, XA = new THREE.Vector3(1, 0, 0);
   const prof = [[-0.40, -0.90], [0.205, -0.90], [0.205, -0.075], [0.40, -0.03], [0.40, 0.065], [0.255, 0.115], [0.135, 0.60], [0.215, 0.645], [0.215, 0.90], [-0.40, 0.90]].map(([z, y]) => [Z(z), Y(y)]);
-  const art = lab(k, 'arcside:' + g, 100, 220, { kind: 'card', bg: A[1], accent: acc, picto: A[2], pc: acc, name: A[3], sub: 'HÉLIOS ARCADE' });
+  const art = lab(k, 'arcside:' + g, 64, 140, { kind: 'card', bg: A[1], accent: acc, picto: A[2], pc: acc, name: A[3], sub: 'HÉLIOS ARCADE' });
   extX(k, prof, wi, w / 2, body, { side: acc, r: 0.003, capR: art });
   extX(k, prof, -w / 2, -wi, body, { side: acc, r: 0.003, backR: art });
   box(k, 0, 0, Z(-0.39), W, h - 0.004, Z(0.02), shade(body, 0.85), { skip: 'xX' }); // dos
@@ -453,7 +453,7 @@ function arcadeCab(k, s, c, d) {
   box(k, 0, Y(0.6225), Z(0.1735), W, Y(0.045), Z(0.077), 0x141516, { skip: 'xX' });
   for (const sx of [-1, 1]) slots(k, sx * W * 0.25, Y(0.6225), Z(0.212) + 0.0004, 5, 0.012, Y(0.03), 0.02, 0x050505, 'Z');
   // marquee (impression visible éteint ; le panneau lumineux est ajouté par devices.js)
-  const mq = lab(k, 'arcmq:' + g, 160, 52, { kind: 'sign', name: A[3], bg: A[1], fg: acc, accent: acc });
+  const mq = lab(k, 'arcmq:' + g, 120, 38, { kind: 'sign', name: A[3], bg: A[1], fg: acc, accent: acc });
   box(k, 0, Y(0.7625), Z(0.156), W, Y(0.235), Z(0.112), 0x101012, { skip: 'xX', F: { Z: mq } });
   for (const yy of [Y(0.645) + 0.006, Y(0.88) - 0.006]) rbox(k, 0, yy, Z(0.212) + 0.004, W, 0.012, 0.01, 0.003, CHROME);
   k.meta.marquee = { x: 0, y: Y(0.7625), z: Z(0.212) + 0.0005, w: W - 0.03, h: Y(0.235) - 0.03 };
@@ -463,13 +463,13 @@ function arcadeCab(k, s, c, d) {
 // Machine de danse : écran sous un fronton lumineux, colonnes d'enceintes (boomers, néons), plateforme à dalles
 // fléchées, barre de maintien chromée derrière le joueur
 function danceCab(k, s, c, d) {
-  const w = s[0], h = s[1], dd = s[2], y0 = -h / 2, A = artOf(d), acc = A[0], zb = -dd / 2, zc = -0.12, cd = zc - zb, body = 0x1a1530;
+  const w = s[0], h = s[1], dd = s[2], y0 = -h / 2, A = artOf(d), acc = A[0], zb = -dd / 2, zc = -0.12, cd = zc - zb, body = mix(c, 0x120f22, 0.65);
   rbox(k, 0, (y0 + 0.62) / 2, (zb + zc) / 2, 0.78, 0.62 - y0, cd, 0.02, body);
   bezel(k, 0, 0.33, zc + 0.0005, 0.7, 0.56, 0.62, 0.465, 0.012, 0.01, 0x0b0b0e);
   k.meta.screen = { x: 0, y: 0.33, z: zc - 0.0085, w: 0.63, h: 0.475 };
   // fronton
   rbox(k, 0, 0.81, (zb + zc + 0.07) / 2, w, 0.38, cd + 0.07, 0.025, body);
-  const mq = lab(k, 'arcmq:dance', 180, 48, { kind: 'sign', name: A[3], bg: A[1], fg: acc, accent: 0x00e5ff });
+  const mq = lab(k, 'arcmq:dance', 132, 34, { kind: 'sign', name: A[3], bg: A[1], fg: acc, accent: 0x00e5ff });
   fq(k, 0, 0.81, zc + 0.0705, 1.02, 0.26, 0, 'Z', mq);
   for (const yy of [0.66, 0.96]) rbox(k, 0, yy, zc + 0.07, 1.06, 0.014, 0.012, 0.004, CHROME);
   k.meta.marquee = { x: 0, y: 0.81, z: zc + 0.0712, w: 1.0, h: 0.24 };
@@ -553,7 +553,7 @@ S('claw', (k, s, c) => {
   k.meta.claw = [0.08, yc, 0.05];
   // fronton lumineux à ampoules
   rbox(k, 0, (yt + h / 2) / 2, zc0, w, h / 2 - yt, zf + dd / 2, 0.02, c);
-  const mq = lab(k, 'arcmq:claw', 160, 44, { kind: 'sign', name: 'ATTRAP\'PELUCHE', bg: 0x3a0a2a, fg: 0xffea00, accent: 0xffea00 });
+  const mq = lab(k, 'arcmq:claw', 120, 32, { kind: 'sign', name: 'ATTRAP\'PELUCHE', bg: 0x3a0a2a, fg: 0xffea00, accent: 0xffea00 });
   fq(k, 0, (yt + h / 2) / 2 + 0.01, zf + 0.0006, w - 0.1, 0.13, 0, 'Z', mq);
   for (let i = 0; i < 9; i++) disc(k, -w / 2 + 0.07 + i * (w - 0.14) / 8, yt + 0.02, zf + 0.0008, 0.011, 0xfff59d, [0, 0, 1], 8);
   k.meta.marquee = { x: 0, y: (yt + h / 2) / 2 + 0.01, z: zf - 0.0045, w: w - 0.12, h: 0.12 };
@@ -635,9 +635,12 @@ S('cooler', (k, s, c) => {
 // sole, conduit de fumée, pelle accrochée
 S('oven_big', (k, s, c) => {
   const w = s[0], h = s[1], dd = s[2], y0 = -h / 2, ys = y0 + 0.62, R = dd / 2 - 0.13, brick = 0x9c4a2f, mortar = 0xb8a593;
-  rbox(k, 0, (y0 + ys) / 2, 0, w, ys - y0, dd, 0.02, 0x6b625b);
-  box(k, 0, y0 + 0.31, dd / 2 - 0.04, w - 0.2, 0.42, 0.08, 0x1a1513, { skip: 'z' });
-  for (let i = 0; i < 9; i++) cyl(k, -0.45 + (i % 5) * 0.21 + (i > 4 ? 0.1 : 0), y0 + 0.16 + (i > 4 ? 0.1 : 0), dd / 2 - 0.26, 0.05, 0.38, i % 2 ? 0x6d4c41 : 0x8d6e63, 'z', 7);
+  // socle maçonné percé d'une niche à bûches (ouverture, parois sombres, fond)
+  const yb = (y0 + ys) / 2, ny = y0 + 0.31, nd = 0.5, zf = dd / 2;
+  rbox(k, 0, yb, 0, w, ys - y0, dd, 0.02, 0x6b625b, { skip: 'Z' });
+  bezel(k, 0, yb, zf, w - 0.04, ys - y0 - 0.04, w - 0.2, 0.42, 0.015, nd, 0x6b625b, { iy: ny - yb, lip: 0x2a2421 });
+  fq(k, 0, ny, zf - nd, w - 0.2, 0.42, 0x1a1513);
+  for (let i = 0; i < 9; i++) cyl(k, -0.45 + (i % 5) * 0.21 + (i > 4 ? 0.1 : 0), y0 + 0.16 + (i > 4 ? 0.1 : 0), zf - 0.27, 0.05, 0.38, i % 2 ? 0x6d4c41 : 0x8d6e63, 'z', 7);
   box(k, 0, ys + 0.03, 0, w, 0.06, dd, 0x7b6f66);
   const prof = []; for (let i = 0; i <= 9; i++) { const t = i / 9 * PI / 2; prof.push([Math.max(0.001, R * Math.cos(t)), ys + 0.06 + R * 0.92 * Math.sin(t), i % 2 ? shade(c, 0.92) : c]); }
   lat(k, prof, c, { segs: 20 });
@@ -756,7 +759,7 @@ S('vending', (k, s, c, d) => {
   at(k, M(tx, ty, zf + 0.004, -0.08), () => { rbox(k, 0, 0, 0, tw, th, 0.008, 0.003, 0x2e3236); fq(k, 0, th * 0.3, 0.0045, 0.12, 0.03, 0, 'Z', lab(k, 'vpush', 64, 16, { kind: 'sign', name: 'POUSSER', bg: 0x2e3236, fg: 0xffffff, accent: 0x2e3236 })); });
   slots(k, 0, Y0 + 0.03, zf + 0.0005, 14, 0.03, 0.008, 0.055, dark, 'Z');
   // flancs : décor à la marque ; dos : grille d'aération
-  const sideArt = lab(k, 'vside', 100, 200, { kind: 'banner', name: 'FRAÎCHEUR', sub: '24 H / 24', bg: c, picto: 'bubbles', accent: 0xffffff });
+  const sideArt = lab(k, 'vside', 64, 128, { kind: 'banner', name: 'FRAÎCHEUR', sub: '24 H / 24', bg: c, picto: 'bubbles', accent: 0xffffff });
   for (const f of ['X', 'x']) fq(k, (f === 'X' ? 1 : -1) * (w / 2 - 0.0009), 0.1, -0.0125, dd * 0.8, h * 0.62, 0, f, sideArt);
   slots(k, 0, h / 2 - 0.25, -dd / 2 - 0.0005, 10, 0.025, 0.2, 0.05, 0x111111, 'z');
   k.meta.glow = [(wx0 + wx1) / 2, (wy0 + wy1) / 2, zf + 0.02];
@@ -1011,7 +1014,7 @@ S('console_pa', (k, s, c) => {
   // table de mixage
   at(k, M(-0.12, yt + 0.016, 0.02, 0.18), () => {
     rbox(k, 0, 0.025, 0, 0.76, 0.05, 0.44, 0.01, 0x2a2d30);
-    fq(k, 0, 0.0505, -0.09, 0.72, 0.22, 0, 'Y', lab(k, 'mixknobs', 120, 40, { kind: 'lids', nx: 12, nz: 4 }));
+    fq(k, 0, 0.0505, -0.09, 0.72, 0.22, 0x6a6c70, 'Y', lab(k, 'mixknobs', 120, 40, { kind: 'lids', nx: 12, nz: 4 })); // boutons sombres
     for (let i = 0; i < 12; i++) { const x = -0.33 + i * 0.06; fq(k, x, 0.0505, 0.12, 0.006, 0.14, 0x080808, 'Y'); box(k, x, 0.058, 0.1 + ((i * 37) % 7) * 0.008, 0.026, 0.014, 0.014, i === 11 ? 0xd50000 : 0xdedede); }
   });
   // micro col-de-cygne
@@ -1873,7 +1876,7 @@ S('board', (k, s, c) => {
   const rnd = mulberry32(11), zf = -0.003;
   NOTES.forEach(([t, sub, bg], i) => {
     const x = -w * 0.36 + (i % 3) * w * 0.33 + (rnd() - 0.5) * 0.05, y = (i < 3 ? 0.17 : -0.16) + (rnd() - 0.5) * 0.06, nw = 0.2 + rnd() * 0.06, nh = 0.22 + rnd() * 0.06;
-    at(k, M(x, y, zf + 0.001 + i * 0.0003, 0, 0, (rnd() - 0.5) * 0.12), () => { fq(k, 0, 0, 0, nw, nh, 0, 'Z', lab(k, 'note' + i, 64, 72, { kind: 'price', name: t, sub, bg: 0x37474f, promo: false })); lat(k, sphereP(0.005, 0.0045, 3), [0xd50000, 0x1565c0, 0x2e7d32, 0xffd600][i % 4], { segs: 6, m: M(0, nh / 2 - 0.02, 0) }); });
+    at(k, M(x, y, zf + 0.001 + i * 0.0003, 0, 0, (rnd() - 0.5) * 0.12), () => { fq(k, 0, 0, 0, nw, nh, 0, 'Z', lab(k, 'note' + i, 48, 54, { kind: 'price', name: t, sub, bg: 0x37474f, promo: false })); lat(k, sphereP(0.005, 0.0045, 3), [0xd50000, 0x1565c0, 0x2e7d32, 0xffd600][i % 4], { segs: 6, m: M(0, nh / 2 - 0.02, 0) }); });
   });
   fq(k, w * 0.38, -0.22, zf + 0.003, 0.12, 0.09, 0, 'Z', lab(k, 'boardphoto', 40, 30, { kind: 'card', bg: 0x8d6e63, picto: 'house', name: '1987', pc: 0xffffff }));
 });
@@ -1965,7 +1968,7 @@ function wheel(k, x, y, z, sd, R, W, rimC, slotsN = 8) {
 }
 const PLATE = (k, x, y, z, txt, f) => { // plaque d'immatriculation française (bandes bleues, caractères noirs)
   const s = f === 'Z' ? 1 : -1;
-  fq(k, x, y, z, 0.52, 0.11, 0xffffff, f, lab(k, 'plate:' + txt, 112, 24, { kind: 'plain', bg: 0xffffff, fg: 0x111111, brand: txt }));
+  fq(k, x, y, z, 0.52, 0.11, 0xffffff, f, lab(k, 'plate:' + txt, 96, 20, { kind: 'plain', bg: 0xffffff, fg: 0x111111, brand: txt }));
   for (const e of [-1, 1]) fq(k, x + s * e * 0.24, y, z + s * 0.0004, 0.04, 0.11, 0x1e3a9e, f);
 };
 const HWT = [[-2.08, 0.7], [-2.065, 0.77], [-2.04, 0.81], [-1.98, 0.835], [-1.85, 0.85], [1.85, 0.85], [1.98, 0.838], [2.04, 0.81], [2.065, 0.765], [2.08, 0.69]];
