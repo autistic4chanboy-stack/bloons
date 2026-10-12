@@ -150,9 +150,9 @@ export const QUESTS = {
       steps: [
         { id: 'aller', kind: 'goto', zone: ['electro'], until: '01:00', title: 'Inspecter ElectroMaison',
           desc: 'Le rideau d\'ElectroMaison est déverrouillé ce soir : faites le tour des rayons.',
-          onDone: [{ do: 'trigger', name: 'n3_tv' }, { do: 'tv', shop: 'electro', msg: 'BONSOIR' }] },
+          onDone: [{ do: 'trigger', name: 'n3_tv' }] },
         { id: 'tele', kind: 'state', test: 'tv_off', at: 'dev', until: '02:00', title: 'Éteindre le téléviseur resté allumé',
-          desc: 'Un téléviseur affiche encore « BONSOIR ». Éteignez-le (E).' },
+          desc: 'Un téléviseur affiche encore « BONSOIR ». Éteignez-le (E).', onStart: [{ do: 'tv', shop: 'electro', msg: 'BONSOIR' }] },
       ] },
     { id: 'n3_miel', title: 'Le miel de Bobby', optional: true, start: { at: '22:00' },
       steps: [
@@ -288,7 +288,7 @@ export const QUESTS = {
         { id: 'scotch', kind: 'state', test: 'grate_taped', with: true, at: 'zone:westwing0', until: '03:00', title: 'Sceller une grille d\'aération au scotch',
           desc: 'Le rouleau est sur le bureau : clic gauche en visant une grille (réserves du rez-de-chaussée, aile ouest).' },
       ] },
-    { id: 'n8_seance', title: 'La séance fantôme', start: { on: 'n8_proj', fallback: '23:00' },
+    { id: 'n8_seance', title: 'La séance fantôme', start: { on: 'n8_proj', fallback: '23:01' },
       steps: [
         { id: 'projecteur', kind: 'state', test: 'projector_off', hold: 'projector', at: 'dev', until: '02:00', title: 'Arrêter le projecteur du cinéma',
           desc: 'Le projecteur du Ciné Hélios s\'est lancé tout seul, à l\'étage. Cabine de projection : E.' },

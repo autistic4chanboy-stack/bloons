@@ -191,8 +191,9 @@ export class Story {
     if (this.phase === 'night' || this.phase === 'dusk') this.quests.update(dt);
     if (this.phase === 'night') {
       const nm = nightMin(m);
-      // scripts : à leur heure, ou plus tôt quand une quête lance leur déclencheur (on: '…') ; la quête peut les remplacer
-      for (const s of this.scripted) if (!s.done && (nm >= s.t || (s.on && this.quests.hasFired(s.on)))) { s.done = true; if (this.quests.intercept(s)) continue; if (!s.cond || this.cond(s.cond)) g.events.execute(s, true); }
+      // scripts : à leur heure, ou plus tôt quand une quête lance leur déclencheur (on: '…') ; à l'heure, le déclencheur
+      // compte comme lancé (les quêtes qui l'attendent démarrent après l'événement) ; la quête peut les remplacer
+      for (const s of this.scripted) if (!s.done && (nm >= s.t || (s.on && this.quests.hasFired(s.on)))) { s.done = true; if (s.on) this.quests.fire(s.on); if (this.quests.intercept(s)) continue; if (!s.cond || this.cond(s.cond)) g.events.execute(s, true); }
       if (nm >= 480 - 0.01) this.endNight(false);
       // abandon de poste
       for (const pl of g.alivePlayers()) { if (pl.pos.x > 112) { this.fail('Vous avez quitté le centre en pleine nuit. Abandon de poste.'); return; } }

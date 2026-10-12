@@ -433,8 +433,9 @@ export class Quests {
         case 'rc_cam': return this.countRuntime(p => p.defId === 'rc_car' && p.data.camMounted) > 0;
         case 'rc_in': return this.countRuntime(p => p.defId === 'rc_car' && p.state.where === 'world' && g.world.zoneAt(p.state.pos[0], p.state.pos[1] + 0.2, p.state.pos[2])?.id === arg) > 0;
         case 'fridges_closed': return g.devices.inZone(arg, 'fridge').every(d => !d.state.open);
-        case 'tv_off': { const d = g.world.get(this.state.m.tv); return !d || !d.state.on; }
-        case 'projector_off': return g.devices.kind('projector').every(d => !d.state.on);
+        // appareil éteint… après avoir été vu allumé pendant l'étape (pas de réussite avant l'événement)
+        case 'tv_off': { const d = g.world.get(this.state.m.tv); if (!d) return false; if (d.state.on && ctx.m) ctx.m.seenOn = true; return !d.state.on && !!ctx.m?.seenOn; }
+        case 'projector_off': { const on = g.devices.kind('projector').some(d => d.state.on); if (on && ctx.m) ctx.m.seenOn = true; return !on && !!ctx.m?.seenOn; }
         case 'grate_taped': return (g.world.ventGrates || []).some(gr => gr.state.taped);
         case 'parrot_fed': return g.devices.kind('parrot').some(d => d.state.fed > 0);
         case 'cake_blown': { const ids = this.cache.cakes ||= g.props.find('birthday_cake', { any: true }).map(p => p.id); return ids.some(id => g.props.get(id)?.data.blown) || this.countRuntime(p => p.defId === 'birthday_cake' && p.data.blown) > 0; }
@@ -574,6 +575,7 @@ export class Quests {
       for (const st of q.steps) {
         const ss = S.s[q.id + '.' + st.id];
         if (ss.s === 'active' || ss.s === 'hidden') { ss.s = st.kind === 'wait' && ss.s === 'active' && nm >= questNm(st.until || '06:00') - 1 ? 'done' : 'failed'; ss.t1 = nm; }
+        if (qs.s === 'active' && st === q.steps[q.steps.length - 1]) { qs.s = 'over'; qs.t1 = nm; qs.ok = q.steps.every(x => x.optional || S.s[q.id + '.' + x.id].s === 'done') ? 1 : 0; }
         const opt = q.optional || st.optional;
         if (opt) { oTotal++; if (ss.s === 'done') { oDone++; extra.push(['good', '★ ' + st.title + ' (facultatif)']); } continue; }
         total++;
@@ -656,7 +658,7 @@ export class Quests {
       if (qs.s === 'hidden') continue;
       quests.push({ id: q.id, title: q.title, giver: q.giver || null, optional: !!q.optional, s: qs.s, ok: !!qs.ok, steps, reward: q.reward ? this.rewardText(q.reward) : null });
     }
-    const N = this.mode === 'story' ? NIGHTS.find(x => x.n === this.night) : null;
+    const N = this.mode === 'story' ? NIGHTS.find(x => x && x.n === this.night) : null; // NIGHTS[0] est vide
     return { night: this.night, mode: this.mode, title: N?.title || null, subtitle: N?.subtitle || null, quests, done, total };
   }
   rewardText(rw) { const a = []; if (rw.coins) a.push(rw.coins + ' pièce' + (rw.coins > 1 ? 's' : '') + ' de 2 €'); if (rw.items?.length) a.push('des piles'); if (rw.note) a.push('une note de Gérard'); if (rw.bonus) a.push(rw.bonus + ' €'); return a.join(', ') || null; }
