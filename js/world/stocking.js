@@ -106,7 +106,8 @@ class Stocker {
   buildSegments() {
     const segs = []; const fx = new Map();
     for (const b of this.boards) {
-      const back = b.zone === this.s.id + '_back'; if (b.noLabels && !back) continue; // plans de travail du personnel : pas de marchandise const z = back ? this.zb : (b.zone === this.s.id ? this.zf : this.world.zone(b.zone)); if (!z) continue;
+      const back = b.zone === this.s.id + '_back'; if (b.noLabels && !back) continue; // plans de travail du personnel : pas de marchandise
+      const z = back ? this.zb : (b.zone === this.s.id ? this.zf : this.world.zone(b.zone)); if (!z) continue;
       const lo = b.ax === 'x' ? z.min[0] : z.min[2], hi = b.ax === 'x' ? z.max[0] : z.max[2];
       const plo = b.ax === 'x' ? z.min[2] : z.min[0], phi = b.ax === 'x' ? z.max[2] : z.max[0];
       if (b.c < plo - 0.05 || b.c > phi + 0.05) continue;
