@@ -474,9 +474,9 @@ class LayoutKit {
   backroom() {
     const s = this.c.shop, zn = this.id + '_back';
     const D0 = this.D + 0.12, D1 = Math.abs(this.c.zB - this.c.zF) - 0.12;
-    const vx = s.floor ? -100 : ventXForShop(s) - this.c.x0;
-    // étagères au fond (en évitant la porte de service et la grille)
-    const segs = [[2.4, Math.min(vx - 1.0, this.W - 0.3)], [vx + 1.0, this.W - 2.6]].filter(([a, b]) => b - a > 1.2);
+    // étagères au fond (en évitant la porte de service et, au rez-de-chaussée, la grille de ventilation)
+    const vx = s.floor ? null : ventXForShop(s) - this.c.x0;
+    const segs = (vx === null ? [[2.4, this.W - 2.6]] : [[2.4, Math.min(vx - 1.0, this.W - 0.3)], [vx + 1.0, this.W - 2.6]]).filter(([a, b]) => b - a > 1.2);
     const tmpD = this.D; this.D = D1 + 0.12;
     for (const [a, b] of segs) this.wallShelf('B', a, b, 3, 2.2, 0.6, 0x7a7f84, zn);
     this.D = tmpD;

@@ -98,6 +98,7 @@ export const USE_INFO = {
   top: U('jouets', 'Toupie', 'Posez-la et lancez-la (clic gauche).'),
   yoyo: U('jouets', 'Yo-yo', 'Clic gauche pour le faire descendre et remonter.'),
   rubik: U('jouets', 'Casse-tête', 'Clic gauche pour tourner une face.'),
+  popper: U('jouets', 'Confettis', 'Clic gauche : le pétard à confettis éclate (BANG) et repousse les présences toutes proches, puis il est usé. Le sachet de confettis fait une pluie silencieuse, cinq fois.'),
   dart_gun: U('jouets', 'Pistolet à fléchettes', 'Clic gauche pour tirer une fléchette en mousse (munitions limitées). Déclenche les détecteurs de mouvement à distance.'),
   bubbles: U('jouets', 'Bulles', 'Clic gauche : des bulles qui suivent les courants d\'air… et révèlent ce qui bouge.'),
   toy_horn: U('jouets', 'Trompette jouet', 'Clic gauche pour souffler dedans.'),

@@ -6,7 +6,7 @@
 // qui les a posés. Un seul mesh fusionné par magasin, une seule texture pour tout le centre.
 import * as THREE from 'three';
 import { ITEMS } from '../data/items.js';
-import { GLOBAL_UNIFORMS } from '../engine/materials.js';
+import { patchZone } from '../engine/materials.js';
 
 const AW = 1024, AH = 512;
 const TAG = { std: 0, promo: 1, choc: 2, lot: 3, nouveau: 4, pick: 5 }; // fonds d'étiquette 256 × 96
@@ -69,20 +69,13 @@ function getAtlas() {
   return atlas;
 }
 
-// Matériau par zone : la lumière d'ambiance du magasin (uniform zoneLight de la bibliothèque) et l'éclairage infrarouge
-// des caméras s'appliquent aussi aux étiquettes. Faces avant seulement : chaque quad est orienté vers qui le regarde.
+// Matériau par zone, passé par le patch de la bibliothèque : lumière d'ambiance du magasin, infrarouge des caméras,
+// masque des lumières du pool, part directe pour la SSAO. Faces avant seulement : chaque quad est orienté vers qui le regarde.
 const mats = new Map();
 function zoneMaterial(game, zone) {
   let m = mats.get(zone); if (m) return m;
   m = new THREE.MeshStandardMaterial({ map: getAtlas().tex, vertexColors: true, alphaTest: 0.5, roughness: 0.55, metalness: 0 });
-  const zu = game.mats?.zoneUniform?.(zone);
-  if (zu) {
-    m.onBeforeCompile = (sh) => {
-      sh.uniforms.zoneLight = zu; sh.uniforms.irBoost = GLOBAL_UNIFORMS.irBoost;
-      sh.fragmentShader = 'uniform vec3 zoneLight;\nuniform float irBoost;\n' + sh.fragmentShader.replace('#include <lights_fragment_end>', '#if defined( RE_IndirectDiffuse )\n\tirradiance += zoneLight + vec3(irBoost);\n#endif\n#include <lights_fragment_end>');
-    };
-    m.customProgramCacheKey = () => 'shelflabel-zl';
-  }
+  if (game.mats?.zoneUniform) patchZone(m, game.mats.zoneUniform(zone));
   mats.set(zone, m);
   return m;
 }

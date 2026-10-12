@@ -61,6 +61,8 @@ const PROMOS = [['PROMO', '-30 %'], ['NOUVEAU', null], ['PRIX CHOC', null], ['2 
 // Formes empilables (dessus plat) et pile maximale propre à la forme
 const STACK = { pbox: 3, pcan: 3, pcase: 2, pshoebox: 4, pfold: 3, ppile: 2, ptray: 2, labelbox: 3, prolls: 2 };
 const FLOOR_SHAPES = new Set(['phang']);
+// Magasins où des articles traînent au sol volontairement (jetons perdus près des bornes, pop-corn renversé)
+const LOOSE_FLOOR = new Set(['arcade', 'cinema']);
 
 const _q = new THREE.Quaternion(), _e = new THREE.Euler();
 
@@ -135,7 +137,9 @@ class Stocker {
       const d = pr.def; if (d.fixed || !pr.home) continue;
       const hy = d.s[1] / 2 + 0.002;
       const on = this.boards.some((b) => !(b.noLabels && b.zone === this.s.id) && Math.abs(pr.home.y - (b.y + hy)) < 0.012 && (b.ax === 'x' ? Math.abs(pr.home.z - b.c) < 0.012 && pr.home.x > b.a0 - 0.06 && pr.home.x < b.a1 + 0.06 : Math.abs(pr.home.x - b.c) < 0.012 && pr.home.z > b.a0 - 0.06 && pr.home.z < b.a1 + 0.06));
-      if (!on) continue;
+      // articles que placeContents a dû poser par terre faute de place (petits, hors présentoirs de sol) : à ranger aussi
+      const loose = !on && z === this.s.id && !LOOSE_FLOOR.has(this.s.id) && !FLOOR_SHAPES.has(d.shape) && d.s[1] < 0.6 && Math.max(d.s[0], d.s[2]) < 0.9 && Math.abs(pr.home.y - (this.floorY + hy)) < 0.012;
+      if (!on && !loose) continue;
       if (!pool.has(pr.defId)) pool.set(pr.defId, []); pool.get(pr.defId).push(pr); this.poolCount++;
     }
     this.pinLeft = new Map([...pool].map(([id, l]) => [id, l.length]));
@@ -405,9 +409,27 @@ class Stocker {
     for (const [k, list] of this.pool) if (k.startsWith('#stray')) for (const pr of list) this.floorStray(pr);
   }
   floorStray(pr) {
+    if (this.zb && !this.prods.find((q) => q.id === pr.defId)?.unique && this.backFloor(pr)) return; // objets uniques : restent dans la boutique
     const sp = this.floorSpots.length ? this.floorSpots[(this.R.next() * this.floorSpots.length) | 0] : null, z = this.zf;
     const x = sp ? sp.x + (this.R.next() - 0.5) * 0.5 : (z.min[0] + z.max[0]) / 2 + (this.R.next() - 0.5) * 3, zz = sp ? sp.z + (this.R.next() - 0.5) * 0.5 : (z.min[2] + z.max[2]) / 2 + (this.R.next() - 0.5) * 2;
     this.relocate(pr, x, this.floorY + pr.def.s[1] / 2 + 0.002, zz, this.R.next() * 6, sp?.zone || this.s.id);
+  }
+  // Réserve : rangées au sol le long de la cloison (produits en attente de mise en rayon), entre les cartons de stock
+  // (à gauche) et le bureau / la porte (à droite) ; deux rangées au plus, puis retour au comportement par défaut
+  backFloor(pr) {
+    const c = this.ctl, d = pr.def, sg = c.sg, x0 = c.x0 + 3.1, x1 = c.x1 - 2.8;
+    if (x1 - x0 < 0.5) return false;
+    const rot = d.s[2] > d.s[0] + 0.02, ex = rot ? d.s[2] : d.s[0], ez = rot ? d.s[0] : d.s[2];
+    this.bf ||= [0, 0];
+    for (let r = 0; r < 2; r++) {
+      if (r > 0 && ez > 0.5) break;
+      if (this.bf[r] + ex + 0.03 > x1 - x0) continue;
+      const x = x0 + this.bf[r] + ex / 2 + 0.015, z = c.zP + sg * (0.14 + r * 0.55 + ez / 2);
+      this.bf[r] += ex + 0.03 + this.R.next() * 0.02;
+      this.relocate(pr, x, this.floorY + d.s[1] / 2 + 0.002, z, (rot ? Math.PI / 2 : 0) + (this.R.next() - 0.5) * 0.12, this.s.id + '_back');
+      return true;
+    }
+    return false;
   }
   // Présentoirs ouverts posés ailleurs (sol, tables) par placeContents : contenu initial aussi
   openDisplays() {
