@@ -190,7 +190,7 @@ export class Game {
     const L = this.entities?.list; if (!L || !who) return null;
     const w = String(who).toLowerCase().trim(), c = this.camera.position;
     const role = /braqueur|parking/.test(w) ? 'robber' : /^polic/.test(w) ? 'police' : /^pompier/.test(w) ? 'fireman' : /^livreur/.test(w) ? 'visitor' : /^gérard/.test(w) ? 'gerard' : /^client/.test(w) ? 'shopper' : null;
-    let best = null, bd = 60;
+    let best = null, bd = Infinity; // même très loin : il parle de là-bas (voix muette), pas dans l'oreille du joueur
     for (const e of L.values()) {
       if (!e.pos || e.camOnly) continue;
       if (role) { if (e.type !== role || (role === 'shopper' && !!e.o?.f !== (w === 'cliente'))) continue; }

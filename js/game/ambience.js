@@ -13,9 +13,11 @@
 // rétracte, un tuyau… ; les bruits secs (porte, choc sourd, coups qui pourraient être des pas) n'arrivent qu'avec la
 // tension. Le moteur baisse légèrement l'ambiance pendant qu'un personnage parle (Audio.duck).
 // Niveaux visés à la nuit, mesurés par Audio.meter() (sortie, efficace moyen des deux canaux / crête, au calme : 1 h du
-// matin, nuit 1, stress nul) : couloir de service ≈ -45 dBFS (crêtes < -33), galerie ≈ -45, poste de sécurité ≈ -52
-// (ronronnement à peine perceptible), parking ≈ -44, toit et parvis ≈ -48 (grondement grave, presque le silence).
-// Jour : poste ≈ -50, atrium avec la fontaine ≈ -32, parvis ≈ -42. Le stress au maximum remonte le fond de ~6 dB.
+// matin, nuit 1, stress nul) : couloir de service ≈ -43 dBFS (crêtes ≈ -29), galerie ≈ -43, poste de sécurité ≈ -54
+// (ronronnement à peine perceptible), rampe du parking ≈ -42, toit et parvis ≈ -46 (grondement grave, presque le
+// silence), fontaine en marche à 6 m ≈ -34. Jour : poste ≈ -49, galerie ≈ -31, atrium avec la fontaine ≈ -30, parvis
+// ≈ -39. Repères : pas du joueur en marchant ≈ -35 (crêtes -12), voix proche ≈ -27 (crêtes -7). Le stress remonte le
+// fond (jusqu'à +5 dB) et fait passer le cœur et le souffle au premier plan.
 const TAU = Math.PI * 2, clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 // bruits ponctuels selon le lieu d'où ils viennent : [son, poids]
 const SHOTS = {
@@ -88,8 +90,8 @@ export class Ambience {
     const g = this.game, t = zone?.type, id = zone?.id || '', w = this.env.weather, T = {}, S = (n, v, p) => { if (v > 0.001) T[n] = [v, p]; };
     const gal = t === 'atrium' || zone?.circuit === 'gallery', svc = !gal && (t === 'corridor' || t === 'backroom');
     S('hvac', !outdoor && t !== 'vent' && g.power?.isOn('hvac') ? (t === 'security' ? 0.016 : svc ? 0.1 : 0.05) : 0); // poste : un souffle à peine
-    S('wind', outdoor ? 0.025 + (w === 'storm' ? 0.05 : 0) : t === 'vent' ? 0.03 : 0, { strength: w === 'storm' ? 1 : 0.35, deep: outdoor ? 1 : 0 });
-    S('distant_traffic', outdoor ? 0.04 : id === 'entrance' ? 0.015 : id === 'ramp' ? 0.03 : t === 'atrium' ? 0.01 : 0);
+    S('wind', outdoor ? 0.02 + (w === 'storm' ? 0.05 : 0) : t === 'vent' ? 0.03 : 0, { strength: w === 'storm' ? 1 : 0.35, deep: outdoor ? 1 : 0 });
+    S('distant_traffic', outdoor ? 0.03 : id === 'entrance' ? 0.015 : id === 'ramp' ? 0.025 : t === 'atrium' ? 0.01 : 0);
     const rain = w === 'rain' || w === 'storm';
     S('rain', rain ? (outdoor ? 0.35 : t === 'atrium' ? 0.2 : zone?.floor === 1 || id === 'entrance' ? 0.1 : 0.03) : 0, { intensity: w === 'storm' ? 1 : 0.5 });
     // brouhaha des clients : seulement là où il y a du monde (galeries, boutiques), discret, et selon le nombre de
@@ -97,7 +99,7 @@ export class Ambience {
     const crowd = g.story?.crowdLevel || 0;
     if (crowd > 0.01) {
       const shop = t === 'shop' || t === 'bigstore', cg = !shop && gal;
-      const place = cg ? 0.11 : shop ? 0.045 : t === 'corridor' || t === 'backroom' ? 0.01 : 0;
+      const place = cg ? 0.08 : shop ? 0.04 : t === 'corridor' || t === 'backroom' ? 0.01 : 0;
       let near = 0; const c = g.camera.position;
       for (const e of g.entities?.list?.values?.() || []) if (e.type === 'shopper' && e.pos && e.pos.distanceTo(c) < 18) near++;
       const k = Math.min(1, near / 5);
@@ -116,15 +118,15 @@ export class Ambience {
     const rainK = w === 'storm' ? 1 : w === 'rain' ? 0.6 : 0, windK = w === 'storm' ? 1 : w === 'rain' ? 0.5 : 0.25, hv = !!g.power?.isOn('hvac');
     const T = {}, S = (n, v, p) => { if (v > 0.001) T[n] = [v, p]; };
     if (outdoor) { // toit, parvis : presque le silence — un souffle grave, la rumeur sourde et lointaine de la ville
-      S('wind', 0.012 + (w === 'storm' ? 0.05 : rainK ? 0.01 : 0), { strength: 0.1 + 0.7 * windK, deep: 1 });
-      S('city_night', id === 'roof' ? 0.017 : 0.02); S('distant_traffic', id === 'roof' ? 0.008 : 0.012);
+      S('wind', 0.01 + (w === 'storm' ? 0.05 : rainK ? 0.01 : 0), { strength: 0.1 + 0.7 * windK, deep: 1 });
+      S('city_night', id === 'roof' ? 0.014 : 0.016); S('distant_traffic', id === 'roof' ? 0.007 : 0.01);
       if (rainK) S('rain', 0.3, { intensity: rainK > 0.8 ? 1 : 0.5 });
-      if (id === 'roof' && hv) S('hvac', 0.02); // groupes de traitement d'air du toit
+      if (id === 'roof' && hv) S('hvac', 0.01); // groupes de traitement d'air du toit
       return T;
     }
     const shop = t === 'shop' || t === 'bigstore' || (!!zone?.shop && t !== 'backroom'); // (le cinéma est de type atrium)
     const gal = !shop && (t === 'atrium' || zone?.circuit === 'gallery'), up = t === 'atrium' || zone?.floor === 1;
-    const RT = { security: 0.025, vent: 0.06, shop: 0.07, bigstore: 0.075, basement: 0.1, garage: 0.09, warehouse: 0.095, stairs: 0.085, toilets: 0.07 };
+    const RT = { security: 0.03, vent: 0.06, shop: 0.07, bigstore: 0.075, basement: 0.1, garage: 0.075, warehouse: 0.095, stairs: 0.085, toilets: 0.07 };
     S('room_tone', (id === 'b13' ? 0.25 : shop && t === 'atrium' ? 0.07 : RT[t] ?? 0.075) * (0.6 + 0.9 * I) * (0.65 + 0.35 * dk), { dark: dk, tension: I, air: hv && id !== 'b13' ? 1 : 0.1 }); // allumé : plus doux
     if (gal) { // galeries, atrium, hall : immense volume vide, verrière au-dessus
       S('hall_air', (t === 'atrium' ? 0.022 : 0.018) * (0.8 + 0.2 * dk));
@@ -132,10 +134,10 @@ export class Ambience {
     } else if (shop) { // boutique fermée : la galerie n'arrive qu'étouffée
       S('glass_roof', rainK ? 0.05 : 0.016, { rain: rainK, wind: windK, muffle: 1 });
       if (t === 'bigstore') { S('hall_air', 0.014); S('fridge_hum', 0.016); } // vitrines réfrigérées qui tournent toute la nuit
-    } else if (t === 'security') S('equipment_hum', 0.012); // l'endroit rassurant : le ronronnement du matériel, à peine perceptible
+    } else if (t === 'security') S('equipment_hum', 0.014); // l'endroit rassurant : le ronronnement du matériel, à peine perceptible
     else if (t === 'basement') { S('boiler_room', id === 'boiler' ? 0.05 : id === 'generator' ? 0.012 : 0.022); S('electric_hum', id === 'electrical' || id === 'generator' ? 0.02 : 0.009); }
     else if (t === 'garage') {
-      S('garage_air', 0.035); S('distant_traffic', id === 'ramp' ? 0.02 : 0.006);
+      S('garage_air', 0.028); S('distant_traffic', id === 'ramp' ? 0.016 : 0.006);
       if (id === 'ramp') { S('wind', 0.01, { strength: 0.25 + 0.6 * windK, deep: 1 }); if (rainK) S('rain', 0.12, { intensity: rainK }); }
     } else if (t === 'vent') S('vent_air', 0.045);
     else if (t === 'warehouse') { S('service_hum', 0.02); S('hall_air', 0.016); S('wind', 0.005, { strength: windK, deep: 1 }); }

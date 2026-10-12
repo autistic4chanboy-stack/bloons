@@ -107,18 +107,18 @@ const PAUSE = { com: 3.2, sem: 3.6, dot: 5.5, q: 5.5, x: 5, ell: 7.5 };
 // ── personnages ──
 // f0 (Hz), k (formants), step (s par lettre), vr (variation de hauteur, demi-tons), gruff (rugosité), clip (syllabes
 // sèches), wave ('g' glottale, 'b' brillante, 'q' carrée), whisper (chuchoté), chan ('pa'|'phone'|'radio'|'spk'), g (niveau)
-const MAN = { f0: 122, k: 1, step: 0.058, vr: 1.7, g: 1 }, WOMAN = { f0: 212, k: 1.15, step: 0.056, vr: 1.9, g: 0.95 };
+const MAN = { f0: 122, k: 1, step: 0.058, vr: 1.7, g: 0.9 }, WOMAN = { f0: 212, k: 1.15, step: 0.056, vr: 1.9, g: 0.7 };
 const P = {
-  gerard: { f0: 94, k: 0.9, step: 0.066, vr: 1.25, gruff: 0.5, g: 1.05 },
-  robber: { f0: 106, k: 0.95, step: 0.041, vr: 1, gruff: 0.18, clip: 0.25, g: 1 },
-  child: { f0: 318, k: 1.3, step: 0.05, vr: 2.4, wave: 'b', g: 0.9 },
-  official: { f0: 142, k: 1, step: 0.047, vr: 0.9, clip: 0.6, g: 1 },
-  announcer: { f0: 202, k: 1.12, step: 0.06, vr: 0.8, chan: 'pa', g: 1.15 },
-  parrot: { f0: 560, k: 1.5, step: 0.044, vr: 3.2, wave: 'b', squawk: 1, g: 0.8 },
+  gerard: { f0: 94, k: 0.9, step: 0.066, vr: 1.25, gruff: 0.5, g: 1 },
+  robber: { f0: 106, k: 0.95, step: 0.041, vr: 1, gruff: 0.18, clip: 0.25, g: 1.45 },
+  child: { f0: 318, k: 1.3, step: 0.05, vr: 2.4, wave: 'b', g: 1.35 },
+  official: { f0: 142, k: 1, step: 0.047, vr: 0.9, clip: 0.6, g: 1.1 },
+  announcer: { f0: 202, k: 1.12, step: 0.06, vr: 0.8, chan: 'pa', g: 1.05 },
+  parrot: { f0: 560, k: 1.5, step: 0.044, vr: 3.2, wave: 'b', squawk: 1, g: 1.25 },
   robot: { f0: 138, k: 1, step: 0.06, vr: 0, wave: 'q', clip: 0.3, g: 0.75 },
-  creepy: { f0: 0, k: 1.05, step: 0.072, vr: 0, whisper: 1, g: 0.6 },
-  old: { f0: 188, k: 1.1, step: 0.066, vr: 2.1, trem: 1, g: 0.9 },
-  doll: { f0: 360, k: 1.32, step: 0.058, vr: 1.2, wave: 'b', chan: 'spk', g: 0.8 },
+  creepy: { f0: 0, k: 1.05, step: 0.072, vr: 0, whisper: 1, g: 1.15 },
+  old: { f0: 188, k: 1.1, step: 0.066, vr: 2.1, trem: 1, g: 0.8 },
+  doll: { f0: 360, k: 1.32, step: 0.058, vr: 1.2, wave: 'b', chan: 'spk', g: 1.1 },
 };
 const FEM = ['mme', 'madame', 'mademoiselle', 'maman', 'dame', 'cliente', 'sandrine', 'nadia', 'claire', 'lucie', 'josiane', 'opératrice', 'horloge', 'morel', 'lefèvre', 'vasseur', 'masque', 'message', 'enceinte', 'infirmière', 'mère', 'fille'];
 const has = (w, list) => list.some((x) => w.includes(x));
@@ -157,12 +157,13 @@ function res(ctx) {
   const wave = (fn, n = 28) => { const re = new Float32Array(n + 1), im = new Float32Array(n + 1); for (let h = 1; h <= n; h++) im[h] = fn(h); return ctx.createPeriodicWave(re, im); };
   const nb = ctx.createBuffer(1, Math.round(ctx.sampleRate * 1.5), ctx.sampleRate), d = nb.getChannelData(0), r = rng(0x5EED);
   for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1;
-  const cv = new Float32Array(257); for (let i = 0; i < 257; i++) { const x = i / 128 - 1; cv[i] = Math.tanh(2.2 * x) / Math.tanh(2.2); }
+  const cv = new Float32Array(257); for (let i = 0; i < 257; i++) { const x = i / 128 - 1; cv[i] = Math.tanh(2.2 * x) / 2.2; } // gain unité à bas niveau, seules les crêtes s'écrasent
   R = { ctx, g: wave((h) => Math.pow(h, -1.15) * (h % 2 ? 1 : 0.85)), b: wave((h) => Math.pow(h, -0.85)), q: wave((h) => (h % 2 ? 1 / h : 0)), noise: nb, curve: cv };
   return R;
 }
-// niveau : une réplique à volume 1 sort vers −20 dBFS efficaces (mesuré), comme une voix proche
-const NORM = 2.4;
+// niveau : une réplique proche (volume 0,9) sort vers -27 dBFS efficaces, crêtes vers -7 (mesuré avec Audio.meter) ;
+// profils (g) et canaux (CH) égalisés au mesureur à ±1,5 dB : sono -26 (sortie de la sono), combiné -28, chuchotement -33
+const NORM = 0.38, CH = { phone: 1.1, radio: 1.6, spk: 1.2 };
 
 class Line {
   constructor(S, text, p, o) {
@@ -213,7 +214,7 @@ class Line {
     else { this.sp = Audio.spatial({ pos: o.pos || null, bus: 'voice', ref: 1000, maxDist: 1e5, occlude: false, rev: o.pos ? 0.8 : 0.6, volume: 1 }); dest = this.sp && this.sp.input; }
     if (!dest) { this.dispose(); this.alive = false; return; }
     out.connect(dest);
-    const vol = clamp(o.volume ?? 0.9, 0, 1.5) * p.g * NORM * S.volume;
+    const vol = clamp(o.volume ?? 0.9, 0, 1.5) * p.g * NORM * (CH[q] ?? 1) * S.volume;
     out.gain.setValueAtTime(0, t0 - 0.03); out.gain.linearRampToValueAtTime(vol, t0);
     // programmation : chaque unité à son instant, intonation de phrase (déclinaison, question qui monte, exclamation)
     const E = env.gain, Fq = whisper ? null : src.frequency, F1 = f1.frequency, F2 = f2.frequency, NA = namp.gain, NF = nbp.frequency, NQ = nbp.Q;
