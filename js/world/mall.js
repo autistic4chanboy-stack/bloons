@@ -12,6 +12,7 @@ import { Zone } from './world.js';
 import { Box, LAYER } from '../engine/physics.js';
 import { Door, Shutter, GlassPane, LightSwitch, Readable, Seat, Container, Locker, VentGrate } from './fixtures.js';
 import { buildShops, shopX, ventXForShop } from './shopbuilder.js';
+import { buildDecor } from './decor.js';
 import { SHOPS } from '../data/shops.js';
 import { posterTexture, signTexture, buildingFacade, textTexture } from '../engine/textures.js';
 import { RNG } from '../engine/rng.js';
@@ -165,7 +166,7 @@ export function buildMall(world) {
     const zn = x < -24 ? 'gallery0_w' : x > 24 ? 'gallery0_e' : 'atrium';
     dev('bench', zn, x, 0.225, z, ry);
   }
-  for (const [x, z] of [[-34, 0], [34, 0], [-60, 3], [60, -3]]) dev('trash_can', x < 0 ? 'gallery0_w' : 'gallery0_e', x, 0.4, z, 0, { contents: ['banana_peel', 'newspaper'] });
+  for (const [x, z] of [[-28.5, 5.2], [28.5, -5.2]]) dev('trash_can', x < 0 ? 'gallery0_w' : 'gallery0_e', x, 0.4, z, 0, { contents: ['banana_peel', 'newspaper'] });
   for (const [x, z, ry] of [[-31, -4.7, 0], [31, 4.7, Math.PI], [-52, 4.7, Math.PI], [52, -4.7, 0], [-38, 4.7, Math.PI], [38, -4.7, 0]]) dev('bench', x < 0 ? 'gallery1_w' : 'gallery1_e', x, 5.225, z, ry);
   dev('massage_chair', 'gallery1_e', 60, 5.6, -5.5, Math.PI / 2);
   dev('water_fountain', 'gallery0_w', -64.5, 0.6, 6.5, Math.PI / 2);
@@ -357,6 +358,9 @@ export function buildMall(world) {
 
   // ═══════════════════════════ MAGASINS ═══════════════════════════
   buildShops(world, A, dev, rng);
+
+  // ═══════════════════════════ DÉCOR DES GALERIES ═══════════════════════════
+  buildDecor(world, A, dev, rng.fork ? rng.fork('decor') : rng);
 
   // ═══════════════════════════ EXTÉRIEUR ═══════════════════════════
   buildOutside(world, A, rng);
