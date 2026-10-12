@@ -279,19 +279,25 @@ export class UI {
       }
       if (floor === 0) { s += `<rect x="${sx(-76)}" y="${sz(-5)}" width="${10 * 3.3}" height="${10 * 3.3}" fill="#29b6f6" opacity="0.6"/><text x="${sx(-71)}" y="${sz(1)}" fill="#fff" font-size="6" text-anchor="middle">POSTE</text>`; s += `<rect x="${sx(-112)}" y="${sz(-25)}" width="${32 * 3.3}" height="${30 * 3.3}" fill="#795548" opacity="0.35"/><text x="${sx(-96)}" y="${sz(-10)}" fill="#fff" font-size="7" text-anchor="middle">ENTREPÔT</text>`; s += `<rect x="${sx(66)}" y="${sz(-8)}" width="${14 * 3.3}" height="${16 * 3.3}" fill="#ffb300" opacity="0.4"/><text x="${sx(73)}" y="${sz(1)}" fill="#fff" font-size="6" text-anchor="middle">ENTRÉE</text>`; }
       s += `<circle cx="${sx(0)}" cy="${sz(0)}" r="${3 * 3.3}" fill="#4fc3f7" opacity="0.4"/>`;
+      if (floor === 1) { // vide central (entre les passerelles) et aile administrative
+        for (const [a, b] of [[-61.5, -46.5], [-43.5, -28], [-24, 24], [28, 43.5], [46.5, 61.5]]) s += `<rect x="${sx(a)}" y="${sz(-4)}" width="${(b - a) * 3.3}" height="${8 * 3.3}" fill="#06080b" stroke="#2a3644" stroke-dasharray="2 2"/>`;
+        s += `<rect x="${sx(-76)}" y="${sz(-22)}" width="${10 * 3.3}" height="${35 * 3.3}" fill="#8d6e63" opacity="0.45"/><text x="${sx(-71)}" y="${sz(-4)}" fill="#fff" font-size="6" text-anchor="middle">ADMIN.</text>`;
+      }
+      if (floor === 0) s += `<rect x="${sx(66)}" y="${sz(-8)}" width="${14 * 3.3}" height="${16 * 3.3}" fill="#c9a227" opacity="0.35"/><text x="${sx(70.5)}" y="${sz(-5)}" fill="#fff" font-size="6" text-anchor="middle">HALL</text>`;
       s += `<rect x="${sx(-80)}" y="${sz(22)}" width="${160 * 3.3}" height="${3 * 3.3}" fill="#455a64"/><rect x="${sx(-80)}" y="${sz(-25)}" width="${160 * 3.3}" height="${3 * 3.3}" fill="#455a64"/>`;
     } else {
       s += `<rect x="${sx(-66)}" y="${sz(-24)}" width="${132 * 3.3}" height="${48 * 3.3}" fill="#263238"/><text x="${sx(0)}" y="${sz(0)}" fill="#cfd8dc" font-size="10" text-anchor="middle">PARKING</text>`;
       for (const [n, z0, z1] of [['Groupe', -24, -12], ['Électrique', -12, -2], ['Régie', -2, 6], ['Chaufferie', 6, 13]]) s += `<rect x="${sx(-76)}" y="${sz(z0)}" width="${10 * 3.3}" height="${(z1 - z0) * 3.3}" fill="#5d4037" opacity="0.6" stroke="#000"/><text x="${sx(-71)}" y="${sz((z0 + z1) / 2)}" fill="#fff" font-size="5" text-anchor="middle">${n}</text>`;
       s += `<rect x="${sx(-88)}" y="${sz(-10)}" width="${8 * 3.3}" height="${6 * 3.3}" fill="#000" stroke="#b71c1c"/><text x="${sx(-84)}" y="${sz(-6.5)}" fill="#e57373" font-size="5" text-anchor="middle">B-13</text>`;
     }
+    s += `<rect x="${sx(-55.2)}" y="${sz(1.5)}" width="${2.4 * 3.3}" height="${2.4 * 3.3}" fill="#b2ebf2" opacity="0.8"/><text x="${sx(-54)}" y="${sz(6.4)}" fill="#b2ebf2" font-size="5" text-anchor="middle">ascenseur</text>`;
     s += `<circle cx="${sx(p.x)}" cy="${sz(p.z)}" r="3.5" fill="#ff1744"><animate attributeName="r" values="3;5;3" dur="1s" repeatCount="indefinite"/></circle>`;
     return s + '</svg><p class="hint">Clic ou Échap pour fermer</p>';
   }
   mapText() {
     return 'REZ-DE-CHAUSSÉE (ouest → est)\nNord : ' + SHOPS.filter(s => s.floor === 0 && s.side === 'N').map(s => s.name).join(' · ') + '\nSud : ' + SHOPS.filter(s => s.floor === 0 && s.side === 'S').map(s => s.name).join(' · ') +
       '\n\nÉTAGE\nNord : ' + SHOPS.filter(s => s.floor === 1 && s.side === 'N').map(s => s.name).join(' · ') + '\nSud : ' + SHOPS.filter(s => s.floor === 1 && s.side === 'S').map(s => s.name).join(' · ') +
-      '\n\nPoste de sécurité : extrémité ouest du rez-de-chaussée. Hall d\'entrée : extrémité est. Escalators au centre (atrium). Escaliers de service aux deux bouts. Parking au sous-sol.';
+      '\n\nPoste de sécurité : extrémité ouest du rez-de-chaussée. Hall d\'entrée et accueil : extrémité est. Escalators de part et d\'autre de l\'atrium. Ascenseur panoramique : galerie ouest (parking, rez-de-chaussée, étage). Administration : bout ouest de l\'étage. Escaliers de service aux deux bouts. Parking au sous-sol.';
   }
 
   // ── écrans de fin / mort / résumé ──

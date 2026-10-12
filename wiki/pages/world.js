@@ -4,7 +4,7 @@ import {
   lighten, fmtInt, fmtEuro, norm, barList, skulls, unavailable, floorName, sideName, item, shop, nightByN,
 } from '../lib.js';
 import { USE_GROUPS, useInfo, EFFECTS, effectInfo, MATERIALS, matName, describeParams, ITEM_WHERE, ITEM_WHERE_SECRET } from '../behaviors.js';
-import { LAYOUTS, DOORS } from '../content.js';
+import { LAYOUTS, DOORS, SHOP_INTERIORS } from '../content.js';
 import { floorMaps, sectionSVG } from '../map.js';
 
 const setQuery = (base, params) => {
@@ -24,7 +24,7 @@ function shopFacts(s) {
     ['Surface', `${s.w * (W.D.SLOT_W || 12)} × 14 m`],
     ['Ouverture', html`<a href="#/histoire?at=nuit-${s.unlock || 1}">nuit ${s.unlock || 1}</a>`],
     ['Caméras', s.cams ? String(s.cams) : 'aucune'],
-    ['Agencement', LAYOUTS[s.layout] || s.layout || '—'],
+    ['Agencement', SHOP_INTERIORS[s.id] || LAYOUTS[s.layout] || s.layout || '—'],
     ['Accès', s.noShutter ? (DOORS[s.door] || 'Porte') : 'Rideau métallique (déverrouillé quand le magasin ouvre)'],
   ];
 }

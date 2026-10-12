@@ -1,17 +1,19 @@
 # Nuit Blanche — Centre Commercial Hélios
 
 Un jeu d'horreur à la première personne dans le navigateur : vous êtes le nouveau **gardien de nuit** d'un grand
-centre commercial de deux étages (plus de 30 boutiques, un hypermarché, un parking souterrain, un sous-sol technique,
-des conduits d'aération, un entrepôt et un toit). Caméras, téléphone, électricité, lampe torche… et des règles à
-apprendre, parce qu'à Hélios certaines choses ne bougent que quand personne ne regarde.
+centre commercial de deux étages coiffé d'une verrière sur toute la longueur des galeries (plus de 30 boutiques, un
+hypermarché, des kiosques, une aile administrative avec sa salle des coffres, un ascenseur panoramique, un parking
+souterrain, un sous-sol technique, des conduits d'aération, un entrepôt et un toit). Caméras, téléphone, électricité,
+lampe torche… et des règles à apprendre, parce qu'à Hélios certaines choses ne bougent que quand personne ne regarde.
 
 - **Mode histoire** : 10 nuits. La première commence en journée, au milieu des clients : on discute avec les
   commerçants, Gérard (l'ancien gardien) explique le poste, le centre ferme, la nuit tombe. Chaque nuit débloque des
   magasins, des zones et des outils. Plusieurs fins selon vos choix.
 - **Mode infini** : tout le centre ouvert dès le départ, des centaines d'événements aléatoires, des nuits de plus en
   plus dures. Score = nombre de nuits survécues.
-- **Bac à sable** : presque tout est manipulable (objets des rayons, appareils, tiroirs, vitrines, caisses, voitures du
-  parking, consoles et bornes d'arcade jouables, cassettes VHS, instruments…).
+- **Tout se manipule** : objets des rayons, appareils, tiroirs, vitrines, caisses, voitures du parking, consoles et
+  bornes d'arcade jouables, cassettes VHS, instruments, sonnette de l'accueil, conteneurs à fouiller… (et les portiques
+  antivol sonnent si l'on sort d'une boutique avec un article).
 - **Multijoueur coopératif** (jusqu'à 4 gardiens) avec un petit serveur Node.js fourni.
 
 Une nuit dure toujours **15 minutes réelles** (de 22 h à 6 h).

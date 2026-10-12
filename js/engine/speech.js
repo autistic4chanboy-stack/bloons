@@ -1,6 +1,6 @@
 // Voix (synthèse vocale du navigateur, française de préférence). Les sous-titres sont gérés par l'UI.
 export const Speech = {
-  voices: [], enabled: true, ready: false,
+  voices: [], enabled: true, ready: false, pending: 0,
   init() {
     if (!('speechSynthesis' in window)) { this.enabled = false; return; }
     const load = () => { this.voices = speechSynthesis.getVoices().filter(v => /^fr/i.test(v.lang)); this.ready = true; };
@@ -26,11 +26,15 @@ export const Speech = {
       u.lang = 'fr-FR';
       if (this.voices.length) u.voice = this.voices[pr.idx % this.voices.length];
       u.pitch = opts.pitch ?? pr.pitch; u.rate = opts.rate ?? pr.rate; u.volume = opts.volume ?? 0.9;
-      if (opts.interrupt) speechSynthesis.cancel();
+      // pas d'arriéré : au-delà de deux répliques en attente, on abandonne les plus anciennes (sinon des minutes de
+      // chuchotements s'empilent, et sans moteur vocal la file ne se vide jamais)
+      if (opts.interrupt || this.pending >= 2) { speechSynthesis.cancel(); this.pending = 0; }
+      u.onend = u.onerror = () => { this.pending = Math.max(0, this.pending - 1); };
+      this.pending++;
       speechSynthesis.speak(u);
     } catch (e) { /* pas de voix */ }
   },
-  stop() { try { speechSynthesis.cancel(); } catch (e) { /* */ } },
+  stop() { try { speechSynthesis.cancel(); this.pending = 0; } catch (e) { /* */ } },
   // durée estimée d'une réplique (pour les sous-titres)
   duration(text) { return Math.max(2.2, (text || '').length * 0.065 + 0.8); },
 };

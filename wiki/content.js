@@ -108,6 +108,23 @@ export const SECURITY_SECTIONS = [
   { id: 'alarms', title: 'Alarmes de magasin', feature: 'alarms', paras: [
     'Depuis la console, armez l\'alarme d\'un magasin : la sirène hurle si une vitre est brisée ou une porte forcée. Les cambrioleurs détestent ça.',
   ] },
+  { id: 'escalators', title: 'Escalators & arrêts d\'urgence', paras: [
+    'La console du poste met en marche ou arrête les escalators. Au pied de chacun, un **gros bouton rouge d\'arrêt d\'urgence** ([[key:E]]) les stoppe net — pratique quand quelque chose descend un peu trop vite vers vous. Pour les relancer, il faut retourner à la console.',
+  ] },
+  { id: 'elevator', title: 'Ascenseur panoramique', paras: [
+    'Une cabine vitrée monte et descend dans le vide de la galerie ouest : **parking**, **rez-de-chaussée** et **étage**. Appelez-la avec le bouton du palier, choisissez l\'étage dans la cabine. Les portes se referment seules au bout de quelques secondes (sauf si quelqu\'un est dans l\'encadrement).',
+    'Elle ne dessert que les niveaux déjà ouverts dans la nuit en cours. Et une cabine vitrée, ça se voit de loin… dans les deux sens.',
+  ] },
+  { id: 'gates', title: 'Portiques antivol', paras: [
+    'Les boutiques de détail ont des **portiques antivol** à l\'entrée. Franchissez-les avec un article du magasin et ils se mettent à biper, bandeau rouge clignotant : **tout ce qui rôde dans le centre l\'entend**. Les restaurants, le coiffeur, le cinéma et l\'arcade n\'en ont pas. Sans courant dans le magasin, les portiques restent muets.',
+  ] },
+  { id: 'admin', title: 'Aile administrative', paras: [
+    'Au bout de la galerie ouest, à l\'étage : accueil, salle de réunion, comptabilité, ressources humaines, marketing, infirmerie, reprographie, salle informatique, archives… et la **salle des coffres**, fermée par un digicode.',
+    'Les bureaux regorgent de papiers à lire : tableaux blancs, registres, notes oubliées. {{sp}}Le code de la salle des coffres traîne sur un post-it, en comptabilité. Les coffres eux-mêmes ont chacun leur code : l\'un est l\'année que vous connaissez déjà, l\'autre a été changé un 27 novembre.{{/sp}}',
+  ] },
+  { id: 'pa', title: 'Sonorisation', paras: [
+    'Le circuit **Sonorisation** alimente les haut-parleurs du centre : carillons, annonces… et parfois, au beau milieu de la nuit, **la sono se met à jouer toute seule**. Couper le circuit au tableau électrique la fait taire.',
+  ] },
   { id: 'phone', title: 'Téléphone & post-it', feature: 'phone', paras: [
     'Le téléphone fixe du bureau appelle n\'importe quel numéro. Le post-it collé à côté donne les numéros utiles (ci-dessous) ; les autres se trouvent en explorant — voir la page [[page:telephone|Téléphone]].',
   ] },
@@ -402,6 +419,8 @@ export const EASTER_EGGS = [
     text: () => 'Le [[item:vr_headset]] vous montre le centre commercial… en mieux ? Ou en pire.' },
   { hint: 'Ciné Hélios', title: 'Rang M, siège 13',
     text: () => 'Le [[item:ticket]] est imprimé pour ce soir, rang M, siège 13 — alors que vous n\'avez rien acheté. À 23 h, le projecteur lance parfois une « séance fantôme »… et quelqu\'un est assis au rang M.' },
+  { hint: 'Aile administrative', title: 'La salle des coffres',
+    text: () => 'Le post-it de Martine, en comptabilité, donne le code de la porte : **0412**. À l\'intérieur, deux coffres : le premier s\'ouvre avec **2711** (le code changé le 27/11, d\'après le registre), le second avec **1987**. L\'un contient la recette de la semaine… l\'autre, un « dossier 1987 ».' },
   { hint: 'Sous-sol', title: 'Le code 1987',
     text: (D) => 'L\'année où tout a commencé : **1987** est le code de la porte B-13.' + quote(D, 'year', 'Et si vous le composez au téléphone : ') },
 ];
@@ -506,6 +525,42 @@ export const LAYOUTS = {
   aisles: 'Rayonnages', walls: 'Étagères murales', food: 'Comptoir et salle', racks: 'Portants', cases: 'Vitrines',
   arcade: 'Salle d\'arcade', cinema: 'Salle de cinéma', salon: 'Salon', music: 'Instruments', pets: 'Animalerie',
   flowers: 'Étals de fleurs', office: 'Bureau', staff: 'Salle du personnel', toilets: 'Sanitaires', court: 'Espace ouvert',
+};
+// Intérieur de chaque boutique (disposition et ambiance), affiché sur sa fiche
+export const SHOP_INTERIORS = {
+  hyper: 'Caisses à l\'entrée, étals de fruits et légumes, longues gondoles en deux rangées, frigos le long du mur. Lumière blanche et froide.',
+  pharma: 'Parapharmacie le long des murs et en îlots à l\'entrée ; comptoir du pharmacien au fond, devant un mur de tiroirs à médicaments sous la croix verte.',
+  boulangerie: 'Vitrine réfrigérée de pâtisseries, panetières en bois derrière, carrelage métro et ardoise des prix. Mange-debout près de la vitrine.',
+  fleuriste: 'Tables de fleurs, seaux en zinc, briques blanchies et plafond en lattes de bois. Comptoir au fond.',
+  quincaillerie: 'Murs en panneaux perforés, deux longues allées de gondoles, casiers de visserie et bac de promotions à l\'entrée.',
+  animalerie: 'Aquariums sur meuble le long du mur, cages, terrarium, carrelage clair et murs couleur lagon.',
+  bijouterie: 'Vitrines basses crochetables en U, papier peint damassé bleu nuit, lambris et cimaise dorée, globes de verre.',
+  tabac: 'Comptoir en bois sombre devant le linéaire de tabac, présentoirs à journaux, stand de jeux à gratter, tourniquet de cartes postales. Murs rouges et lambris.',
+  cafe: 'Zinc avec tabourets rouges, arrière-bar à miroir, banquette et tables bistrot, mur de briques et plafond en bois.',
+  jouets: 'Gondoles colorées, pyramide de peluches, manège Bobby-Mobile, papier peint enfantin.',
+  electro: 'Murs de téléviseurs, îlots de petit électroménager, gros électroménager au fond ; plafond technique noir et mur de béton.',
+  pixel: 'Bornes de démonstration, murs aux néons zigzag, plafond noir : la boutique la plus sombre du rez-de-chaussée.',
+  videoclub: 'Murs de cassettes, comptoir des nouveautés, papier peint rayé or et prune, damier au sol.',
+  librairie: 'Bibliothèques en bois sombre du sol au plafond, tables des nouveautés, coin lecture avec tapis, fauteuils et lampadaire.',
+  mobizone: 'Grandes tables en chêne pour les téléphones, accessoires aux murs, comptoir de service sous l\'enseigne lumineuse.',
+  opticien: 'Murs de montures, bureaux de conseil avec miroir, salle d\'examen au fond (avec le tableau d\'acuité).',
+  parfumerie: 'Sol en marbre, papier peint damassé noir et or, îlots blancs, comptoir de beauté devant un miroir, suspensions dorées.',
+  mode: 'Portants, tables de pliés, cabines d\'essayage, mannequins en vitrine ; plafond noir apparent et mur en lames de bois.',
+  chaussures: 'Murs de chaussures en chêne clair, podiums bas, banc d\'essayage sur un tapis, miroir au ras du sol.',
+  sport: 'Murs rainurés, portants, bac à ballons, tente de démonstration, vélos en vitrine et panier de basket ; plafond technique noir.',
+  instruments: 'Pianos le long du mur, batterie sur une estrade, guitares ; mousse acoustique et lambris.',
+  costumes: 'Velours violet, portants de déguisements, cabines d\'essayage et mannequins.',
+  coiffeur: 'Fauteuils face aux miroirs, bacs à shampooing, carrelage blanc et murs roses.',
+  photo: 'Comptoir et bornes d\'impression, mur de cadres, studio avec fond blanc et réflecteurs, photomaton.',
+  deco: 'Salon d\'exposition (canapé, tapis, table basse), coin salle à manger, suspensions dépareillées, papier peint fleuri, lumière tamisée.',
+  arcade: 'Bornes le long des murs, air-hockey, machines à pinces ; néons et pénombre.',
+  pizzeria: 'Comptoir, four à pizza à coupole, murs de briques, carrelage terre cuite et bandeau tricolore, tables nappées de rouge.',
+  burger: 'Comptoir rouge sous des menus rétroéclairés, box à banquettes, damier noir et blanc.',
+  sushi: 'Bar à sushis avec tapis roulant et tabourets, cloisons en papier et lattes de bois, lanternes, table basse sur tapis.',
+  cinema: 'Hall avec comptoir et pop-corn, puis la salle : treize rangs de fauteuils rouges face à l\'écran.',
+  glacier: 'Vitrine de bacs à glaces, papier peint rayé pastel, suspensions pastel, petites tables.',
+  bonbons: 'Bacs de bonbons en vrac en gradins, bocaux, sucettes géantes au mur, rayures roses et blanches.',
+  octet: 'Établis de démonstration, panneau perforé d\'accessoires, gondole de câbles, comptoir de réparation au fond.',
 };
 export const DOORS = {
   locked: 'Porte verrouillée (passe-partout du directeur)', keys: 'Porte (trousseau du gardien)', open: 'Porte ouverte',

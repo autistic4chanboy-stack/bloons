@@ -2,6 +2,7 @@
 // régie d'annonces (voix, carillon, musique diffusée dans tout le centre), disjoncteurs et fusibles.
 import * as THREE from 'three';
 import { Net } from '../net/net.js';
+import { Audio } from '../engine/audio.js';
 
 export class Alarms {
   constructor(game) {
@@ -28,7 +29,7 @@ export class Alarms {
   get power() { return this.game.power; }
   reset() {
     for (const s of this.sirens.values()) s.stop(0.2); this.sirens.clear();
-    if (this.paMusic) { this.paMusic.stop(0.5); this.paMusic = null; }
+    if (this.paMusic) { this.paMusic.stop(0.5); this.paMusic = null; } clearTimeout(this._paT);
     this.applyFireBell(false); this.fireAlarmOn = false; this.fireAlarmT = 0;
   }
   // Hôte : déclenche l'alarme d'un magasin si elle est armée
@@ -68,13 +69,23 @@ export class Alarms {
     if (p.bell) { const b = g.loop('fire_bell', null, { volume: 0.5, bus: 'ambience' }); setTimeout(() => b.stop(0.3), 3000); return; }
     if (p.music !== undefined) {
       if (this.paMusic) { this.paMusic.stop(1); this.paMusic = null; }
-      if (p.music && p.music !== 'stop') this.paMusic = g.music(p.music, { volume: 0.32, bus: 'music' });
+      clearTimeout(this._paT);
+      if (p.music && p.music !== 'stop') {
+        const m = this.paMusic = g.music(p.music, { volume: p.creepy ? 0.3 : 0.32, bus: 'pa' }); // haut-parleurs du plafond
+        if (p.creepy) { // la sono qui s'allume toute seule : trop lente, désaccordée, coupée net
+          m.setParam?.('tempo', 0.86); m.setParam?.('detune', -70);
+          this._paT = setTimeout(() => { if (this.paMusic !== m) return; m.stop(0.04); this.paMusic = null; g.sfx('static_burst', null, { volume: 0.45, bus: 'ambience' }); }, (p.dur || 40) * 1000);
+        }
+      }
       return;
     }
     if (p.chime) { g.sfx('pa_chime', null, { volume: 0.7, bus: 'ambience' }); setTimeout(voice, 2600); } else voice();
   }
   update(dt) {
     const g = this.game;
+    // sonorisation : sans courant sur le circuit « pa », les haut-parleurs du plafond se taisent (chaque pair localement)
+    const paOn = g.power.isOn('pa');
+    if (paOn !== this._paOn) { this._paOn = paOn; try { Audio.setBusVolume('pa', paOn ? 1 : 0); } catch (e) { /* bus absent */ } }
     if (this.fireAlarmOn) { this.fireAlarmT -= dt; if (this.fireAlarmT <= 0 && !g.fire.active) { this.fireAlarmOn = false; g.sim.emit('firebell', { on: false }); for (const d of g.devices.kind('fire_alarm')) if (d.state.pulled) d.set({ pulled: false }); } }
     // détecteurs de fumée : feu actif → alarme générale
     if (g.fire.active && g.fire.maxSize() > 0.25 && !this.fireAlarmOn) this.fireAlarm(null, { zone: g.fire.zoneId() });

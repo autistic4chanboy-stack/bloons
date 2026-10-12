@@ -9,6 +9,12 @@ const Z_N = [8, 22];
 const Z_S = [-22, -8];
 const CORR = 3.5;           // largeur des couloirs de service
 const ATRIUM = [-24, 24];   // atrium (fontaine, escalators)
+// vide central de l'étage (entre les passerelles) et pièces de l'aile administrative (repère du jeu)
+const VOID_HOLES = [[-61.5, -46.5], [-43.5, -28], [-24, 24], [28, 43.5], [46.5, 61.5]];
+const ADMIN_ROOMS = [
+  ['Accueil', -70, 1, -66, 7], ['Réunion', -70, 7, -66, 13], ['Compta', -70, -7, -66, -1], ['Coffres', -70, -12, -66, -7], ['Archives', -70, -22, -66, -12],
+  ['Informatique', -76, 1, -72, 7], ['Repro', -76, 7, -72, 13], ['RH', -76, -7, -72, -1], ['Marketing', -76, -14, -72, -7], ['Infirmerie', -76, -22, -72, -14],
+];
 const f = (n) => Number(n.toFixed(2));
 
 function geom() {
@@ -101,15 +107,21 @@ export function floorSVG(floor, opts = {}) {
     out.push(`<circle cx="${f(fx)}" cy="${f(fy)}" r="3.2" class="m-fountain"/><circle cx="${f(fx)}" cy="${f(fy)}" r="1.4" class="m-fountain-in"/>`);
     out.push(text(0, -5.2, ['Fontaine'], 1.4, 'm-lbl-soft'));
   } else {
-    out.push(rect(ATRIUM[0] + 2, ATRIUM[1] - 2, -4.6, 4.6, 'class="m-void"'));
+    // vide central sur toute la longueur, coupé par les passerelles (sous la verrière)
+    for (const [x0, x1] of VOID_HOLES) out.push(rect(x0, x1, -4, 4, 'class="m-void"'));
     out.push(`<circle cx="${f(fx)}" cy="${f(fy)}" r="3.2" class="m-fountain ghost"/>`);
-    out.push(text(0, -3.1, ['Vide sur l\'atrium'], 1.4, 'm-lbl-soft'));
+    out.push(text(0, -2.6, ['Vide sur l\'atrium'], 1.4, 'm-lbl-soft'));
+    out.push(text(-36, -2.6, ['Vide'], 1.1, 'm-lbl-faint')); out.push(text(36, -2.6, ['Vide'], 1.1, 'm-lbl-faint'));
   }
-  for (const [x0, x1, z0, z1] of [[-16, -6, 1.3, 3.1], [6, 16, -3.1, -1.3]]) {
+  // ascenseur panoramique (galerie ouest : parking, RDC, étage)
+  out.push(rect(-55.2, -52.8, 1.5, 3.9, 'class="m-esc"'));
+  out.push(text(-54, 5.4, ['Ascenseur'], 1.1, 'm-lbl-faint'));
+  // deux paires d'escalators de part et d'autre de l'atrium (montée vers l'ouest et vers l'est)
+  for (const [x0, x1, z0, z1] of [[-24, -15, -2.6, -0.6], [-24, -15, 0.6, 2.6], [15, 24, -2.6, -0.6], [15, 24, 0.6, 2.6]]) {
     out.push(rect(x0, x1, z0, z1, 'class="m-esc"'));
   }
-  out.push(text(-11, 4.6, ['Escalator'], 1.2, 'm-lbl-faint'));
-  out.push(text(11, -4.6, ['Escalator'], 1.2, 'm-lbl-faint'));
+  out.push(text(-19.5, 4.2, ['Escalators'], 1.2, 'm-lbl-faint'));
+  out.push(text(19.5, -4.2, ['Escalators'], 1.2, 'm-lbl-faint'));
   out.push(text(X0 + 15, 0, ['GALERIE'], 1.7, 'm-lbl-gal'));
   out.push(text(X1 - 15, 0, ['GALERIE'], 1.7, 'm-lbl-gal'));
 
@@ -121,6 +133,17 @@ export function floorSVG(floor, opts = {}) {
     out.push(text((HALL[0] + HALL[1]) / 2, 0, ['Hall', 'd\'entrée'], 1.8, 'm-lbl-room'));
     const [d1x, d1y] = P(HALL[1], -4.5), [d2x, d2y] = P(HALL[1], 4.5);
     out.push(`<line x1="${f(d1x)}" y1="${f(d1y)}" x2="${f(d2x)}" y2="${f(d2y)}" class="m-doors"/>`);
+  }
+
+  // Aile administrative (étage, au bout de la galerie ouest)
+  if (floor === 1) {
+    out.push(rect(-76, -66, -22, 13, 'class="m-hall"'));
+    out.push(rect(-72, -70, -22, 13, 'class="m-corr"'));
+    for (const [name, x0, z0, x1, z1] of ADMIN_ROOMS) {
+      out.push(rect(x0 + 0.2, x1 - 0.2, z0 + 0.2, z1 - 0.2, 'class="m-sec"'));
+      out.push(text((x0 + x1) / 2, (z0 + z1) / 2, wrap(name, 7), 0.75, 'm-lbl-room'));
+    }
+    out.push(text(-71, 15.2, ['Administration'], 1.3, 'm-lbl-soft'));
   }
 
   // Boutiques

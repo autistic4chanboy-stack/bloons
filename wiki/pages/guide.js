@@ -243,6 +243,7 @@ export function fxText(e) {
     case 'shadow': return 'Une silhouette apparaît' + where + (e.cam ? ' (sur les caméras)' : '');
     case 'cart_roll': return 'Un caddie roule tout seul' + where;
     case 'pa': return 'Le carillon des annonces retentit' + (e.line ? ` : « ${e.line} »` : '… puis rien');
+    case 'pa_music': return 'La sono du centre se met à jouer toute seule' + ({ muzak: ' : une musique d\'ambiance de galerie marchande', xmas: ' : des chants de Noël', music_box_wrong: ' : une boîte à musique désaccordée' }[e.style] || '') + ', puis s\'étouffe dans un grésillement' + durTxt(e.dur);
     case 'tv_message': return `Les écrans affichent « ${[].concat(e.text).join(' / ')} »` + where;
     case 'mannequin_pose': return 'Les mannequins changent de pose' + where;
     case 'police_patrol': return 'Une patrouille de police passe devant le centre';

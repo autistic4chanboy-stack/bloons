@@ -81,6 +81,7 @@ const DEV = [
   ['vcr', 'Magnétoscope', 4, 'videoclub', 'vcr', 'Le magnétoscope du vidéo-club se met en lecture.', 2],
   ['turntable', 'Platine vinyle', 4, 'videoclub', 'turntable', 'La platine du vidéo-club joue un vieux disque, trop lentement.', 2],
   ['piano', 'Piano fantôme', 5, 'instruments', 'piano', 'Le piano joue quelques notes. « Au clair de la lune ».', 3],
+  ['piano_atrium', 'Piano de l\'atrium', 3, 'gallery0', 'piano', 'Le piano en libre-service de l\'atrium joue « Au clair de la lune » dans le centre désert.', 3],
   ['drums', 'Batterie', 5, 'instruments', 'drums', 'Un coup de cymbale, puis la grosse caisse, lente, comme un cœur.', 2],
   ['metronome', 'Métronome', 5, 'instruments', 'metronome', 'Un métronome se met à battre la mesure.', 1],
   ['printer_octet', 'Imprimante', 9, 'octet', 'printer', 'L\'imprimante imprime une page. Il est écrit : « JE TE VOIS ».', 2],
@@ -176,6 +177,10 @@ t('boiler', 'Chaudière', 'basement', 7, 1, 1, 'La chaudière cogne violemment.'
 t('b13_knock', 'On frappe à B-13', 'basement', 7, 1, 3, 'Quelqu\'un frappe de l\'intérieur de la porte murée B-13.', [{ fx: 'sound', sound: 'knock_triple', where: 'b13' }]);
 t('b13_music', 'Comptine derrière la porte', 'basement', 7, 1, 3, 'Une boîte à musique joue derrière la porte B-13.', [{ fx: 'sound', sound: 'music_box', where: 'b13', dur: 20 }]);
 t('pa_feedback', 'Larsen', 'basement', 7, 1, 1, 'Le micro de la régie siffle dans tous les haut-parleurs.', [{ fx: 'pa', feedback: true }]);
+// La sono se met à jouer toute seule (seule musique « automatique » du jeu) : déformée, puis coupée net
+t('pa_music', 'La sono s\'allume', 'basement', 2, 1, 2, 'La sono du centre se met à jouer une musique d\'ambiance, trop lente, dans tous les haut-parleurs… puis se coupe net.', [{ fx: 'pa_music', style: 'muzak', dur: 40 }]);
+t('pa_music_xmas', 'Chant de Noël', 'basement', 5, 0.4, 2, 'Un chant de Noël grésille dans les haut-parleurs. Le centre est vide.', [{ fx: 'pa_music', style: 'xmas', dur: 30 }]);
+t('pa_music_box', 'Boîte à musique au micro', 'basement', 8, 0.4, 3, 'Une boîte à musique joue dans tous les haut-parleurs du centre, de plus en plus lentement.', [{ fx: 'pa_music', style: 'music_box_wrong', dur: 35 }]);
 t('gen_cough', 'Groupe qui tousse', 'basement', 7, 1, 1, 'Le groupe électrogène tousse et crache.', [{ fx: 'sound', sound: 'generator_fail', where: 'generator' }]);
 const PA_LINES = [
   'Le centre commercial Hélios ferme ses portes. Merci de vous diriger vers la sortie.',

@@ -118,7 +118,7 @@ export class EventSystem {
       case 'garage_gate': return W.points.garageGate.clone().setY(-3);
       case 'generator': return W.points.generator.clone().setY(-3.5);
       case 'entrance_glass': return new THREE.Vector3(80.6, 1.6, R() * 10 - 5);
-      case 'skylight': return new THREE.Vector3(R() * 40 - 20, 11.6, R() * 6 - 3);
+      case 'skylight': return new THREE.Vector3(R() * 120 - 60, 13.2, R() < 0.5 ? -0.9 : 0.9); // debout sur la verrière, près du faîtage
       case 'escalator': return new THREE.Vector3(-20, 2.5, -1.6);
       case 'cinema_seat': return W.points.rowM13?.clone() || new THREE.Vector3();
       case 'mirror': return W.points.toiletMirror?.clone() || p.pos.clone();
@@ -131,7 +131,8 @@ export class EventSystem {
     const W = this.g.world;
     if (where === 'all') return W.zones.map(z => z.id);
     if (where === 'gallery_wave') return ['gallery0_e', 'atrium', 'gallery0_w', 'security'];
-    const z = this.zoneOf(where); if (!z) return [];
+    const z = this.zoneOf(where);
+    if (!z) { const id = String(where).replace(/^(zone|shop):/, ''); return W.zones.filter(q => q.area === id).map(q => q.id); } // secteur (gallery0…) : toutes ses zones
     const out = [z.id]; if (z.shop && W.zone(z.shop + '_back')) out.push(z.shop + '_back');
     if (z.id === 'gallery0' || z.id.startsWith('gallery0')) out.push('atrium');
     return out;
@@ -245,6 +246,7 @@ const PRIM = {
   shutter(ev, f) { const z = ev.zoneOf(f.where); const sh = z?.shop && ev.g.world.shops[z.shop]?.shutter; if (sh) sh.set({ target: f.to ?? 0.7 }); },
   phone(ev, f) { ev.g.phone.incoming(f.caller); },
   pa(ev, f) { ev.g.sim.emit('pa', { chime: f.chime, text: f.line || '', feedback: f.feedback, child: f.child, system: true }); },
+  pa_music(ev, f) { const g = ev.g; if (!g.power.isOn('pa')) return; g.sim.emit('pa', { music: f.style || 'muzak', creepy: true, dur: f.dur || 40 }); },
   shadow(ev, f) { ev.g.entities.apparition({ pos: ev.pos(f.where || 'player_far'), dur: f.dur || 3, cam: !!f.cam, eyes: !!f.eyes, where: f.where }); },
   cam_glitch(ev, f) { ev.g.security.glitch(f.dur || 3, f.figure); },
   cat(ev, f) { ev.g.entities.catAct(f.act || 'meow', ev.zoneOf(f.where)?.id); },

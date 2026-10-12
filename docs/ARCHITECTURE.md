@@ -20,12 +20,15 @@ Audio.setListener(pos, forward, up) // THREE.Vector3-like {x,y,z}
 Audio.setReverbZone(type, fade=1.5) // 'security'|'shop'|'bigstore'|'backroom'|'atrium'|'corridor'|'garage'|'vent'
                                     // |'roof'|'basement'|'warehouse'|'stairs'|'toilets'|'outside'
 Audio.setOcclusionFn(fn)            // fn(pos) -> nombre de murs entre auditeur et source (0..n). Fourni par le jeu.
-Audio.play(name, opts) -> Handle    // one-shot. opts: {pos, volume=1, pitch=1, bus='sfx', occlude=true, ref=2, maxDist=60, ...params}
+Audio.play(name, opts) -> Handle    // one-shot. opts: {pos, volume=1, pitch=1, bus='sfx', occlude=true, ref=2, maxDist=60,
+                                    //   late (s : attente max de la synthèse avant abandon), ...params}
 Audio.loop(name, opts) -> Handle    // boucle. Handle: {setPos(v), setVolume(v, ramp=0.1), setParam(k,v), stop(fade=0.2), playing}
 Audio.dtmf(digit)                   // touche téléphone (fréquences DTMF réelles)
 Audio.note(instr, midi, opts)       // instr: 'piano'|'guitar'|'xylo'|'bell'|'organ'|'synth'|'musicbox'
 Audio.drum(kind, opts)              // 'kick'|'snare'|'hat'|'tom'|'crash'
-Audio.setBusVolume(bus, v)          // 'master'|'sfx'|'music'|'ambience'|'voice'|'ui'
+Audio.setBusVolume(bus, v)          // 'master'|'sfx'|'music'|'ambience'|'voice'|'ui'|'pa'
+Audio.output(bus) -> AudioNode      // entrée d'un bus ; 'pa' = haut-parleurs du plafond (mono, saturation douce,
+                                    // 250 Hz–5 kHz, cinq haut-parleurs décalés, queue de grand hall ; jamais spatialisé)
 Audio.setMuffle(amount)             // 0..1 filtre passe-bas global (ex : sous l'eau / étourdi / masque)
 Audio.update(dt)                    // met à jour occlusion/positions (appelé chaque frame)
 ```
@@ -49,6 +52,7 @@ Téléphone : `phone_ring (loop, sonnerie française 440 Hz), dial_tone (loop, 4
 Alarmes : `alarm_siren (loop), car_alarm (loop), smoke_alarm (loop), shop_alarm (loop), fire_bell (loop)`
 Feu : `fire_crackle (loop, param size 0..1), fire_whoosh, extinguisher (loop), sprinkler (loop), smoke_hiss`
 Électricité/bâtiment : `generator (loop, param rpm 0..1), generator_start, generator_fail, generator_stop, electric_hum (loop, 50 Hz + harmoniques), fluorescent_buzz (loop), neon_flicker, hvac (loop), escalator (loop), fountain (loop), elevator_ding, water_drip, pipe_knock, building_creak`
+Nuit (bâtiment) : `room_tone (loop, params dark/tension/air 0..1), hall_air, glass_roof (params rain/wind/muffle), service_hum, boiler_room, garage_air, vent_air, equipment_hum` (boucles) ; ponctuels lointains : `amb_creak, amb_tick, amb_thud, amb_door, amb_pipe, amb_knock, amb_glass, amb_vent, amb_far` (pilotés par `js/game/ambience.js` selon la zone, l'heure, la nuit et le stress ; aucune musique de fond)
 Extérieur : `wind (loop, param strength), rain (loop, param intensity), thunder, distant_traffic (loop), dog_bark_far, owl, city_night (loop)`
 Foule/jour : `crowd (loop, param density), cart_roll (loop), baby_cry, laugh, pa_chime, pa_chime_end`
 Horreur : `whisper, breath (loop), heartbeat (loop, param bpm), scream, jumpscare, stinger, drone (loop, param tension 0..1), creak, knock, knock_triple, scratch, footsteps_distant, footstep_heavy, giggle, music_box_wrong, static_burst, low_boom, metal_screech, vent_crawl (loop), vent_bang, breathing_heavy, door_rattle, thud`
@@ -116,6 +120,39 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   ou près d'un vide (`void: true`, l'atrium : 10 m, ou 45 m s'il est dans le champ de `cam`).
 - Depuis un magasin, les magasins mitoyens du même côté sont masqués ; une réserve ne se voit qu'à moins de 14 m.
 - Personnages : les pièces rigides de chaque segment sont fusionnées (couleurs par sommet, ~10 meshes par personnage).
+
+## Monde : construction (`js/world/`)
+- `mall.js` : architecture (galeries, vide central coupé de passerelles, verrière à deux pans, aile administrative,
+  parking, sous-sol, toit, couloirs de service), navigation, caméras fixes. Zones déclarées avant la géométrie ;
+  la géométrie statique est regroupée par (zone, matériau) par `Arch` (`arch.js`).
+- `shopbuilder.js` : coque et aménagement des boutiques ; `stocking.js` complète les rayons ; `shopfront.js` ajoute
+  les détails de façade (autocollants des vitrines sur une seule planche de texture, enfants des vitres : ils
+  disparaissent avec elles ; portiques antivol `TheftGate`).
+- `interiors.js` : intérieur propre à chaque boutique. `DESIGNS` (revêtements muraux par mur : enduit teinté, papiers
+  peints procéduraux `wp_<motif>_<couleurs>` — damassé, rayures, fleuri, art déco, enfantin, carrelage métro, panneau
+  perforé ou rainuré, velours, mousse acoustique, néons, cloison japonaise, pois, brique blanchie —, soubassement et
+  cimaise, plafond, plafond technique apparent, teinte et intensité de la lumière) et `INTERIOR_LAYOUTS`
+  (disposition des comptoirs, rayonnages, mobilier et accessoires). Les papiers peints passent par la bibliothèque de
+  matériaux (`installInteriorMaterials`), donc par l'éclairage de zone. Règle d'aménagement : l'allée d'entrée, l'allée
+  transversale (v ≈ 4,5 m) et le couloir de droite vers la réserve restent libres ; la navigation des présences suit ce
+  tracé (nœud `<magasin>_m`). Les articles remplissent les rayons du magasin avant ceux de la réserve.
+- `shelflabels.js` : étiquetage des rayons, appelé après le placement et le réassort. Les produits sont retrouvés
+  d'après leur position sur chaque planche (`P.boards` : `pad` = retrait du chant, `flat` = table, `picks` = vitrine
+  réfrigérée, `noLabels` = plan de travail du personnel) ; une étiquette par groupe de produits identiques sur un rail
+  porte-étiquettes, prix plausibles et stables (`priceOf`), environ un produit sur dix en promotion (étiquettes
+  « PROMO », « PRIX CHOC », « 2 + 1 OFFERT », « NOUVEAU », stop-rayons imprimés des deux côtés), affichettes sur les
+  têtes de gondole (`P.caps`). Une texture pour tout le centre, un mesh par magasin, éclairage de zone conservé.
+- `decor.js` : décor des galeries (colonnes, bannières, totems, plans, kiosques, cabines, manèges, consignes, boutons
+  d'arrêt d'urgence des escalators, comptoir d'accueil avec sonnette `DeskBell` et bac d'objets trouvés).
+  `garagedecor.js` (parking : repères des piliers, numéros des places, flèches, gabarit, gaines, sprinklers ; tous
+  les marquages en un seul mesh) et `servicedecor.js` (couloirs de service : rolls, conteneurs fouillables, palettes).
+- `elevator.js` : ascenseur panoramique. L'hôte décide (appels, file d'attente, trajets : état `{floor, to, moving,
+  doors}`), chaque client anime la cabine et déplace son propre joueur s'il est dedans.
+- `fixtures.js` : portes, rideaux, vitres, interrupteurs, panneaux lisibles, sièges, contenants, casiers, grilles,
+  cachettes, `PushButton` (bouton générique : `press(game, actor, btn)` exécuté sur l'hôte).
+- Portique antivol : chaque client surveille son joueur local ; s'il franchit le seuil avec un article dont la zone
+  d'origine est le magasin (ou sa réserve), il envoie `interact {verb: 'trip'}` ; l'hôte incrémente l'état `ring`
+  (bips + bandeau rouge chez tout le monde) et fait du bruit (`game.noise`, 0,75) pour les présences.
 
 ## Vidéosurveillance : `js/game/security.js`
 - Objet monde `security` : `{rec, blocked: {camId: true}, mounted, rc: {car, driver} | null, erased}`.

@@ -111,7 +111,7 @@ export class Door extends WorldObject {
       return;
     }
     if (verb === 'code') {
-      if (String(ctx.code) === String(this.o.code)) { this.set({ sealed: false, locked: false, open: 1 }); g.flagSet('b13_opened', true); g.hooks.emit('door_code_ok', this); }
+      if (String(ctx.code) === String(this.o.code)) { this.set({ sealed: false, locked: false, open: 1 }); g.flagSet(this.o.codeFlag || 'b13_opened', true); g.hooks.emit('door_code_ok', this); }
       else g.sim.emit('fx', { s: 'error', pos: this.pos.toArray() });
       return;
     }
@@ -477,4 +477,20 @@ export class HideSpot extends WorldObject {
     this.set({ hidden: actor });
     g.sim.emit('hide', { id: actor, on: true, obj: this.id, pos: this.o.pos, ry: this.o.ry || 0 });
   }
+}
+
+// ───────────────────────── BOUTON-POUSSOIR (arrêt d'urgence…) ─────────────────────────
+// o : { zone, x, y, z, ry, label, press(game, actor, bouton), color, plate } — press est exécuté par l'hôte.
+export class PushButton extends WorldObject {
+  constructor(world, id, o) {
+    super(world, id, 'button'); this.o = o; this.zone = o.zone; this.name = o.label;
+    const grp = new THREE.Group(); grp.position.set(o.x, o.y, o.z); grp.rotation.y = o.ry || 0;
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.17, 0.03), new THREE.MeshStandardMaterial({ color: o.plate ?? 0xffd600, roughness: 0.5 }));
+    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.035, 14), new THREE.MeshStandardMaterial({ color: o.color ?? 0xd50000, roughness: 0.35 }));
+    btn.rotation.x = Math.PI / 2; btn.position.z = 0.03; grp.add(plate, btn);
+    (world.zone(o.zone)?.group || world.root).add(grp);
+    this.setPick(o.x - 0.11, o.y - 0.11, o.z - 0.11, o.x + 0.11, o.y + 0.11, o.z + 0.11);
+  }
+  prompt() { return 'E : ' + this.name; }
+  interact(verb, actor) { if (verb === 'use' && this.o.press) this.o.press(this.world.game, actor, this); }
 }
