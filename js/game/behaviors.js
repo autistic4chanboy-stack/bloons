@@ -115,6 +115,15 @@ const HANDLERS = {
   bubbles(g, p, pr, v) { if (v === 'primary' || v === 'hold') { g.particles.bubbles(fwdPoint(p, 0.4), p.forward()); if (v === 'primary') sfx(g, p, 'bubbles', 0.5); return true; } },
   toy_horn(g, p, pr, v) { if (v !== 'primary') return; sfx(g, p, 'toy_horn', 0.8); noise(g, p, 0.6, 'horn'); return true; },
   air_horn(g, p, pr, v) { if (v !== 'primary') return; sfx(g, p, 'air_horn', 1); noise(g, p, 1, 'airhorn'); g.sim.do('repel', { pos: p.pos.toArray(), r: 9 }); p.shake(0.1, 0.3); return true; },
+  // Pétard à confettis (usage unique : BANG, repousse les présences proches) / sachet de confettis (pluie silencieuse)
+  popper(g, p, pr, v) {
+    if (v !== 'primary') return; const bang = pr.def.shape !== 'ppouch', at = fwdPoint(p, 0.45), dir = p.forward(); dir.y += 0.35; dir.normalize();
+    for (const c of [0xff1744, 0xffd600, 0x00e676, 0x2979ff, 0xd500f9, 0xff9100]) g.particles.spray(at, dir, c, bang ? 14 : 8, bang ? 0.55 : 0.35);
+    g.particles.sparkle(at); p.vmAnim.raise = 1; p.useCooldown = 0.6;
+    if (bang) { sfx(g, p, 'toy_gun', 1); noise(g, p, 0.8, 'popper'); g.sim.do('repel', { pos: p.pos.toArray(), r: 4 }); p.shake(0.06, 0.2); g.sim.do('consume', { id: pr.id }); }
+    else { sfx(g, p, 'cash_rustle', 0.5); const n = (pr.data.uses || 0) + 1; if (n >= 5) { g.sim.do('consume', { id: pr.id }); g.toast('Le sachet est vide.'); } else g.sim.do('propdata', { id: pr.id, data: { uses: n } }); }
+    return true;
+  },
   whistle(g, p, pr, v) { if (v !== 'primary') return; sfx(g, p, 'page', 1); noise(g, p, 0.9, 'whistle'); g.sim.do('repel', { pos: p.pos.toArray(), r: 5, cat: true }); return true; },
   dice(g, p, pr, v) { if (v !== 'primary') return; p.throwHeld(0.35); return true; },
   scatter(g, p, pr, v) {
