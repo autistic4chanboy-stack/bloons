@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { WorldObject } from './world.js';
 import { Box, LAYER } from '../engine/physics.js';
 import { canvas, toTexture } from '../engine/textures.js';
+import { Pen, gatePedestal } from './furnkit.js';
 
 // Boutiques équipées de portiques (commerce de détail ; pas les restaurants, le coiffeur, le cinéma…)
 const GATED = new Set(['hyper', 'pharma', 'quincaillerie', 'animalerie', 'jouets', 'electro', 'pixel', 'videoclub', 'librairie', 'mobizone',
@@ -303,14 +304,9 @@ export function buildShopFront(world, A, ctl, s, rng, ex0, ex1) {
   const cx = (ex0 + ex1) / 2, zG = zF + sg * 0.75;
   const xs = ex1 - ex0 > 5 ? [cx - 2.7, cx - 0.9, cx + 0.9, cx + 2.7] : [cx - 0.9, cx + 0.9];
   const ledGeo = [];
+  const pen = new Pen(A, id);
   for (const px of xs) {
-    const base = 0x2a2c30, alu = 0xb9bdc2, ink = 0x5a5e66;
-    A.furn(id, px - 0.06, y, zG - 0.33, px + 0.06, y + 0.1, zG + 0.33, base, { collide: false });
-    for (const dz of [-0.29, 0.29]) A.furn(id, px - 0.03, y + 0.1, zG + dz - 0.025, px + 0.03, y + 1.5, zG + dz + 0.025, alu, { collide: false, metal: true });
-    A.furn(id, px - 0.04, y + 1.5, zG - 0.33, px + 0.04, y + 1.56, zG + 0.33, alu, { collide: false, metal: true });
-    A.box(id, 'glass', px - 0.01, y + 0.1, zG - 0.265, px + 0.01, y + 1.5, zG + 0.265, { collide: false });
-    // boucle d'antenne sérigraphiée
-    for (const [a0, a1, b0, b1] of [[y + 0.24, y + 0.26, -0.2, 0.2], [y + 1.36, y + 1.38, -0.2, 0.2], [y + 0.24, y + 1.38, -0.2, -0.185], [y + 0.24, y + 1.38, 0.185, 0.2]]) A.furn(id, px - 0.013, a0, zG + b0, px + 0.013, a1, zG + b1, ink, { collide: false });
+    gatePedestal(pen.at(px, y, zG, 0), 1.56, 0x5a5e66); // socle, montants ronds, traverse, plexiglas à boucle d'antenne
     world.physics.add(new Box(px - 0.07, y, zG - 0.34, px + 0.07, y + 1.58, zG + 0.34, LAYER.FURN, null));
     const lg = new THREE.BoxGeometry(0.05, 0.014, 0.6); lg.translate(px, y + 1.567, zG); ledGeo.push(lg);
   }
