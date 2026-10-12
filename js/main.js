@@ -111,6 +111,7 @@ function optionsMenu() {
     <label><input data-o="shadows" type="checkbox" ${s.shadows ? 'checked' : ''}> Ombres de la lampe torche</label>
     <label><input data-o="bloom" type="checkbox" ${s.bloom ? 'checked' : ''}> Halo lumineux</label>
     <label><input data-o="volumetric" type="checkbox" ${s.volumetric ? 'checked' : ''}> Faisceau volumétrique</label>
+    <label><input data-o="bodycam" type="checkbox" ${s.bodycam !== false ? 'checked' : ''}> Effet caméra-piéton (objectif, incrustation, mouvements)</label>
     <label><input data-o="screamers" type="checkbox" ${s.screamers ? 'checked' : ''}> Screamers (sursauts)</label>
     <label><input data-o="subtitles" type="checkbox" ${s.subtitles ? 'checked' : ''}> Sous-titres</label>
     <label><input data-o="voices" type="checkbox" ${s.voices ? 'checked' : ''}> Voix de synthèse</label>
