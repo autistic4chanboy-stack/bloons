@@ -462,7 +462,8 @@ UI.prototype.renderJournal = function () {
   const J = g.quests?.journal();
   if (!J) { n.innerHTML = '<h2>Journal de garde</h2><p class="jr-empty">Aucun objectif pour l\'instant.</p><div class="btns"><button data-a="close">Fermer</button></div>'; return; }
   const head = J.mode === 'story' ? 'Nuit ' + J.night + (J.subtitle ? ' — ' + J.subtitle : '') : 'Mode infini — nuit ' + J.night;
-  const step = (s) => s.s === 'hidden' ? '' : `<li class="${s.s}">${esc(s.title)}${s.opt ? ' <span class="jr-tag">facultatif</span>' : ''}${s.prog ? `<span class="jr-p">${esc(s.prog)}</span>` : ''}${s.choice ? `<span class="jr-c">— ${esc(s.choice)}</span>` : ''}${s.s === 'active' && s.desc ? `<p>${esc(s.desc)}</p>` : ''}</li>`;
+  const pts = (s) => s.points ? `<p class="jr-pts">${s.points.map(p => `<span class="${p.got ? 'got' : ''}">${p.got ? '✓' : '·'} ${esc(p.num)} ${esc(p.name)}</span>`).join(s.ordered ? ' → ' : ' ')}</p>` : '';
+  const step = (s) => s.s === 'hidden' ? '' : `<li class="${s.s}">${esc(s.title)}${s.opt ? ' <span class="jr-tag">facultatif</span>' : ''}${s.prog ? `<span class="jr-p">${esc(s.prog)}</span>` : ''}${s.choice ? `<span class="jr-c">— ${esc(s.choice)}</span>` : ''}${s.s === 'active' && s.desc ? `<p>${esc(s.desc)}</p>` : ''}${pts(s)}</li>`;
   const quests = J.quests.map(q => {
     const next = q.steps.findIndex(s => s.s === 'hidden'), upcoming = next >= 0 && q.s === 'active' ? '<li class="hidden">… la suite plus tard</li>' : '';
     const tag = q.s === 'over' ? (q.ok ? '<span class="jr-tag ok">terminée</span>' : '<span class="jr-tag ko">incomplète</span>') : q.optional ? '<span class="jr-tag">facultative</span>' : '';

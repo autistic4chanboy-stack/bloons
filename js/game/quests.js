@@ -16,6 +16,7 @@ const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 // 'HH:MM' → minutes depuis 22:00 (négatif avant)
 export const questNm = (s) => { const [h, m] = String(s).split(':').map(Number); let v = h * 60 + m - 22 * 60; if (v < -12 * 60) v += 1440; return v; };
 const POLL = 0.25; // période des vérifications (s de jeu)
+const cpNum = (id) => String(Object.keys(CHECKPOINTS).indexOf(id) + 1).padStart(2, '0'); // numéro de l'étiquette « RONDE 07 »
 const DONE = { done: true };
 const arr = (x) => (x == null ? [] : Array.isArray(x) ? x : [x]);
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -613,7 +614,7 @@ export class Quests {
     return '';
   }
   subText(st, ss) {
-    if (st.kind === 'ronde') { const id = this.nextPoint(st, ss); return id ? 'Borne : ' + (CHECKPOINTS[id]?.name || id) : ''; }
+    if (st.kind === 'ronde') { const id = this.nextPoint(st, ss); return id ? 'Borne ' + cpNum(id) + ' · ' + (CHECKPOINTS[id]?.name || id) : ''; }
     if (st.kind === 'choice' && st.branches) return st.branches.map(b => b.label).join('  ·  ou  ·  ');
     if (st.kind === 'cctv') return 'Caméras du poste';
     if (st.kind === 'call' || st.kind === 'answer') return 'Téléphone du poste';
@@ -653,7 +654,11 @@ export class Quests {
     const quests = [];
     for (const q of this.defs) {
       const qs = v.q[q.id]; if (!qs) continue;
-      const steps = q.steps.map(st => { const ss = v.s[q.id + '.' + st.id] || { s: 'hidden' }; const br = st.branches?.find(b => b.id === ss.c); return { title: st.title, desc: st.desc, s: ss.s, opt: !!(q.optional || st.optional), prog: ss.s === 'active' ? this.progText(st, ss) : '', choice: br ? br.label : null, auto: !!ss.auto }; });
+      const steps = q.steps.map(st => {
+        const ss = v.s[q.id + '.' + st.id] || { s: 'hidden' }; const br = st.branches?.find(b => b.id === ss.c);
+        const points = st.kind === 'ronde' && ss.s === 'active' ? this.rondePoints(st).map(id => ({ num: cpNum(id), name: CHECKPOINTS[id]?.name || id, got: (ss.got || []).includes(id) })) : null;
+        return { title: st.title, desc: st.desc, s: ss.s, opt: !!(q.optional || st.optional), prog: ss.s === 'active' ? this.progText(st, ss) : '', choice: br ? br.label : null, auto: !!ss.auto, points, ordered: !!st.ordered };
+      });
       if (!(q.maybe && qs.s === 'hidden')) for (const s of steps) if (!s.opt) { total++; if (s.s === 'done') done++; }
       if (qs.s === 'hidden') continue;
       quests.push({ id: q.id, title: q.title, giver: q.giver || null, optional: !!q.optional, s: qs.s, ok: !!qs.ok, steps, reward: q.reward ? this.rewardText(q.reward) : null });
