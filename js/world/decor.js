@@ -219,6 +219,15 @@ export function buildDecor(world, A, dev, rng) {
   dev('mall_wetsign', 'service_n0', -20, 0.31, 23.2, 0.2, { prop: true });
   dev('mall_cleancart', 'service_n0', -14, 0.5, 23.6, Math.PI / 2, { prop: true }); dev('mall_cleancart', 'gallery1_e', 60.5, 5.5, -6.6, 0.3, { prop: true });
 
+  // ── piano en libre-service dans l'atrium (devant la boulangerie, hors des passages) ──
+  dev('piano', 'atrium', 5.2, 0.625, 6.95, Math.PI);
+  A.furn('atrium', 4.9, 0, 5.95, 5.5, 0.47, 6.3, 0x1e1e1e, { collide: false });                    // tabouret
+  A.furn('atrium', 4.92, 0.47, 5.97, 5.48, 0.52, 6.28, 0x5d1f1f, { collide: false });
+  A.furn('atrium', 6.42, 0, 6.88, 6.46, 1.1, 6.92, 0x9aa0a6, { metal: true, collide: false });      // panneau sur pied
+  A.furn('atrium', 6.2, 1.1, 6.86, 6.68, 1.45, 6.94, 0xf4f1ea, { collide: false });
+  world.add(new Readable(world, world.newId('read'), { zone: 'atrium', name: 'Panneau du piano', title: 'Piano en libre-service', box: [6.18, 1.05, 6.82, 6.7, 1.48, 6.98],
+    text: 'Offert par l\'association des commerçants d\'Hélios.\nJouez ce que vous voulez !\n\n(Merci de ne pas poser de boissons sur le piano.)\n\nAu feutre, dans un coin : « il joue tout seul quand le centre est fermé. Toujours la même comptine. »' }));
+
   // ── comptoir d'accueil du hall d'entrée (x 70..72,5, z -3..3, face côté portes) : poste de travail, sonnette,
   //    dépliants, micro, bac d'objets trouvés, cube « i » ──
   {

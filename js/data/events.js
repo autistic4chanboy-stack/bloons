@@ -81,6 +81,7 @@ const DEV = [
   ['vcr', 'Magnétoscope', 4, 'videoclub', 'vcr', 'Le magnétoscope du vidéo-club se met en lecture.', 2],
   ['turntable', 'Platine vinyle', 4, 'videoclub', 'turntable', 'La platine du vidéo-club joue un vieux disque, trop lentement.', 2],
   ['piano', 'Piano fantôme', 5, 'instruments', 'piano', 'Le piano joue quelques notes. « Au clair de la lune ».', 3],
+  ['piano_atrium', 'Piano de l\'atrium', 3, 'gallery0', 'piano', 'Le piano en libre-service de l\'atrium joue « Au clair de la lune » dans le centre désert.', 3],
   ['drums', 'Batterie', 5, 'instruments', 'drums', 'Un coup de cymbale, puis la grosse caisse, lente, comme un cœur.', 2],
   ['metronome', 'Métronome', 5, 'instruments', 'metronome', 'Un métronome se met à battre la mesure.', 1],
   ['printer_octet', 'Imprimante', 9, 'octet', 'printer', 'L\'imprimante imprime une page. Il est écrit : « JE TE VOIS ».', 2],

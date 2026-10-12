@@ -131,7 +131,8 @@ export class EventSystem {
     const W = this.g.world;
     if (where === 'all') return W.zones.map(z => z.id);
     if (where === 'gallery_wave') return ['gallery0_e', 'atrium', 'gallery0_w', 'security'];
-    const z = this.zoneOf(where); if (!z) return [];
+    const z = this.zoneOf(where);
+    if (!z) { const id = String(where).replace(/^(zone|shop):/, ''); return W.zones.filter(q => q.area === id).map(q => q.id); } // secteur (gallery0…) : toutes ses zones
     const out = [z.id]; if (z.shop && W.zone(z.shop + '_back')) out.push(z.shop + '_back');
     if (z.id === 'gallery0' || z.id.startsWith('gallery0')) out.push('atrium');
     return out;
