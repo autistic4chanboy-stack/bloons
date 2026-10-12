@@ -117,6 +117,25 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
 - Depuis un magasin, les magasins mitoyens du même côté sont masqués ; une réserve ne se voit qu'à moins de 14 m.
 - Personnages : les pièces rigides de chaque segment sont fusionnées (couleurs par sommet, ~10 meshes par personnage).
 
+## Monde : construction (`js/world/`)
+- `mall.js` : architecture (galeries, vide central coupé de passerelles, verrière à deux pans, aile administrative,
+  parking, sous-sol, toit, couloirs de service), navigation, caméras fixes. Zones déclarées avant la géométrie ;
+  la géométrie statique est regroupée par (zone, matériau) par `Arch` (`arch.js`).
+- `shopbuilder.js` : coque et aménagement des boutiques ; `stocking.js` complète les rayons ; `shopfront.js` ajoute
+  les détails de façade (autocollants des vitrines sur une seule planche de texture, enfants des vitres : ils
+  disparaissent avec elles ; portiques antivol `TheftGate`).
+- `decor.js` : décor des galeries (colonnes, bannières, totems, plans, kiosques, cabines, manèges, consignes, boutons
+  d'arrêt d'urgence des escalators, comptoir d'accueil avec sonnette `DeskBell` et bac d'objets trouvés).
+  `garagedecor.js` (parking : repères des piliers, numéros des places, flèches, gabarit, gaines, sprinklers ; tous
+  les marquages en un seul mesh) et `servicedecor.js` (couloirs de service : rolls, conteneurs fouillables, palettes).
+- `elevator.js` : ascenseur panoramique. L'hôte décide (appels, file d'attente, trajets : état `{floor, to, moving,
+  doors}`), chaque client anime la cabine et déplace son propre joueur s'il est dedans.
+- `fixtures.js` : portes, rideaux, vitres, interrupteurs, panneaux lisibles, sièges, contenants, casiers, grilles,
+  cachettes, `PushButton` (bouton générique : `press(game, actor, btn)` exécuté sur l'hôte).
+- Portique antivol : chaque client surveille son joueur local ; s'il franchit le seuil avec un article dont la zone
+  d'origine est le magasin (ou sa réserve), il envoie `interact {verb: 'trip'}` ; l'hôte incrémente l'état `ring`
+  (bips + bandeau rouge chez tout le monde) et fait du bruit (`game.noise`, 0,75) pour les présences.
+
 ## Vidéosurveillance : `js/game/security.js`
 - Objet monde `security` : `{rec, blocked: {camId: true}, mounted, rc: {car, driver} | null, erased}`.
 - `list()` : caméras disponibles (fixes débloquées, caméras portatives/webcams posées, voiture RC équipée, regard des

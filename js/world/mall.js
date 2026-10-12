@@ -13,6 +13,8 @@ import { Box, LAYER } from '../engine/physics.js';
 import { Door, Shutter, GlassPane, LightSwitch, Readable, Seat, Container, Locker, VentGrate } from './fixtures.js';
 import { buildShops, shopX, ventXForShop } from './shopbuilder.js';
 import { buildDecor } from './decor.js';
+import { buildGarageDecor } from './garagedecor.js';
+import { buildServiceDecor } from './servicedecor.js';
 import { Elevator } from './elevator.js';
 import { SHOPS } from '../data/shops.js';
 import { posterTexture, signTexture, buildingFacade, textTexture } from '../engine/textures.js';
@@ -266,6 +268,7 @@ export function buildMall(world) {
   // murs côté bloc ouest (z = ±22 entre x -76 et -66) : faits par les cloisons de la réserve / l'escalier
   A.wallX('stairsW', 'block', -76, -66, 22, -4.5, 13.5, 0.2);
   A.wallX('stairsW', 'block', -76, -66, 13, -4.5, 13.5, 0.2);
+  buildServiceDecor(world, A, rng.fork('servicedecor'));
   // affiches de consignes
   poster(world, 'service_s0', -60, 1.7, -24.95, 0, 8); poster(world, 'service_n0', 40, 1.7, 24.95, Math.PI, 10); poster(world, 'service_s0', 30, 1.7, -24.95, 0, 4);
 
@@ -551,7 +554,7 @@ function buildAdmin(world, A, door, dev, rng) {
   };
   // ── accueil ──
   A.furn('adm_accueil', -69.6, y, 2.3, -68.9, y + 1.05, 5.7, 0xe8e0d0); A.furn('adm_accueil', -69.7, y + 1.05, 2.2, -68.8, y + 1.1, 5.8, 0x5d4037);
-  dev('desk_phone', 'adm_accueil', -69.2, y + 1.18, 3.0, Math.PI / 2); dev('pc_tower', 'adm_accueil', -69.2, y + 1.3, 4.8, Math.PI / 2, { os: 'shop', monitor: true });
+  dev('desk_phone', 'adm_accueil', -69.2, y + 1.18, 3.0, Math.PI / 2); dev('pc_tower', 'adm_accueil', -69.2, y + 1.326, 4.8, Math.PI / 2, { os: 'shop', monitor: 'right' });
   dev('office_chair', 'adm_accueil', -68.2, y + 0.55, 4.0, -Math.PI / 2);
   for (const z of [2.2, 3.4]) dev('chair', 'adm_accueil', -66.6, y + 0.45, z, -Math.PI / 2);
   planterSmall(A, 'adm_accueil', -66.5, 6.4); dev('water_fountain', 'adm_accueil', -66.5, y + 0.6, 5.2, -Math.PI / 2);
@@ -566,7 +569,7 @@ function buildAdmin(world, A, door, dev, rng) {
   A.furn('adm_reunion', -66.9, y, 11.9, -66.1, y + 0.9, 12.7, 0x5d4037);
   // ── comptabilité ──
   desk('adm_compta', -69.7, -6.4, -68.3, -4.9); desk('adm_compta', -67.7, -6.4, -66.3, -4.9);
-  dev('pc_tower', 'adm_compta', -69.0, y + 0.95, -6.1, 0, { os: 'shop', monitor: true }); dev('pc_tower', 'adm_compta', -67.0, y + 0.95, -6.1, 0, { os: 'shop', monitor: true });
+  dev('pc_tower', 'adm_compta', -69.0, y + 0.986, -6.1, 0, { os: 'shop', monitor: 'right' }); dev('pc_tower', 'adm_compta', -67.0, y + 0.986, -6.1, 0, { os: 'shop', monitor: 'right' });
   dev('office_chair', 'adm_compta', -69.0, y + 0.55, -4.3, Math.PI); dev('office_chair', 'adm_compta', -67.0, y + 0.55, -4.3, Math.PI);
   dev('desk_phone', 'adm_compta', -68.5, y + 0.83, -5.2, 0);
   cabinet('adm_compta', -66.45, -2.0, -Math.PI / 2, 'Classeur — factures', ['notebook']); cabinet('adm_compta', -66.45, -2.6, -Math.PI / 2, 'Classeur — paies', []);
@@ -598,7 +601,7 @@ function buildAdmin(world, A, door, dev, rng) {
   // ── salle informatique : baies de serveurs ──
   for (let i = 0; i < 4; i++) { const z = 1.8 + i * 1.25; A.furn('adm_info', -75.6, y, z, -74.8, y + 2.1, z + 0.9, 0x1c1f22, { metal: true }); for (let k = 0; k < 6; k++) A.box('adm_info', 'furniture', -74.79, y + 0.4 + k * 0.28, z + 0.1, -74.78, y + 0.42 + k * 0.28, z + 0.8, { collide: false, color: k % 2 ? 0x00e676 : 0x29b6f6, flat: true }); }
   dev('fan', 'adm_info', -72.6, y + 0.3, 6.5, -Math.PI / 2);
-  dev('pc_tower', 'adm_info', -73.0, y + 0.95, 2.0, -Math.PI / 2, { os: 'security', monitor: true }); desk('adm_info', -73.4, 1.4, -72.4, 2.8, 0x37474f);
+  dev('pc_tower', 'adm_info', -73.0, y + 0.986, 2.0, -Math.PI / 2, { os: 'security', monitor: 'right' }); desk('adm_info', -73.4, 1.4, -72.4, 2.8, 0x37474f);
   dev('office_chair', 'adm_info', -73.8, y + 0.55, 2.1, Math.PI / 2);
   // ── reprographie ──
   dev('printer', 'adm_repro', -75.4, y + 0.95, 9.0, Math.PI / 2); A.furn('adm_repro', -75.9, y, 8.3, -74.9, y + 0.88, 9.7, 0xd0d0d0, { metal: true });
@@ -606,11 +609,11 @@ function buildAdmin(world, A, door, dev, rng) {
   cabinet('adm_repro', -72.6, 12.2, Math.PI / 2, 'Armoire à fournitures', ['notebook', 'battery', 'duct_tape']);
   shelfUnit(A, 'adm_repro', -75.9, 7.4, 'x', 2.8, 0x9e9e9e, 4, 2.0, 0.4, y);
   // ── ressources humaines ──
-  desk('adm_rh', -75.6, -5.8, -74.0, -4.4); dev('pc_tower', 'adm_rh', -75.0, y + 0.95, -5.5, Math.PI / 2, { os: 'shop', monitor: true }); dev('office_chair', 'adm_rh', -73.6, y + 0.55, -5.1, -Math.PI / 2);
+  desk('adm_rh', -75.6, -5.8, -74.0, -4.4); dev('pc_tower', 'adm_rh', -75.0, y + 0.986, -5.5, Math.PI / 2, { os: 'shop', monitor: 'left' }); dev('office_chair', 'adm_rh', -73.6, y + 0.55, -5.1, -Math.PI / 2);
   cabinet('adm_rh', -75.55, -2.0, Math.PI / 2, 'Dossiers du personnel', ['notebook']); cabinet('adm_rh', -75.55, -2.6, Math.PI / 2, 'Dossiers du personnel (anciens)', ['old_newspaper']);
   wh('adm_rh', -73.0, y + 1.6, -6.87, 0, 'Planning des gardiens', ['Lun–Dim : nuit (22 h – 6 h)', 'Gérard D. → départ en retraite', 'Remplaçant : à l\'essai (10 nuits)', 'Rappel : rondes toutes les heures !', '« Ne jamais descendre après 3 h 33 » ???']);
   // ── marketing ──
-  desk('adm_market', -75.6, -12.8, -74.0, -11.2); dev('pc_tower', 'adm_market', -75.0, y + 0.95, -12.4, Math.PI / 2, { os: 'shop', monitor: true }); dev('office_chair', 'adm_market', -73.6, y + 0.55, -12.0, -Math.PI / 2);
+  desk('adm_market', -75.6, -12.8, -74.0, -11.2); dev('pc_tower', 'adm_market', -75.0, y + 0.986, -12.4, Math.PI / 2, { os: 'shop', monitor: 'left' }); dev('office_chair', 'adm_market', -73.6, y + 0.55, -12.0, -Math.PI / 2);
   for (const [z, i] of [[-8.0, 0], [-9.0, 6], [-10.0, 7]]) posterAt(world, 'adm_market', -75.87, y + 1.7, z, Math.PI / 2, i);
   A.furn('adm_market', -73.2, y, -8.2, -72.6, y + 1.8, -7.6, 0xffb300); // présentoir en carton « Bobby »
   // ── infirmerie ──
@@ -783,6 +786,7 @@ function buildGarage(world, A, door, dev, rng) {
   A.furn(zn, 60, yb, 2, 61, yb + 1.6, 2.6, 0x37474f, { metal: true });
   dev('extinguisher_box', zn, -65.95, yb + 1, 0, Math.PI / 2);
   dev('fire_alarm', zn, -65.95, yb + 1.4, 2, Math.PI / 2);
+  buildGarageDecor(world, A, dev, rng.fork('garagedecor'));
   world.points.garageCenter = new THREE.Vector3(0, yb, 0);
 }
 

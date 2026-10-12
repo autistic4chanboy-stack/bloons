@@ -6,7 +6,8 @@ import '../data/decor.js';
 import { ITEMS } from '../data/items.js';
 import { registerShape } from './meshes.js';
 import { Box, LAYER } from '../engine/physics.js';
-import { Readable, Locker, PushButton } from './fixtures.js';
+import { Readable, Locker, PushButton, Container } from './fixtures.js';
+import { WorldObject } from './world.js';
 import { signTexture, posterTexture } from '../engine/textures.js';
 import { SHOPS } from '../data/shops.js';
 
@@ -62,6 +63,31 @@ function bannerTex(title, sub, bg, fg) {
   });
 }
 const galZone = (x, f) => (Math.abs(x) <= 24 ? 'atrium' : (f ? 'gallery1_' : 'gallery0_') + (x < 0 ? 'w' : 'e'));
+
+// Sonnette de comptoir : « ding ». La nuit, il arrive (rarement) que quelqu'un réponde.
+class DeskBell extends WorldObject {
+  constructor(world, id, o) {
+    super(world, id, 'bell'); this.o = o; this.zone = o.zone; this.name = 'Sonnette de l\'accueil';
+    const g = world.game, grp = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.015, 16), g.mats.get('rubber'));
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), g.mats.get('chrome'));
+    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.02, 6), g.mats.get('chrome'));
+    base.position.y = 0.0075; dome.position.y = 0.015; knob.position.y = 0.062; grp.add(base, dome, knob);
+    grp.position.set(o.x, o.y, o.z); (world.zone(o.zone)?.group || world.root).add(grp);
+    this.setPick(o.x - 0.07, o.y, o.z - 0.07, o.x + 0.07, o.y + 0.09, o.z + 0.07);
+    this.init({}); this.n = 0;
+  }
+  prompt() { return 'E : Sonner'; }
+  interact(verb, actor) {
+    const g = this.world.game, pos = [this.o.x, this.o.y + 0.05, this.o.z];
+    g.sim.emit('fx', { s: 'bell_shop', pos, v: 0.9 });
+    g.noise(new THREE.Vector3(...pos), 0.3, 'bell');
+    if (!g.isDay && ++this.n >= 3 && Math.random() < 0.25) {
+      this.n = 0;
+      setTimeout(() => { g.sim.emit('fx', { s: 'footsteps_distant', pos: [this.o.x - 6, this.o.y, this.o.z + 3], v: 0.6 }); g.sim.emit('say', { who: '???', text: 'Un instant… j\'arrive.', pitch: 0.55, rate: 0.8 }); }, 2200);
+    }
+  }
+}
 
 export function buildDecor(world, A, dev, rng) {
   const g = world.game;
@@ -192,4 +218,31 @@ export function buildDecor(world, A, dev, rng) {
   dev('mall_wetsign', 'atrium', 2.6, 0.31, -2.4, 0.4, { prop: true }); dev('mall_wetsign', 'gallery1_e', 55, 5.31, -6.5, 1.2, { prop: true });
   dev('mall_wetsign', 'service_n0', -20, 0.31, 23.2, 0.2, { prop: true });
   dev('mall_cleancart', 'service_n0', -14, 0.5, 23.6, Math.PI / 2, { prop: true }); dev('mall_cleancart', 'gallery1_e', 60.5, 5.5, -6.6, 0.3, { prop: true });
+
+  // ── comptoir d'accueil du hall d'entrée (x 70..72,5, z -3..3, face côté portes) : poste de travail, sonnette,
+  //    dépliants, micro, bac d'objets trouvés, cube « i » ──
+  {
+    const zn = 'entrance', T = 1.15; // dessus du comptoir
+    dev('pc_tower', zn, 70.55, T + 0.226, -1.3, -Math.PI / 2, { os: 'shop', monitor: 'right' });
+    dev('office_chair', zn, 69.25, 0.55, -0.6, Math.PI / 2);
+    A.furn(zn, 70.9, T, 0.55, 70.98, T + 0.02, 0.63, 0x222222, { collide: false });             // pied du micro
+    A.furn(zn, 70.93, T + 0.02, 0.58, 70.95, T + 0.28, 0.6, 0x333333, { collide: false });       // col de cygne
+    A.furn(zn, 70.9, T + 0.26, 0.56, 70.98, T + 0.31, 0.62, 0x111111, { collide: false });       // capsule
+    world.add(new DeskBell(world, world.newId('bell'), { zone: zn, x: 72.25, y: T, z: -0.5 }));
+    // présentoir à dépliants (lisible)
+    A.furn(zn, 72.0, T, -2.85, 72.45, T + 0.03, -2.25, 0xd8dde0, { collide: false });
+    [0xe53935, 0xfdd835, 0x43a047, 0x1e88e5, 0x8e24aa].forEach((c, i) => A.furn(zn, 72.05 + (i % 2) * 0.17, T + 0.03, -2.8 + i * 0.1, 72.2 + (i % 2) * 0.17, T + 0.24 - (i % 3) * 0.02, -2.73 + i * 0.1, c, { collide: false }));
+    world.add(new Readable(world, world.newId('read'), { zone: zn, name: 'Dépliants — programme du centre', title: 'Hélios — le programme du mois', box: [71.98, T - 0.02, -2.9, 72.5, T + 0.28, -2.2],
+      text: 'ANIMATIONS\n• Mercredi : atelier maquillage pour les enfants (Fête & Costumes).\n• Samedi 14 : grande chasse au trésor avec Bobby l\'ourson — ANNULÉE.\n• Concours de dessin « Dessine-moi Hélios » : déposez vos dessins à l\'accueil.\n\nINFOS PRATIQUES\n• Ascenseur panoramique : galerie ouest, du parking à l\'étage.\n• Objets trouvés : à demander à l\'accueil.\n• Le centre ferme à 21 h. Merci de quitter les lieux à l\'annonce.\n\n(Au dos, au stylo :) « il y avait 14 dessins dans la boîte. On n\'avait inscrit que 13 enfants. »' }));
+    // bac des objets trouvés, côté personnel
+    A.furn(zn, 69.2, 0, 1.2, 69.75, 0.38, 1.85, 0x37474f);
+    const lost = ['scarf', 'sunglasses', 'teddy', 'cap', 'walkman', 'lipstick', 'watch', 'ball'].filter(id => ITEMS[id]);
+    const picks = lost.filter(() => rng.chance(0.5)).slice(0, 4);
+    world.add(new Container(world, world.newId('box'), { zone: zn, name: 'Bac « objets trouvés »', contents: picks.length ? picks : ['scarf'], box: [69.18, 0, 1.18, 69.77, 0.42, 1.87] }));
+    // cube « i » sur son mât, à l'angle du comptoir
+    A.furn(zn, 69.75, 0, -3.45, 69.85, 3.0, -3.35, 0x9aa0a6, { metal: true });
+    const iTex = canvasTex(128, 128, (x, w, h) => { x.fillStyle = '#1d4f9c'; x.fillRect(0, 0, w, h); x.strokeStyle = '#ffffff'; x.lineWidth = 6; x.strokeRect(8, 8, w - 16, h - 16); x.fillStyle = '#ffffff'; x.font = '900 92px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('i', w / 2, h / 2 + 6); });
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), new THREE.MeshStandardMaterial({ map: iTex, roughness: 0.5 }));
+    cube.position.set(69.8, 3.3, -3.4); add(zn, cube);
+  }
 }

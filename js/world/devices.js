@@ -661,10 +661,20 @@ class Computer extends ItemFixture {
   constructor(world, id, def, zone, pos, ry, opts) {
     super(world, id, def, zone, pos, ry, opts);
     if (opts.monitor) {
-      const mon = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.36, 0.06), new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 }));
-      mon.position.set(0.0, 0.62, -0.25); this.group.add(mon);
-      this.makeScreen({ x: 0, y: 0.62, z: -0.217, w: 0.44, h: 0.3 });
-      this.setPick(this.pickBox.min[0] - 0.1, this.pickBox.min[1], this.pickBox.min[2] - 0.1, this.pickBox.max[0] + 0.1, this.pickBox.max[1] + 0.6, this.pickBox.max[2] + 0.1);
+      // monitor: true → tour au sol, écran posé sur le bureau au-dessus ; 'left' / 'right' → tour posée sur le bureau,
+      // écran sur pied à côté d'elle (côté x local négatif / positif)
+      const side = opts.monitor === 'left' ? -1 : opts.monitor === 'right' ? 1 : 0;
+      const mp = side ? [side * 0.4, 0.005, 0.03] : [0, 0.62, -0.25];
+      const monMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
+      const mon = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.36, 0.06), monMat);
+      mon.position.set(mp[0], mp[1], mp[2]); this.group.add(mon);
+      if (side) {
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.015, 0.15), monMat); foot.position.set(mp[0], -0.2175, mp[2] - 0.02); this.group.add(foot);
+        const neck = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 0.025), monMat); neck.position.set(mp[0], -0.19, mp[2] - 0.04); this.group.add(neck);
+      }
+      this.makeScreen({ x: mp[0], y: mp[1], z: mp[2] + 0.033, w: 0.44, h: 0.3 });
+      if (side) this.pickFromObject(this.group, 0.04);
+      else this.setPick(this.pickBox.min[0] - 0.1, this.pickBox.min[1], this.pickBox.min[2] - 0.1, this.pickBox.max[0] + 0.1, this.pickBox.max[1] + 0.6, this.pickBox.max[2] + 0.1);
     } else this.makeScreen({ x: 0, y: this.def.s[1] * 0.3, z: this.def.s[2] / 2 + 0.002, w: this.def.s[0] * 0.6, h: this.def.s[1] * 0.2 });
     this.setScreen('computer:' + (opts.os || this.p.os || 'shop'), 0.9);
     world.game.lighting.addSource(this);
