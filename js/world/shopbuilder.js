@@ -286,7 +286,7 @@ class LayoutKit {
     const along = Math.abs(u1 - u0) >= Math.abs(v1 - v0);
     if (along) this.board('u', u0 + 0.05, u1 - 0.05, (v0 + v1) / 2, h, Math.abs(v1 - v0) - 0.1, 0.8, this.faceFront, null, { pad: 0.05, flat: true });
     else this.board('v', v0 + 0.05, v1 - 0.05, (u0 + u1) / 2, h, Math.abs(u1 - u0) - 0.1, 0.8, Math.PI / 2, null, { pad: 0.05, flat: true });
-    if (levels > 1) { this.furn(u0 + 0.2, v0 + 0.2, u1 - 0.2, v1 - 0.2, h + 0.35, h + 0.38, color, { collide: false }); this.board(along ? 'u' : 'v', along ? u0 + 0.25 : v0 + 0.25, along ? u1 - 0.25 : v1 - 0.25, along ? (v0 + v1) / 2 : (u0 + u1) / 2, h + 0.38, 0.3, 0.6, along ? this.faceFront : Math.PI / 2, null, { flat: true }); }
+    if (levels > 1) { this.furn(u0 + 0.2, v0 + 0.2, u1 - 0.2, v1 - 0.2, h + 0.35, h + 0.38, color, { collide: false }); this.board(along ? 'u' : 'v', along ? u0 + 0.25 : v0 + 0.25, along ? u1 - 0.25 : v1 - 0.25, along ? (v0 + v1) / 2 : (u0 + u1) / 2, h + 0.38, 0.3, 0.6, along ? this.faceFront : Math.PI / 2, null, { flat: true, pad: Math.max(0, (along ? Math.abs(v1 - v0) : Math.abs(u1 - u0)) / 2 - 0.35) }); }
   }
   // comptoir de caisse (le long de u) avec emplacement de caisse
   counter(u0, v0, u1, v1, h = 1.0, color = null, nRegisters = 1, top = 0x3e2c1e) {
@@ -562,14 +562,14 @@ const LAYOUTS = {
     // murs de téléviseurs
     for (let a = 1.6; a < D - 1; a += 1.6) { L.wallHigh('L', a, 1.9); L.wallHigh('R', a, 1.9); }
     L.furn(0.17, 1.2, 0.7, D - 0.6, 0, 0.9, 0x263238); L.furn(W - 0.7, 1.2, W - 0.17, D - 0.6, 0, 0.9, 0x263238);
-    L.board('v', 1.3, D - 0.7, 0.45, 0.9, 0.45, 0.6, Math.PI / 2); L.board('v', 1.3, D - 0.7, W - 0.45, 0.9, 0.45, 0.6, -Math.PI / 2);
+    L.board('v', 1.3, D - 0.7, 0.45, 0.9, 0.45, 0.6, Math.PI / 2, null, { pad: 0.025 }); L.board('v', 1.3, D - 0.7, W - 0.45, 0.9, 0.45, 0.6, -Math.PI / 2, null, { pad: 0.025 });
     // électroménager le long de la cloison
     for (let u = 1.2; u < W - 2.5; u += 0.9) L.wallFloor('B', u);
     // îlots de petit électroménager (comptoirs)
     for (const [a, b] of [[3, 10.5], [13.5, 21]]) {
       L.furn(a, 5.8, b, 6.8, 0, 0.9, 0xeceff1);
       for (let u = a + 0.5; u < b - 0.3; u += 0.9) { L.counterSpot(u, 6.05, 0.9, L.faceFront); L.counterSpot(u + 0.3, 6.55, 0.9, L.faceIn); }
-      L.board('u', a + 0.1, b - 0.1, 6.3, 0.9, 0.9, 0.7, L.faceFront);
+      L.board('u', a + 0.1, b - 0.1, 6.3, 0.9, 0.9, 0.7, L.faceFront, null, { pad: 0.05 });
     }
     // présentoir des grille-pains (câblage défectueux — nuit 7)
     L.table(3, 2.0, 7.5, 2.8, 0.95, 0xd84315, 1);
