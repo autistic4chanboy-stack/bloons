@@ -165,7 +165,7 @@ export function buildDecor(world, A, dev, rng) {
       for (let i = 0; i < n; i++) for (let q = 0; q < 4; q++) A.lathe(zn, 'aluminium', [[0.293, 0], [0.3, 0.004], [0.3, hs - 0.01], [0.293, hs - 0.006]], 7, x, y0 + 0.255 + i * hs, z, 0xffffff, { phi0: Math.PI / 4 + q * Math.PI / 2 + 0.008, phiLen: Math.PI / 2 - 0.016 });
       A.lathe(zn, 'aluminium', [[0.293, -0.145], [0.31, -0.14], [0.318, -0.128], [0.318, -0.03], [0.326, -0.022], [0.326, 0]], 24, x, yc, z); // bague haute
       A.lathe(zn, 'aluminium', [[0.326, -0.008], [0.38, -0.008], [0.385, -0.004], [0.385, 0]], 24, x, yc, z);                        // rosace
-      world.physics.add(new Box(x - 0.31, y0, z - 0.31, x + 0.31, y1, z + 0.31, LAYER.WALL));
+      A.disc(x, z, 0.31, y0, y1, 2, LAYER.WALL); // fût rond : collision en croix (débord de 7 cm au plus, contre 13 cm pour un carré)
     }
   }
   // ── incrustations de granit au sol (RDC) ──
@@ -280,7 +280,7 @@ export function buildDecor(world, A, dev, rng) {
   dev('mall_payphone', 'gallery0_w', -65.45, 1.1, -3.6, Math.PI / 2); dev('mall_payphone', 'gallery0_w', -65.45, 1.1, -4.8, Math.PI / 2);
   dev('mall_payphone', 'gallery1_w', -65.45, 6.1, -5.6, Math.PI / 2);
   dev('mall_kiddie_car', 'gallery0_w', -48.5, 0.6, 2.2, Math.PI / 2); dev('mall_kiddie_horse', 'gallery0_e', 48.5, 0.6, -2.2, -Math.PI / 2);
-  dev('massage_chair', 'gallery1_w', -60, 5.6, 5.6, Math.PI);
+  dev('massage_chair', 'gallery1_w', -60, 5.6, 7.2, Math.PI); // devant la vitrine, hors de la voie z = 6
   dev('vending', 'gallery1_e', 63.0, 5.9, 7.45, Math.PI); dev('vending', 'gallery0_w', -63.2, 0.9, -7.45, 0);
   dev('atm', 'gallery0_e', 63.0, 0.95, -7.65, 0);
   dev('photobooth', 'entrance', 68.6, 1.0, 7.25, Math.PI);
@@ -298,6 +298,7 @@ export function buildDecor(world, A, dev, rng) {
     F(-1.45, 0, 1.2, 1.45, 0.1, 1.5, 0x222222); F(-1.5, 0.1, 1.15, 1.5, 1.9, 1.5, 0xf2efe8); F(-1.53, 1.9, 1.12, 1.53, 1.96, 1.52, color); // présentoir
     for (let y = 1.02; y < 1.86; y += 0.1) F(-1.44, y, 1.145, 1.44, y + 0.012, 1.15, 0xb9b5ad);
     for (const yy of [1.25, 1.6]) {
+      world.physics.add(new Box(cx - 1.45, yy - 0.045, 0.795, cx + 1.45, yy, 1.15, LAYER.FURN)); // tablette en saillie du présentoir (dessus libre : la marchandise y est posée)
       F(-1.45, yy - 0.02, 0.8, 1.45, yy, 1.15, 0xbdbdbd, true); F(-1.45, yy - 0.045, 0.795, 1.45, yy + 0.012, 0.81, color);
       for (const u of [-1.35, 0, 1.35]) F(u - 0.008, yy - 0.16, 1.0, u + 0.008, yy - 0.02, 1.15, 0x8d9297, true);
     }
@@ -343,7 +344,7 @@ export function buildDecor(world, A, dev, rng) {
   // ── entretien : panneaux « sol glissant », chariots de ménage ──
   dev('mall_wetsign', 'atrium', 2.6, 0.31, -2.4, 0.4, { prop: true }); dev('mall_wetsign', 'gallery1_e', 55, 5.31, -6.5, 1.2, { prop: true });
   dev('mall_wetsign', 'service_n0', -20, 0.31, 23.2, 0.2, { prop: true });
-  dev('mall_cleancart', 'service_n0', -14, 0.5, 23.6, Math.PI / 2, { prop: true }); dev('mall_cleancart', 'gallery1_e', 60.5, 5.5, -6.6, 0.3, { prop: true });
+  dev('mall_cleancart', 'service_n0', -14, 0.5, 23.6, Math.PI / 2, { prop: true }); dev('mall_cleancart', 'gallery1_e', 63.4, 5.5, -7.1, 0.2, { prop: true }); // garé contre le mur des toilettes, porte dégagée
 
   // ── piano en libre-service dans l'atrium (devant la boulangerie, hors des passages) ──
   dev('piano', 'atrium', 5.2, 0.625, 6.95, Math.PI);
@@ -352,11 +353,13 @@ export function buildDecor(world, A, dev, rng) {
   A.rbox('atrium', 'furniture', 5.2, 0.495, 6.125, 0.56, 0.05, 0.31, 0.022, 0x5d1f1f, { n: 2 });
   for (const [dx, dz] of [[-0.26, -0.135], [0.26, -0.135], [-0.26, 0.135], [0.26, 0.135]]) A.lathe('atrium', 'furniture', [[0, 0], [0.018, 0], [0.022, 0.06], [0.016, 0.15], [0.024, 0.3], [0.02, 0.41], [0, 0.41]], 10, 5.2 + dx, 0, 6.125 + dz, 0x141414);
   for (const dz of [-0.135, 0.135]) A.box('atrium', 'furniture', 4.95, 0.12, 6.125 + dz - 0.01, 5.45, 0.14, 6.125 + dz + 0.01, { collide: false, color: 0x141414, flat: true });
+  world.physics.add(new Box(4.9, 0, 5.95, 5.5, 0.52, 6.3, LAYER.FURN)); // banquette (trop haute pour qu'on l'enjambe)
   // panneau sur pied : platine ronde, mât, cadre aluminium
   A.lathe('atrium', 'steel_dark', [[0, 0], [0.16, 0], [0.16, 0.012], [0.12, 0.02], [0, 0.02]], 16, 6.44, 0, 6.9);
   A.tube('atrium', 'aluminium', V(6.44, 0.02, 6.9), V(6.44, 1.1, 6.9), 0.016, 0xffffff, { segs: 10, open: true });
   A.furn('atrium', 6.2, 1.1, 6.86, 6.68, 1.45, 6.94, 0xf4f1ea, { collide: false });
   for (const [a, b, c, d] of [[6.19, 1.09, 6.69, 1.105], [6.19, 1.445, 6.69, 1.46], [6.19, 1.09, 6.205, 1.46], [6.675, 1.09, 6.69, 1.46]]) A.box('atrium', 'aluminium', a, b, 6.855, c, d, 6.945, { collide: false });
+  world.physics.add(new Box(6.18, 0, 6.84, 6.7, 1.47, 6.96, LAYER.FURN)); // mât et cadre du panneau
   world.add(new Readable(world, world.newId('read'), { zone: 'atrium', name: 'Panneau du piano', title: 'Piano en libre-service', box: [6.18, 1.05, 6.82, 6.7, 1.48, 6.98],
     text: 'Offert par l\'association des commerçants d\'Hélios.\nJouez ce que vous voulez !\n\n(Merci de ne pas poser de boissons sur le piano.)\n\nAu feutre, dans un coin : « il joue tout seul quand le centre est fermé. Toujours la même comptine. »' }));
 

@@ -46,6 +46,14 @@ export class Arch {
     if (o.collide !== false) { col = this.world.physics.add(new Box(lx, ly, lz, hx, hy, hz, o.layer ?? LAYER.WALL, o.data || null)); this.boxes++; }
     return col;
   }
+  // Collision d'un objet rond (colonne, bassin) de rayon R centré en (x, z) : k boîtes centrées emboîtées (bandes
+  // d'égal z²) qui couvrent tout le disque ; débord maximal ≈ R / (2k) aux coins, au lieu de 0,41 R pour un carré
+  disc(x, z, R, y0, y1, k = 2, layer = LAYER.FURN) {
+    for (let j = 1; j <= k; j++) {
+      const hz = R * Math.sqrt(j / k), hx = R * Math.sqrt(1 - (j - 1) / k);
+      this.world.physics.add(new Box(x - hx, y0, z - hz, x + hx, y1, z + hz, layer)); this.boxes++;
+    }
+  }
   // Mobilier coloré (couleurs par sommet)
   furn(zone, x0, y0, z0, x1, y1, z1, color, o = {}) {
     return this.box(zone, o.metal ? 'furniture_metal' : 'furniture', x0, y0, z0, x1, y1, z1, { ...o, color, layer: o.layer ?? LAYER.FURN, flat: true });

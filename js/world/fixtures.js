@@ -122,10 +122,12 @@ export class Door extends WorldObject {
       this.pivot.add(gl);
     }
     world.zone(o.zone)?.group.add(this.pivot) ?? world.root.add(this.pivot);
-    // collision quand fermée
-    const hw = w / 2;
-    this.col = o.axis === 'x' ? new Box(o.x - hw, o.y, o.z - 0.08, o.x + hw, o.y + h, o.z + 0.08, LAYER.DOOR, this) : new Box(o.x - 0.08, o.y, o.z - hw, o.x + 0.08, o.y + h, o.z + hw, LAYER.DOOR, this);
+    // collision quand fermée (porte vitrée : jusqu'au bout des poignées bâtons)
+    const hw = w / 2, ht = o.mat === 'glass' ? 0.095 : 0.08;
+    this.col = o.axis === 'x' ? new Box(o.x - hw, o.y, o.z - ht, o.x + hw, o.y + h, o.z + ht, LAYER.DOOR, this) : new Box(o.x - ht, o.y, o.z - hw, o.x + ht, o.y + h, o.z + hw, LAYER.DOOR, this);
     world.physics.add(this.col);
+    // vantail ouvert : collision à sa position d'ouverture (on ne traverse plus une porte ouverte)
+    this.leafCol = new Box(0, 0, 0, 0, 0, 0, LAYER.DOOR, this); this.leafCol.enabled = false; world.physics.add(this.leafCol);
     this.setPick(this.col.min[0] - 0.05, o.y, this.col.min[2] - 0.05, this.col.max[0] + 0.05, o.y + h, this.col.max[2] + 0.05);
     this.angle = 0; this.target = 0;
     this.init({ open: 0, locked: !!o.locked, padlock: 0, broken: false, oiled: false, sealed: !!o.sealed });
@@ -218,6 +220,8 @@ export class Door extends WorldObject {
     if ('open' in patch) {
       this.target = patch.open ? (this.o.swing || 1) * Math.PI / 2 * 0.95 : 0;
       this.col.enabled = !patch.open;
+      if (patch.open) this._placeLeaf();
+      this.leafCol.enabled = !!patch.open;
       if (!isReset) {
         const pos = this.pos;
         if (patch.open) g.sfx(this.creaky && !this.state.oiled && Math.random() < 0.5 ? 'door_creak' : 'door_open', pos, { volume: 0.8 });
@@ -227,6 +231,16 @@ export class Door extends WorldObject {
     if ('padlock' in patch && !isReset && patch.padlock) g.sfx('padlock_close', this.pos);
     if (this.padMesh) this.padMesh.visible = !!this.state.padlock;
     else if (this.state.padlock) this._makePadlock();
+  }
+  // boîte englobante du vantail à l'angle d'ouverture (épaisseur avec les poignées)
+  _placeLeaf() {
+    const o = this.o, hs = o.hinge === 'b' ? 1 : -1, dU = -hs, phi = this.target * (o.hinge === 'b' ? -1 : 1), c = Math.cos(phi), s = Math.sin(phi), t = 0.08;
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const u of [0, dU * this.w]) for (const n of [-t, t]) {
+      const lx = o.axis === 'x' ? u : n, lz = o.axis === 'x' ? n : u, x = this.pivot.position.x + lx * c + lz * s, z = this.pivot.position.z - lx * s + lz * c;
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
+    }
+    this.leafCol.set(x0, o.y, z0, x1, o.y + this.h, z1); this.world.physics.update(this.leafCol);
   }
   _makePadlock() {
     const m = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.03), new THREE.MeshStandardMaterial({ color: 0xb8860b, metalness: 0.8, roughness: 0.3 }));
