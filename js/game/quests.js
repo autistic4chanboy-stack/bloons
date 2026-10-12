@@ -365,13 +365,25 @@ export class Quests {
     const g = this.game;
     if (!m.mb) {
       const boxes = this.musicBoxes(st.arg); let pr = boxes.find(p => p.data.on);
-      if (!pr && nm - ss.t0 > 2) { pr = boxes.find(p => p.state.where === 'home' || p.state.where === 'world'); if (pr) pr.set({ data: { ...pr.data, on: true } }); }
+      if (!pr && nm - ss.t0 > 2) { // elle se lance d'elle-même (mélodie de 40 s, comme celle des scripts)
+        pr = boxes.find(p => p.state.where === 'home' || p.state.where === 'world');
+        if (pr) { const id = pr.id; pr.set({ data: { ...pr.data, on: true } }); setTimeout(() => { const b = g.props.get(id); if (b?.data.on) b.set({ data: { ...b.data, on: false } }); }, 40000); }
+      }
       if (!pr) return null;
-      m.mb = pr.id; m.t = nm; ss.at = pr.state.pos.map(v => +v.toFixed(2)); this.dirty = true; return null;
+      m.mb = pr.id; m.t = nm; m.rt = performance.now(); ss.at = pr.state.pos.map(v => +v.toFixed(2)); this.dirty = true; return null;
     }
-    const pr = g.props.get(m.mb); if (!pr) return { done: true, choice: 'finish' };
-    if (pr.data.on) { if (nm - m.t > 24) { pr.set({ data: { ...pr.data, on: false } }); return { done: true, choice: 'finish' }; } return null; }
-    return { done: true, choice: nm - m.t >= 19 ? 'finish' : 'stop' };
+    const pr = g.props.get(m.mb); if (!pr) return m.heard ? { done: true, choice: 'finish' } : { fail: true };
+    const p = V(...pr.state.pos), near = (r) => g.alivePlayers().find(x => x.pos.distanceTo(p) < r);
+    const end = () => (m.heard ? { done: true, choice: 'finish' } : { fail: true }); // personne venu l'écouter : manqué
+    if (pr.data.on) {
+      const pl = near(12); if (pl) { m.heard = true; m.actor = pl.id; }
+      if (nm - m.t > 24) { pr.set({ data: { ...pr.data, on: false } }); return end(); } // filet : elle finit toujours
+      return null;
+    }
+    // arrêtée : par un gardien à portée de main avant la fin de la mélodie (≈ 40 s réelles), sinon fin naturelle
+    const pl = near(5);
+    if (pl && performance.now() - m.rt < 37000) return { done: true, choice: 'stop', actor: pl.id };
+    return end();
   }
   // magnétoscope hanté : éteint pendant la lecture (« stop ») ou regardé jusqu'au bout (« watch » : un gardien tout près
   // ou sur une caméra du magasin à la fin) ; personne → manqué
