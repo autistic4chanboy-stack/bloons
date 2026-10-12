@@ -570,14 +570,21 @@ function buildAdmin(world, A, door, dev, rng) {
   dev('office_chair', 'adm_compta', -69.0, y + 0.55, -4.3, Math.PI); dev('office_chair', 'adm_compta', -67.0, y + 0.55, -4.3, Math.PI);
   dev('desk_phone', 'adm_compta', -68.5, y + 0.83, -5.2, 0);
   cabinet('adm_compta', -66.45, -2.0, -Math.PI / 2, 'Classeur — factures', ['notebook']); cabinet('adm_compta', -66.45, -2.6, -Math.PI / 2, 'Classeur — paies', []);
-  world.add(new Readable(world, world.newId('read'), { zone: 'adm_compta', name: 'Post-it sur l\'écran', title: 'Post-it', text: 'Coffres : 0412\n(ne PAS laisser traîner — Martine)', box: [-67.3, y + 0.95, -6.25, -66.7, y + 1.2, -6.0] }));
+  // post-it oublié sur le bureau, à côté d'un sous-main et d'un stylo
+  A.furn('adm_compta', -67.45, y + 0.76, -5.75, -66.85, y + 0.765, -5.3, 0x2c3a46, { collide: false });
+  A.furn('adm_compta', -66.74, y + 0.76, -5.36, -66.66, y + 0.764, -5.28, 0xf2d43a, { collide: false });
+  A.furn('adm_compta', -66.7, y + 0.764, -5.33, -66.62, y + 0.767, -5.25, 0xf6a5c0, { collide: false });
+  A.furn('adm_compta', -67.3, y + 0.765, -5.2, -67.16, y + 0.775, -5.19, 0x1a3a8a, { collide: false });
+  world.add(new Readable(world, world.newId('read'), { zone: 'adm_compta', name: 'Post-it sur le bureau', title: 'Post-it', text: 'Coffres : 0412\n(ne PAS laisser traîner — Martine)', box: [-66.82, y + 0.74, -5.42, -66.56, y + 0.82, -5.2] }));
   // ── salle des coffres ──
   dev('safe', 'adm_coffre', -66.7, y + 0.55, -10.6, -Math.PI / 2, { shop: 'adm', code: '2711', contents: ['cash', 'cash', 'cash', 'cash_drawer_money'] });
   dev('safe', 'adm_coffre', -66.7, y + 0.55, -8.6, -Math.PI / 2, { shop: 'adm', code: '1987', contents: ['cash', 'old_newspaper', 'photo_album'] });
   desk('adm_coffre', -69.6, -11.6, -68.4, -10.2, 0x4a4f55);
   A.furn('adm_coffre', -69.4, y + 0.76, -11.3, -68.8, y + 0.98, -10.8, 0x2b2f33, { metal: true }); // compteuse de billets
   dev('cash', 'adm_coffre', -68.6, y + 0.78, -10.5, 0.2, { prop: true }); dev('cash', 'adm_coffre', -68.7, y + 0.8, -10.9, 1.1, { prop: true });
-  world.add(new Readable(world, world.newId('read'), { zone: 'adm_coffre', name: 'Registre des fonds', title: 'Registre des fonds', text: 'Coffre n°1 : recettes de la semaine (code changé le 27/11).\nCoffre n°2 : « effets personnels — dossier 1987 ». Ne pas ouvrir sans M. Desmarais.', box: [-69.6, y + 0.76, -10.2, -69.1, y + 0.82, -9.9] }));
+  A.furn('adm_coffre', -69.5, y + 0.76, -10.62, -69.18, y + 0.8, -10.38, 0x1f3d2b, { collide: false }); // registre relié toile
+  A.furn('adm_coffre', -69.49, y + 0.765, -10.384, -69.19, y + 0.795, -10.376, 0xe8e0c8, { collide: false });
+  world.add(new Readable(world, world.newId('read'), { zone: 'adm_coffre', name: 'Registre des fonds', title: 'Registre des fonds', text: 'Coffre n°1 : recettes de la semaine (code changé le 27/11).\nCoffre n°2 : « effets personnels — dossier 1987 ». Ne pas ouvrir sans M. Desmarais.', box: [-69.55, y + 0.74, -10.68, -69.12, y + 0.84, -10.32] }));
   // ── archives (cartons historiques, étagères, vieille télé) ──
   for (let i = 0; i < 3; i++) shelfUnit(A, 'adm_archives', -69.8, -21.6 + i * 3.3, 'z', 2.6, 0x8d8d8d, 4, 2.3, 0.45, y);
   for (let i = 0; i < 10; i++) {

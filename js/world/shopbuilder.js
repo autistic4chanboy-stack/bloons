@@ -8,6 +8,7 @@ import { Box, LAYER } from '../engine/physics.js';
 import { Door, Shutter, GlassPane, LightSwitch, HideSpot, Container, Seat } from './fixtures.js';
 import { signTexture } from '../engine/textures.js';
 import { stockShop } from './stocking.js';
+import { buildShopFront } from './shopfront.js';
 
 export function shopX(s) { const x0 = GALLERY_X0 + s.slot * SLOT_W; return { x0, x1: x0 + s.w * SLOT_W }; }
 export function ventXForShop(s) { return shopX(s).x0 + 9; }
@@ -130,6 +131,7 @@ function buildShop(world, A, dev, s, rng) {
     A.box(id, 'chrome', ex0 - 0.08, y, zF - 0.1, ex0, frontTop, zF + 0.1); A.box(id, 'chrome', ex1, y, zF - 0.1, ex1 + 0.08, frontTop, zF + 0.1);
     const sh = new Shutter(world, world.newId('shutter'), { zone: id, x0: ex0, x1: ex1, z: zF, y0: y, y1: frontTop, closed: true, shopName: s.name, shop: id });
     world.add(sh); ctl.shutter = sh;
+    buildShopFront(world, A, ctl, s, rng.fork('front'), ex0, ex1);
     // enseigne
     const signW = Math.min(W - 1.4, 10), signH = s.floor ? 1.0 : 0.85;
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(signW, signH), new THREE.MeshBasicMaterial({ map: signTexture(s.name, s.color, { italic: ['boulangerie', 'fleuriste', 'parfumerie', 'mode', 'bijouterie'].includes(id), font: ['pixel', 'arcade', 'octet', 'mobizone', 'electro'].includes(id) ? 'Arial Black, Arial' : 'Georgia, serif' }) }));
