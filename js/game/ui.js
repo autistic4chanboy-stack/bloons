@@ -332,6 +332,7 @@ export class UI {
     const g = this.game, p = g.player;
     // sous-titres
     if (this.subQueue.length) { this.subQueue[0].d -= dt; if (this.subQueue[0].d <= 0) { this.subQueue.shift(); this.renderSubs(); } }
+    this.updateQuests?.(dt); // objectifs de la nuit (suivi, témoins des bornes)
     // barre d'inventaire
     if (this.slotsVersion !== p.inv.version) {
       this.slotsVersion = p.inv.version;
@@ -377,3 +378,95 @@ export function drawScreamFace(ctx, kind) {
   for (let i = 0; i < 2000; i++) { ctx.fillStyle = `rgba(${Math.random() * 60},0,0,${Math.random() * 0.3})`; ctx.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
   if (kind === 'bear') { ctx.fillStyle = '#8d5a24'; ctx.beginPath(); ctx.arc(85, 60, 50, 0, 7); ctx.arc(315, 60, 50, 0, 7); ctx.fill(); }
 }
+
+// ── Objectifs (mini-quêtes, js/game/quests.js) : suivi discret en haut à gauche (style incrustation de caméra-piéton),
+// annonces (nouvel objectif, réussi, manqué), journal de la nuit (J), suivi masqué / affiché (H, réglage questHud).
+UI.prototype.questInit = function () {
+  if (this.qEl) return;
+  this.qEl = el('div', 'nb-quests'); this.qToastEl = el('div', 'q-toast'); this.qList = el('div', 'q-list');
+  this.qEl.append(this.qToastEl, this.qList); this.root.appendChild(this.qEl);
+  this.qKey = ''; this.qT = 0; this.qFresh = new Map(); this.qToasts = []; this.qToastT = 0; this.qRows = [];
+  window.addEventListener('keydown', (e) => this.questKey(e));
+};
+UI.prototype.questKey = function (e) {
+  const g = this.game; if (!g.running || g.input.textMode || e.repeat) return;
+  if (e.code === 'KeyJ') {
+    if (this.modal?.kind === 'journal') { e.preventDefault(); this.closeModal(); return; }
+    if (this.modal || g.input.captureHandler || !g.quests?.view || !g.player.alive || !['walk', 'sit', 'hide'].includes(g.player.mode)) return;
+    e.preventDefault(); this.openJournal();
+  } else if (e.code === 'KeyH') {
+    if (this.modal || g.input.captureHandler || !g.quests) return;
+    const on = g.settings.questHud === false; g.quests.setHud(on); this.qKey = '';
+    this.toast(on ? 'Suivi des objectifs affiché (J : journal).' : 'Suivi des objectifs masqué (H pour le réafficher, J : journal).', 2.5);
+  }
+};
+UI.prototype.questChanged = function () { this.qKey = ''; if (this.modal?.kind === 'journal') this.renderJournal(); };
+// annonce : dans le suivi (ou en bandeau central si l'écran est occupé : caméras, fenêtre ouverte)
+UI.prototype.questToast = function (kind, text, opt) {
+  this.questInit();
+  const g = this.game;
+  const lead = kind === 'new' ? (opt ? 'Objectif facultatif' : 'Nouvel objectif') : kind === 'done' ? '✓ Objectif accompli' : '✗ Objectif manqué';
+  g.sfx(kind === 'new' ? 'notify' : kind === 'done' ? 'success' : 'error', null, { bus: 'ui', volume: kind === 'fail' ? 0.18 : 0.26 });
+  if (g.security?.fullscreen || this.modal) { this.toast(lead + ' : ' + text, 4); return; }
+  this.qToasts.push({ kind, html: '<b>' + esc(lead) + '</b> · ' + esc(text) + (kind === 'new' && !this._qHinted ? ' <span style="opacity:.6">— J : journal</span>' : '') });
+  if (kind === 'new') this._qHinted = true;
+  if (this.qToasts.length > 3) this.qToasts.shift();
+};
+UI.prototype.updateQuests = function (dt) {
+  const g = this.game, Q = g.quests; if (!Q) return;
+  this.questInit();
+  Q.updateReaders?.();
+  this.root.classList.toggle('q-modal', !!this.modal);
+  this.qEl.classList.toggle('net', !!Net.online);
+  // annonces, l'une après l'autre
+  if (this.qToastT > 0) { this.qToastT -= dt; if (this.qToastT <= 0) this.qToastEl.classList.remove('on'); }
+  else if (this.qToasts.length) { const t = this.qToasts.shift(); this.qToastEl.className = 'q-toast on ' + t.kind; this.qToastEl.innerHTML = t.html; this.qToastT = 4.2; }
+  this.qT -= dt; if (this.qT > 0) return; this.qT = 0.1;
+  const rows = Q.view ? Q.rows() : [];
+  const hide = g.settings.questHud === false;
+  this.qList.classList.toggle('off', hide);
+  // ligne d'objectif générale : remplacée par le suivi tant qu'il y a des objectifs en cours
+  this.objEl.style.display = rows.length && !hide ? 'none' : this.objective ? 'block' : 'none';
+  const now = performance.now() / 1000;
+  for (const r of rows) if (!this.qFresh.has(r.key)) this.qFresh.set(r.key, now);
+  const show = rows.slice(0, 3);
+  const key = show.map(r => r.key + '|' + r.prog + '|' + r.sub + '|' + (now - this.qFresh.get(r.key) < 5 ? 1 : 0)).join('§') + '#' + rows.length + (hide ? 'h' : '');
+  if (key !== this.qKey) {
+    this.qKey = key;
+    this.qList.innerHTML = show.map(r => `<div class="q-row ${r.opt ? 'opt' : ''} ${now - this.qFresh.get(r.key) < 5 ? 'fresh' : ''}"><div class="q-t"><span class="q-tt">${esc(r.title)}</span>${r.prog ? `<span class="q-p">${esc(r.prog)}</span>` : ''}</div><div class="q-s"><span class="q-a">▲</span><span class="q-d"></span><span class="q-sub">${esc(r.sub)}</span></div></div>`).join('') + (rows.length > show.length ? `<div class="q-more">+${rows.length - show.length} autre${rows.length - show.length > 1 ? 's' : ''} · J : journal</div>` : '');
+    this.qRows = [...this.qList.querySelectorAll('.q-row')].map((n, i) => ({ r: show[i], a: n.querySelector('.q-a'), d: n.querySelector('.q-d'), s: n.querySelector('.q-sub') }));
+  }
+  // flèche et distance vers la cible de chaque objectif (repère du regard du joueur)
+  const p = g.player, pos = p.pos, yaw = p.yaw;
+  for (const R of this.qRows) {
+    const t = Q.target(R.r.st, R.r.ss);
+    if (!t) { R.a.style.visibility = 'hidden'; R.d.textContent = ''; if (!R.r.sub) R.s.textContent = ''; continue; }
+    const dx = t.x - pos.x, dz = t.z - pos.z, dy = t.y - (pos.y + 1), dist = Math.hypot(dx, dz);
+    const fwd = -dx * Math.sin(yaw) - dz * Math.cos(yaw), right = dx * Math.cos(yaw) - dz * Math.sin(yaw);
+    const near = dist < 2.5 && Math.abs(dy) < 2.5;
+    R.a.style.visibility = near ? 'hidden' : 'visible';
+    R.a.style.transform = 'rotate(' + Math.atan2(right, fwd).toFixed(2) + 'rad)';
+    R.d.textContent = near ? 'ici' : Math.round(dist) + ' m' + (dy > 2.5 ? ' ↑' : dy < -2.5 ? ' ↓' : '');
+    if (!R.r.sub) { const z = g.world.zoneAt(t.x, t.y + 0.3, t.z); R.s.textContent = z ? z.name : ''; }
+  }
+};
+UI.prototype.openJournal = function () {
+  const n = el('div', 'nb-journal'); this.qJournal = n;
+  n.addEventListener('click', (e) => { if (e.target.dataset?.a === 'close') this.closeModal(); if (e.target.dataset?.a === 'hud') { const g = this.game; g.quests.setHud(g.settings.questHud === false); this.qKey = ''; this.renderJournal(); } });
+  this.openModal('journal', n);
+  this.renderJournal();
+  this.game.sfx('book_page', null, { volume: 0.35, bus: 'ui' });
+};
+UI.prototype.renderJournal = function () {
+  const g = this.game, n = this.qJournal; if (!n || this.modal?.kind !== 'journal') return;
+  const J = g.quests?.journal();
+  if (!J) { n.innerHTML = '<h2>Journal de garde</h2><p class="jr-empty">Aucun objectif pour l\'instant.</p><div class="btns"><button data-a="close">Fermer</button></div>'; return; }
+  const head = J.mode === 'story' ? 'Nuit ' + J.night + (J.subtitle ? ' — ' + J.subtitle : '') : 'Mode infini — nuit ' + J.night;
+  const step = (s) => s.s === 'hidden' ? '' : `<li class="${s.s}">${esc(s.title)}${s.opt ? ' <span class="jr-tag">facultatif</span>' : ''}${s.prog ? `<span class="jr-p">${esc(s.prog)}</span>` : ''}${s.choice ? `<span class="jr-c">— ${esc(s.choice)}</span>` : ''}${s.s === 'active' && s.desc ? `<p>${esc(s.desc)}</p>` : ''}</li>`;
+  const quests = J.quests.map(q => {
+    const next = q.steps.findIndex(s => s.s === 'hidden'), upcoming = next >= 0 && q.s === 'active' ? '<li class="hidden">… la suite plus tard</li>' : '';
+    const tag = q.s === 'over' ? (q.ok ? '<span class="jr-tag ok">terminée</span>' : '<span class="jr-tag ko">incomplète</span>') : q.optional ? '<span class="jr-tag">facultative</span>' : '';
+    return `<section class="jr-q ${q.s}"><h3>${esc(q.title)}${q.giver ? ` <em>${esc(q.giver)}</em>` : ''} ${tag}</h3><ul>${q.steps.map(step).join('')}${upcoming}</ul>${q.reward && q.s !== 'over' ? `<p class="jr-rw">Récompense : ${esc(q.reward)}</p>` : ''}</section>`;
+  }).join('') || '<p class="jr-empty">Rien pour l\'instant. La nuit commence à 22 h : lisez la note de Gérard sur le bureau.</p>';
+  n.innerHTML = `<h2>Journal de garde<small>${esc(head)}</small></h2><p class="jr-sum">Objectifs : ${J.done}/${J.total} · ${esc(g.clockString())}</p>${quests}<div class="btns"><button data-a="close">Fermer (J)</button><button data-a="hud">${g.settings.questHud === false ? 'Afficher' : 'Masquer'} le suivi à l'écran (H)</button></div><p class="hint">Les objectifs manqués ne bloquent jamais la nuit : ils comptent au rapport de l'aube.</p>`;
+};

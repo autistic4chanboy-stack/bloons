@@ -6,7 +6,9 @@
 // Données : js/data/quests.js ; bornes : js/world/checkpoints.js ; déclencheurs des scripts : data/story.js (on: '…').
 import * as THREE from 'three';
 import { QUESTS, CHECKPOINTS, INFINITE_QUEST } from '../data/quests.js';
+import { NIGHTS } from '../data/story.js';
 import { LAYER } from '../engine/physics.js';
+import { buildCheckpoints } from '../world/checkpoints.js';
 import { Net } from '../net/net.js';
 import * as Save from './save.js';
 
@@ -25,6 +27,7 @@ export class Quests {
     this.state = null;   // hôte : état qui fait foi
     this.view = null;    // tous les pairs : dernier état reçu (suivi, journal, bornes)
     this.mem = {}; this.seen = {}; this.timers = []; this.cache = {}; this.pollT = 0; this.dirty = false;
+    try { buildCheckpoints(game.world); } catch (e) { console.error('[quêtes] bornes de ronde', e); } // le centre est déjà construit
     const S = game.sim, H = game.hooks;
     S.effect('quest', (p) => this.apply(p));
     S.effect('qfx', (p) => this.applyFx(p));
@@ -624,7 +627,8 @@ export class Quests {
       if (qs.s === 'hidden') continue;
       quests.push({ id: q.id, title: q.title, giver: q.giver || null, optional: !!q.optional, s: qs.s, ok: !!qs.ok, steps, reward: q.reward ? this.rewardText(q.reward) : null });
     }
-    return { night: this.night, mode: this.mode, quests, done, total };
+    const N = this.mode === 'story' ? NIGHTS.find(x => x.n === this.night) : null;
+    return { night: this.night, mode: this.mode, title: N?.title || null, subtitle: N?.subtitle || null, quests, done, total };
   }
   rewardText(rw) { const a = []; if (rw.coins) a.push(rw.coins + ' pièce' + (rw.coins > 1 ? 's' : '') + ' de 2 €'); if (rw.items?.length) a.push('des piles'); if (rw.note) a.push('une note de Gérard'); if (rw.bonus) a.push(rw.bonus + ' €'); return a.join(', ') || null; }
 }

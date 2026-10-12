@@ -168,6 +168,7 @@ export class Sync {
       world: g.world.serialize(), props: g.props.serializeRuntime(), ents: g.entities.serialize(),
       fire: g.fire.cells.map(c => [c.pos.x, c.pos.y, c.pos.z, c.size, c.zone]),
       discovered: Object.keys(g.discovered),
+      quests: g.quests?.snapshot() || null, // objectifs de la nuit (suivi et journal identiques chez tous)
     };
     Net.sendFull(to, data);
     // équipement de base pour un gardien qui arrive en pleine nuit
@@ -189,6 +190,7 @@ export class Sync {
       for (const k of s.discovered || []) g.discovered[k] = true;
       if (s.fire?.length) { g.fire.cells = s.fire.map(a => ({ pos: new THREE.Vector3(a[0], a[1], a[2]), size: a[3], zone: a[4] })); g.fire.refreshFx(); }
       if (s.story.scripted) this._scriptedMask = s.story.scripted;
+      if (s.quests) g.quests?.apply({ ...s.quests, silent: true });
       g.ui.card(st.mode === 'story' ? 'Nuit ' + st.night : 'Mode infini — nuit ' + st.night, 'Vous rejoignez la garde', 4);
       g.ui.setObjective(st.phase === 'day' ? 'Rejoignez Gérard au poste de sécurité.' : 'Surveillez le centre avec les autres gardiens jusqu\'à 6 h.');
       if (st.phase === 'day') g.player.spawn(g.world.points.spawnDay, g.world.points.spawnDayYaw ?? Math.PI / 2);

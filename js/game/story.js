@@ -7,6 +7,7 @@ import { GERARD_NOTES, FRAGMENTS, LORE } from '../data/lore.js';
 import { ITEMS } from '../data/items.js';
 import { Net } from '../net/net.js';
 import * as Save from './save.js';
+import { Quests } from './quests.js';
 
 const NIGHT_RATE = (8 * 60) / (NIGHT_REAL_MINUTES * 60); // minutes de jeu par seconde réelle (0,533)
 const ALL_SHOPS = SHOPS.map(s => s.id);
@@ -22,6 +23,7 @@ export class Story {
     this.stats = {}; this.crowdLevel = 0; this.dayFree = false;
     this.scripted = []; this.tutorial = null; this.t = 0;
     this.outcome = {}; this.slot = 0;
+    this.quests = new Quests(game); game.quests = this.quests; // mini-quêtes (objectifs de la nuit)
     const S = game.sim;
     S.effect('night', (p) => this.applyNightEffect(p));
     S.effect('dialogue', (p) => this.applyDialogue(p));
@@ -82,6 +84,7 @@ export class Story {
     const day = this.mode === 'story' && N.day && !g.flags['day_done_' + n];
     this._closingAnnounce = this._closed = this._lightsOff = this._gerardLeaves = false;
     g.sim.emit('night', { phase: 'reset', n, mode: this.mode, day, flags: g.flags, stats: this.stats });
+    this.quests.setup(this.mode, n); this._qres = null; // objectifs de la nuit remis à zéro (nuit recommencée comprise)
     // déblocages → verrous
     const W = g.world;
     for (const [id, ctl] of Object.entries(W.shops)) {
@@ -146,6 +149,7 @@ export class Story {
       g.player.flashOn = false;
       if (g.ui.modal) g.ui.closeModal(true);
       g.ui.setObjective('');
+      g.quests?.reset();
       return;
     }
     if (p.phase === 'day' || p.phase === 'dusk') {
@@ -182,10 +186,13 @@ export class Story {
     if (this.phase === 'none' || this.phase === 'end' || this.phase === 'fail' || this.phase === 'ending') return;
     const m = g.env.minutes;
     if (this.phase === 'day') this.updateDay(dt, m);
+    if (this.phase === 'dusk') this.gerardLeaves(m);
     if (this.phase === 'dusk' && m >= 22 * 60 - 0.5 && m < 23 * 60) this.beginNight();
+    if (this.phase === 'night' || this.phase === 'dusk') this.quests.update(dt);
     if (this.phase === 'night') {
       const nm = nightMin(m);
-      for (const s of this.scripted) if (!s.done && nm >= s.t) { s.done = true; if (!s.cond || this.cond(s.cond)) g.events.execute(s, true); }
+      // scripts : à leur heure, ou plus tôt quand une quête lance leur déclencheur (on: '…') ; la quête peut les remplacer
+      for (const s of this.scripted) if (!s.done && (nm >= s.t || (s.on && this.quests.hasFired(s.on)))) { s.done = true; if (this.quests.intercept(s)) continue; if (!s.cond || this.cond(s.cond)) g.events.execute(s, true); }
       if (nm >= 480 - 0.01) this.endNight(false);
       // abandon de poste
       for (const pl of g.alivePlayers()) { if (pl.pos.x > 112) { this.fail('Vous avez quitté le centre en pleine nuit. Abandon de poste.'); return; } }
@@ -228,11 +235,18 @@ export class Story {
       g.env.timeScale = 1.0;
     }
     if (!this._lightsOff && m >= parseT('20:45')) { this._lightsOff = true; const lit = { ...g.power.state.lit }; for (const z of g.world.zones) if (z.shop) lit[z.id] = false; lit.service_n0 = lit.service_s0 = false; g.lighting.setMany(lit); }
-    if (!this._gerardLeaves && m >= parseT('21:50')) { this._gerardLeaves = true; g.entities.gerardLeave(); g.sim.emit('dialogue', { who: 'Gérard', text: 'Allez, j\'y vais. Bonne nuit, petit. Et… ne descends pas au sous-sol après trois heures. Je rigole. Enfin… presque.' }); }
+    this.gerardLeaves(m);
     if (m >= parseT('21:30') && this.phase === 'day') { this.phase = 'dusk'; g.sim.emit('night', { phase: 'dusk_soft', n: this.night }); g.env.timeScale = NIGHT_RATE; g.isDay = false; this.dayToDusk(); }
     if (T) this.updateTutorial(dt);
   }
   dayToDusk() { const g = this.game; g.isDay = false; g.sim.emit('dialogue', { who: '', text: '' }); }
+  // Gérard s'en va à 21 h 50 (la journée d'accueil est déjà passée au crépuscule) : il confie la première ronde
+  gerardLeaves(m) {
+    const g = this.game; if (this._gerardLeaves || m < parseT('21:50') || m >= 23 * 60 || !g.entities.gerard) return;
+    this._gerardLeaves = true; g.entities.gerardLeave(); this.quests.note('tuto'); // la consigne de la ronde est donnée de vive voix
+    g.sim.emit('dialogue', { who: 'Gérard', text: 'Allez, j\'y vais. À dix heures, ta première ronde : tu pointes à chaque borne jaune, la galerie, le Royaume du Jouet, le vestiaire, et tu reviens au poste.', dur: 7 });
+    setTimeout(() => g.sim.emit('dialogue', { who: 'Gérard', text: 'Bonne nuit, petit. Et… ne descends pas au sous-sol après trois heures. Je rigole. Enfin… presque.' }), 7500);
+  }
 
   updateTutorial(dt) {
     const g = this.game; const T = this.tutorial; if (T.step >= 99) return;
@@ -268,6 +282,7 @@ export class Story {
     const ro = this.outcome.robbery;
     if (ro && ro.result === 'success' && !ro.reported) { this.fail('Les braqueurs ont vidé la bijouterie et personne n\'a prévenu la police.'); return; }
     this.phase = 'end';
+    this._qres = this.quests.finish(); // bilan des objectifs de la nuit (rapport de l'aube, statistiques)
     const stolen = this.outcome.thefts.reduce((a, t) => a + (t.value || 0), 0);
     // conséquences des vols
     let suspicionAdd = 0; const notes = [];
@@ -293,7 +308,7 @@ export class Story {
     if (this.mode === 'infinite') { Save.recordInfinite(this.night); }
   }
   buildSummary(notes, stolen) {
-    const o = this.outcome; const lines = [];
+    const o = this.outcome; const lines = [...(this._qres?.lines || [])];
     if (o.robbery) lines.push(o.robbery.result === 'aborted' ? ['good', 'Les braqueurs ont renoncé (trop de lumière / alarme).'] : o.robbery.result === 'arrested' ? ['good', 'Les braqueurs ont été arrêtés par la police !'] : o.robbery.reported ? ['bad', 'Les braqueurs se sont enfuis, mais vous avez prévenu la police.'] : ['bad', 'Cambriolage.']);
     if (o.fire) lines.push(o.fire === 'prevented' ? ['good', 'Aucun départ de feu : le disjoncteur était coupé à temps.'] : o.fire === 'extinguished' ? ['good', 'Incendie maîtrisé.'] : o.fire === 'firemen' ? ['good', 'Les pompiers ont éteint l\'incendie.'] : ['bad', 'Incendie.']);
     if (this.stats.pranksTonight) lines.push(['bad', `Appels abusifs aux secours : ${this.stats.pranksTonight}`]);
@@ -390,14 +405,15 @@ export class Story {
     const g = this.game; this.phase = 'ending';
     const F = g.flags; const ep = [];
     if ((this.stats.catNights || 0) >= 7) ep.push('cat'); if (F.played_lune) ep.push('musician'); if (F.glouton_secret) ep.push('gamer');
-    g.sim.emit('night', { phase: 'ending', id, epilogues: ep, n: this.night });
+    g.sim.emit('night', { phase: 'ending', id, epilogues: ep, n: this.night, quests: this._qres?.lines || [] });
   }
   showEnding(p) {
     const g = this.game; const e = ENDINGS.find(x => x.id === p.id);
     Save.recordEnding(p.id);
     if (this.mode === 'story') Save.deleteSlot(this.slot);
     const eps = (p.epilogues || []).map(id => EPILOGUES.find(x => x.id === id)).filter(Boolean);
-    g.ui.showSummary(`<h1>FIN — ${e.name}</h1><p>${e.desc}</p>${eps.map(x => `<h3>Épilogue : ${x.name}</h3><p>${x.desc}</p>`).join('')}<p class="small">Fins débloquées : ${Object.keys(Save.load().endings).length}/${ENDINGS.length}</p>`, [['Menu principal', () => g.onQuit()]]);
+    const ql = (p.quests || []).length ? `<ul>${p.quests.map(([c, t]) => `<li class="${c}">${t}</li>`).join('')}</ul>` : '';
+    g.ui.showSummary(`<h1>FIN — ${e.name}</h1><p>${e.desc}</p>${eps.map(x => `<h3>Épilogue : ${x.name}</h3><p>${x.desc}</p>`).join('')}${ql}<p class="small">Fins débloquées : ${Object.keys(Save.load().endings).length}/${ENDINGS.length}</p>`, [['Menu principal', () => g.onQuit()]]);
   }
 
   // ── sauvegarde ──

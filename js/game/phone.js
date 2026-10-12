@@ -50,7 +50,7 @@ export class Phone {
     const S = game.sim;
     S.effect('ring', (p) => this.applyRing(p));
     S.action('call', (p, actor) => this.hostCall(p, actor));
-    S.action('answer', (p, actor) => { if (this.ringingHost) { const c = this.ringingHost; this.ringingHost = null; game.sim.emit('ring', { on: false }); game.sim.emit('phoneline', { caller: c.caller, data: c.data }, { to: actor }); } });
+    S.action('answer', (p, actor) => { if (this.ringingHost) { const c = this.ringingHost; this.ringingHost = null; game.sim.emit('ring', { on: false }); game.sim.emit('phoneline', { caller: c.caller, data: c.data }, { to: actor }); game.hooks.emit('phone_answered', { caller: c.caller, data: c.data, actor }); } });
     S.effect('phoneline', (p) => this.playIncoming(p.caller, p.data));
     game.hooks.on('discover', (k, id) => { if (k === 'number') this.knownExtra.add(id); if (k === 'lore' && LORE[id]?.text) this.scanNumbers(LORE[id].text); });
     game.hooks.on('text_read', (t) => this.scanNumbers(t));
@@ -140,6 +140,7 @@ export class Phone {
     if (!this.ui) return;
     let lines = INCOMING[caller] || INCOMING.silence;
     if (caller === 'director_warn') lines = [['M. Desmarais', data?.text || 'Faites attention.']];
+    if (Array.isArray(data?.lines) && data.lines.length) lines = data.lines; // appel d'une quête (répliques fournies)
     if (caller === 'scream') { this.game.ui.screamerFlash('phone', 0.5); }
     this.playLines(lines, () => this.setStatus('L\'interlocuteur a raccroché.'));
   }
