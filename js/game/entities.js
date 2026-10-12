@@ -472,19 +472,26 @@ export class Entities {
     if (!from || !to) { e.path = null; return false; }
     const path = this.nav.path(from.id, to.id, this.blockedFn(e), opts.cost || null);
     if (!path) { e.path = null; return false; }
-    e.path = path; e.pi = 0; e.linkOk = true; e.dest = typeof nodeOrPos === 'string' ? null : nodeOrPos.clone?.() || null;
+    e.path = path; e.pi = 0; e.linkOk = true; e.dest = typeof nodeOrPos === 'string' ? null : nodeOrPos.clone?.() || null; e.nearK = null;
     return true;
+  }
+  // presse : quand plusieurs présences visent le même point, separate() les en écarte sans fin ;
+  // sans progrès pendant 1 s à moins d'un mètre, le point compte comme atteint
+  stalled(e, key, d, dt) {
+    if (d > 1 || e.nearK !== key || d < e.nearD - 0.03) { e.nearK = key; e.nearD = d; e.nearT = 0; return false; }
+    return (e.nearT += dt) > 1;
   }
   // avance le long du chemin. Retourne 'arrived' | 'moving' | 'blocked'
   follow(e, dt, speed) {
     if (!e.path || e.pi >= e.path.length) {
-      if (e.dest && e.pos.distanceTo(e.dest) > 0.3 && e.pos.distanceTo(e.dest) < 6) { this.stepTo(e, e.dest, dt, speed); e.speed = speed; return 'moving'; }
+      const d = e.dest ? e.pos.distanceTo(e.dest) : 0;
+      if (d > 0.3 && d < 6 && !this.stalled(e, 'dest', d, dt)) { this.stepTo(e, e.dest, dt, speed); e.speed = speed; return 'moving'; }
       e.speed = 0; return 'arrived';
     }
     const N = this.node(e.path[e.pi]); if (!N) { e.path = null; return 'arrived'; }
     if (e.pi > 0 && !e.linkOk) { const P = this.node(e.path[e.pi - 1]); const r = this.passLink(e, P, N, dt); if (r !== true) { e.speed = 0; e.blockT = (e.blockT || 0) + dt; return 'blocked'; } e.linkOk = true; e.blockT = 0; }
     const target = V(N.x, N.y, N.z);
-    if (this.stepTo(e, target, dt, speed)) { e.pi++; e.linkOk = false; e.inVent = !!N.vent; }
+    if (this.stepTo(e, target, dt, speed) || this.stalled(e, e.pi + N.id, Math.hypot(N.x - e.pos.x, N.z - e.pos.z), dt)) { e.pi++; e.linkOk = false; e.inVent = !!N.vent; }
     e.speed = speed;
     return 'moving';
   }

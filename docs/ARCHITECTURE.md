@@ -119,7 +119,8 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   un autre qu'à 8 m d'un passage (arêtes du graphe de navigation qui changent de niveau : escaliers, escalators, rampe)
   ou près d'un vide (`void: true`, l'atrium : 10 m, ou 45 m s'il est dans le champ de `cam`).
 - Depuis un magasin, les magasins mitoyens du même côté sont masqués ; une réserve ne se voit qu'à moins de 14 m.
-- Personnages : les pièces rigides de chaque segment sont fusionnées (couleurs par sommet, ~10 meshes par personnage).
+- Personnages : un seul mesh à squelette (`THREE.SkinnedMesh`) par personnage (`humanoid.js` : corps continu, visage
+  modelé, mains, tenues) ; les accessoires tenus suivent l'os de la main (`propR`).
 
 ## Rendu : pipeline et matériaux (`js/engine/renderer.js`, `materials.js`, `textures.js`, `js/world/power.js`)
 - Scène rendue dans une cible HalfFloat avec texture de profondeur ; passe demi-résolution : SSAO (12 échantillons,
@@ -166,6 +167,17 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   porte-étiquettes, prix plausibles et stables (`priceOf`), environ un produit sur dix en promotion (étiquettes
   « PROMO », « PRIX CHOC », « 2 + 1 OFFERT », « NOUVEAU », stop-rayons imprimés des deux côtés), affichettes sur les
   têtes de gondole (`P.caps`). Une texture pour tout le centre, un mesh par magasin, éclairage de zone conservé.
+- Modélisation (tout est procédural, chanfreins à normales lissées plutôt que boîtes nues, et tout le détail est versé
+  dans les lots existants : un meuble détaillé coûte des sommets, pas d'appel de dessin) :
+  - `meshes.js` : formes des objets (profils tournés, chanfreins, sous-pièces) ; toute forme tient dans la boîte `s`
+    de son objet (stockage, étiquettes et physique en dépendent).
+  - `meshes_devices.js` : appareils, machines, véhicules et grand mobilier ; remplace par `registerShape` les formes
+    de même nom (importé par `devices.js` pour ses effets, avant toute cuisson).
+  - `furnkit.js` : kit de mobilier des boutiques (repère d'objet `Pen`, ~70 pièces paramétriques), matériaux
+    `furniture_wood` / `furniture_fabric` / `furniture_perf` ; les boîtes d'origine restent en collisions invisibles
+    (`LayoutKit.solid`), planches, comptoirs et emplacements inchangés.
+  - `arch.js` / `geo.js` : aides de construction (profils, tubes, chanfreins) ; portes avec huisseries et option
+    `panic: true` (barre anti-panique des sorties de secours).
 - `decor.js` : décor des galeries (colonnes, bannières, totems, plans, kiosques, cabines, manèges, consignes, boutons
   d'arrêt d'urgence des escalators, comptoir d'accueil avec sonnette `DeskBell` et bac d'objets trouvés).
   `garagedecor.js` (parking : repères des piliers, numéros des places, flèches, gabarit, gaines, sprinklers ; tous
