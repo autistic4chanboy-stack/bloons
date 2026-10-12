@@ -34,6 +34,8 @@ export const CONTROLS = [
     { keys: ['M'], action: 'Afficher le plan (si vous avez le Guide du centre)' },
     { keys: ['N'], action: 'Regarder l\'heure' },
     { keys: ['T'], action: 'Chat textuel (multijoueur)' },
+    { keys: ['J'], action: 'Journal de garde : les [[page:objectifs|objectifs de la nuit]]' },
+    { keys: ['H'], action: 'Masquer / afficher le suivi des objectifs' },
     { keys: ['Échap'], action: 'Pause' },
   ] },
   { group: 'Au bureau de sécurité', rows: [

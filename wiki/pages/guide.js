@@ -332,6 +332,7 @@ export const story = {
             ${(n.features || []).length ? html`<div><dt>Nouveautés</dt><dd><ul class="feat">${n.features.map((k) => html`<li><b>${F[k] ? F[k].name : k}</b>${F[k] ? html` — ${F[k].desc}` : ''}</li>`)}</ul></dd></div>` : ''}
             ${(n.give || []).length ? html`<div><dt>Fourni au poste</dt><dd>${join(n.give.map(([id, q]) => itemChip(id, q)), ' ')}</dd></div>` : ''}
             <div><dt>Événements aléatoires</dt><dd>~${String(r.rate || 0).replace('.', ',')} par heure de jeu · ${join((r.cats || []).map((c) => html`<span class="tag">${cats[c] || c}</span>`), ' ')} <a class="more" href="#/evenements?night=${n.n}&story=1">voir la liste →</a></dd></div>
+            ${(D.QUESTS?.[n.n] || []).length ? html`<div><dt>Objectifs</dt><dd>${join(D.QUESTS[n.n].filter((q) => q.giver).map((q) => html`<a href="#/objectifs?at=q-${q.id}">${q.title}</a>`), ' · ')} <span class="muted">+ ${D.QUESTS[n.n].filter((q) => !q.giver).length} à découvrir</span> <a class="more" href="#/objectifs?at=obj-nuit-${n.n}">tous les objectifs →</a></dd></div>` : ''}
           </dl>
           ${spBlock(html`
             <div class="night-spoil">

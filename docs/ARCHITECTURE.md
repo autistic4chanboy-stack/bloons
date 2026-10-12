@@ -101,6 +101,8 @@ Modules sans dépendance, exportent des objets. Utilisés par le jeu et par le w
 - `phone.js` : `PHONE_NUMBERS`
 - `events.js` : `EVENT_TEMPLATES`, `buildEventCatalog()` (> 250 événements)
 - `story.js` : `NIGHTS` (1..10), `ENDINGS`
+- `quests.js` : `QUESTS` (mini-quêtes par nuit, format en tête du fichier), `CHECKPOINTS` (bornes de ronde),
+  `INFINITE_QUEST`
 - `costumes.js` : `COSTUMES`, `FLASHLIGHTS`
 - `lore.js` : notes, livres, VHS, easter eggs
 
@@ -218,6 +220,18 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
 ## Photos : `js/game/photo.js`
 `snapshot(player, flash)` (polaroid : l'objectif voit le calque 2), `booth(device, player)` (photomaton),
 `view(prop)`, `rearView(canvas | null)` (miroir de poche). Action `flashstun`.
+
+## Mini-quêtes : `js/game/quests.js`
+- L'hôte fait avancer les objectifs (`state` : quêtes `hidden | active | over`, étapes `hidden | active | done |
+  failed`, pointages, choix, drapeaux) : démarrage à l'heure, après une quête, sur déclencheur ou prédicat, heure de
+  repli ; vérification à 4 Hz ; échéance passée = manqué, la nuit ne se bloque jamais. Effet `quest` (état compact,
+  joint à l'état complet d'un joueur qui rejoint) ; chaque pair en tire le suivi, le journal (`ui.js` : `updateQuests`,
+  `openJournal`, touches J et H) et les témoins des bornes.
+- Scripts de nuit : `on: '<déclencheur>'` dans `data/story.js` part dès que la quête le lance (`quests.fire`), au plus
+  tard à son heure ; un appel scripté peut être remplacé par l'étape `answer` d'une quête (`intercept`).
+- Bornes : `js/world/checkpoints.js` (construites après le centre, sans toucher aux constructeurs : un mesh par zone,
+  une texture d'étiquettes, une `InstancedMesh` de témoins) ; E → `quests.punch(cp, actor)` sur l'hôte.
+- Fin de nuit : `finish()` → lignes du rapport de l'aube, `stats.quests[n]`, drapeaux `q_<clé>` des choix.
 
 ## Multijoueur : `js/net/sync.js`
 `RemotePlayer` (même interface minimale que `Player` : `pos`, `yaw`, `pitch`, `alive`, `costume`, `hasItem`, `mode`,
