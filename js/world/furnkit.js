@@ -1093,7 +1093,8 @@ export function cardTerminal(p) {
   p.push(0, 0.1, 0, 0, -0.5);
   p.rbox(FU, -0.04, -0.085, -0.02, 0.04, 0.085, 0.02, 0.01, 0x24272a);
   p.box(FU, -0.03, 0.02, 0.02, 0.03, 0.07, 0.021, 0x10324a, 'Z');
-  for (let r = 0; r < 4; r++) for (let k = 0; k < 3; k++) p.box(FU, -0.026 + k * 0.019, -0.07 + r * 0.019, 0.02, -0.012 + k * 0.019, -0.058 + r * 0.019, 0.023, r === 0 ? [0xc62828, 0xf9a825, 0x2e7d32][k] : 0xd8dadc, 'xXyYZ');
+  p.box(FU, -0.028, -0.052, 0.02, 0.028, 0.008, 0.0215, 0xc9ccd0, 'Z');                                                 // clavier
+  for (let k = 0; k < 3; k++) p.box(FU, -0.026 + k * 0.019, -0.072, 0.02, -0.012 + k * 0.019, -0.06, 0.023, [0xc62828, 0xf9a825, 0x2e7d32][k], 'yYZ');
   p.pop();
 }
 // Pictogramme « sortie de secours » (bloc autonome d'éclairage de sécurité : reste allumé sur batterie)
