@@ -105,10 +105,15 @@ code { font-family: var(--mono); background: #0b0f16; padding: 0 4px; border-rad
 .nb-chatinput input { flex: 1; }
 .nb-net { display: none; position: absolute; left: 16px; top: 16px; font-family: var(--mono); font-size: 11px; color: var(--dim); }
 /* incrustation de la caméra-piéton (au-dessus de la barre d'objets, coin droit) */
-.nb-osd { position: absolute; right: 18px; bottom: 74px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; color: rgba(232, 240, 232, 0.8); text-shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 0 7px rgba(0, 0, 0, 0.6); white-space: nowrap; transition: opacity .2s; }
-.nb-osd .rec { color: #ff3b30; animation: osdrec 1s steps(1) infinite; } @keyframes osdrec { 50% { opacity: 0.15; } }
+.nb-osd { position: absolute; right: 18px; bottom: 74px; font-family: var(--mono); font-size: 12px; line-height: 1.4; letter-spacing: 0.06em; text-align: right; color: rgba(232, 240, 232, 0.82); text-shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 0 7px rgba(0, 0, 0, 0.6); white-space: nowrap; transition: opacity .2s; }
+.nb-osd .sub { font-size: 10px; letter-spacing: 0.08em; opacity: 0.75; }
+.nb-osd .rec { color: #ff3b30; animation: osdrec 1.2s steps(1) infinite; } @keyframes osdrec { 50% { opacity: 0.12; } }
+.nb-osd .bat { display: inline-block; position: relative; box-sizing: border-box; width: 20px; height: 9px; margin: 0 9px 0 7px; padding: 1px; vertical-align: -1px; border: 1px solid currentColor; border-radius: 1px; font-size: 0; box-shadow: 0 0 2px rgba(0, 0, 0, 0.9); }
+.nb-osd .bat::after { content: ''; position: absolute; right: -3px; top: 2px; width: 2px; height: 3px; background: currentColor; }
+.nb-osd .bat i { display: inline-block; width: 3px; height: 5px; margin-right: 1px; vertical-align: top; background: currentColor; }
+.nb-osd .bat.low { color: #ff6b5b; animation: osdrec 1.2s steps(1) infinite; }
 #hud.hud-hidden .nb-osd { opacity: 0; }
-@media (max-width: 700px) { .nb-osd { font-size: 10px; right: 10px; } }
+@media (max-width: 700px) { .nb-osd { font-size: 10px; right: 10px; } .nb-osd .sub { font-size: 8.5px; } }
 
 /* ── Calques modaux ── */
 .nb-layers { position: absolute; inset: 0; pointer-events: none; }

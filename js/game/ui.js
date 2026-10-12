@@ -351,9 +351,11 @@ export class UI {
   }
 }
 
-// Incrustation de la caméra-piéton : « ● REC HÉLIOS SÉCURITÉ · AGENT 04 · 14/11 02:13:44 » (horloge du jeu, date de la
-// nuit en cours, le jour change à minuit). Le DOM n'est réécrit qu'une fois par seconde réelle : l'horloge du jeu
-// tourne ~32 fois plus vite la nuit, les secondes avancent donc par sauts, comme un enregistrement en accéléré.
+// Incrustation de la caméra-piéton : « ● REC ▮▮▮▯ 14/11/2026 02:13:44 », dessous « HÉLIOS SÉCURITÉ · AGENT 04 · GPS … »
+// (horloge du jeu, date de la nuit en cours, le jour change à minuit ; batterie de la caméra pleine le jour, qui baisse
+// au fil de la nuit ; coordonnées d'après la position du joueur). Le DOM n'est réécrit qu'une fois par seconde réelle :
+// l'horloge du jeu tourne ~32 fois plus vite la nuit, les secondes avancent donc par sauts, comme un enregistrement en
+// accéléré.
 UI.prototype.updateOSD = function () {
   const g = this.game, on = g.settings.bodycam !== false && g.player.alive;
   this.osd.style.display = on ? '' : 'none';
@@ -362,7 +364,9 @@ UI.prototype.updateOSD = function () {
   const t = (((g.env ? g.env.minutes : 1320) % 1440) + 1440) % 1440, sec = Math.floor(t * 60);
   const d = new Date(2026, 10, 13 + (g.night || 1) + (t < 720 ? 1 : 0)), p2 = (v) => String(v).padStart(2, '0');
   const agent = Net.online ? p2((parseInt(String(Net.myId).replace(/\D/g, ''), 10) || 4) % 100) : '04';
-  this.osd.innerHTML = `<span class="rec">●</span> REC&nbsp; HÉLIOS SÉCURITÉ · AGENT ${agent} · ${p2(d.getDate())}/${p2(d.getMonth() + 1)} ${p2(Math.floor(sec / 3600) % 24)}:${p2(Math.floor(sec / 60) % 60)}:${p2(sec % 60)}`;
+  const nt = g.isDay ? 0 : Math.min(1, Math.max(0, (g.env?.nightMinutes ?? 0) / 480)), bars = Math.max(1, Math.ceil((1 - nt * 0.75) * 4)); // 22 h → 6 h : 100 % → 25 %
+  const pp = g.player.pos, lat = 45.76405 - pp.z / 111320, lon = 4.83565 + pp.x / 77700;
+  this.osd.innerHTML = `<div><span class="rec">●</span> REC<span class="bat${bars < 2 ? ' low' : ''}">${'<i></i>'.repeat(bars)}</span>${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}&nbsp; ${p2(Math.floor(sec / 3600) % 24)}:${p2(Math.floor(sec / 60) % 60)}:${p2(sec % 60)}</div><div class="sub">HÉLIOS SÉCURITÉ · AGENT ${agent} · GPS ${lat.toFixed(4)} N ${lon.toFixed(4)} E</div>`;
 };
 
 export function drawScreamFace(ctx, kind) {

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { WorldObject } from './world.js';
 import { Box, LAYER } from '../engine/physics.js';
-import { quickGeometry } from './meshes.js';
+import { quickGeometry, buildItemGeometry } from './meshes.js';
 import { GeoBuilder, roundBoxGeo, latheGeo, trs } from '../engine/geo.js';
 import { LORE } from '../data/lore.js';
 import { ITEMS } from '../data/items.js';
@@ -445,32 +445,81 @@ export class Container extends WorldObject {
 }
 
 // ───────────────────────── CASIER (ouvrable, cachette) ─────────────────────────
+// couleur sRGB → linéaire (couleurs par sommet du kit), assombrie de f ; teinte hexadécimale assombrie
+const _lc = new THREE.Color();
+const linC = (c, f = 1) => { _lc.set(c); return [_lc.r * f, _lc.g * f, _lc.b * f]; };
+const shadeHex = (c, f) => (Math.round(((c >> 16) & 255) * f) << 16) | (Math.round(((c >> 8) & 255) * f) << 8) | Math.round((c & 255) * f);
+// quadrilatère à couleurs par sommet (P dans le sens trigonométrique vu du côté de la normale n)
+function gq(k, P, n, cols) {
+  const o = k.b.vertexCount, w = k.white;
+  for (let i = 0; i < 4; i++) k.vtx(P[i][0], P[i][1], P[i][2], n[0], n[1], n[2], w.u0, w.v0, cols[i]);
+  k.b.idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
+}
+const LK = { w: 0.4, h: 1.8, d: 0.5, t: 0.012, base: 0.08 };
 export class Locker extends WorldObject {
   constructor(world, id, o) {
     super(world, id, 'locker'); this.o = o; this.name = o.name || 'Casier'; this.zone = o.zone;
-    const g = world.game; const w = 0.4, h = 1.8, d = 0.5;
+    const g = world.game; const { w, h, d } = LK;
     this.group = new THREE.Group(); this.group.position.set(o.x, o.y, o.z); this.group.rotation.y = o.ry || 0;
-    const col = o.color || 0x546e7a, dk = 0x2f3a40;
-    const { geometry: body } = quickGeometry(g.atlas, (k) => { // caisson (ouvert devant), dessus à rebord, socle sombre, tablette et patère
-      k.box(0, h / 2, 0, w, h, d, col, { faces: 'xXyYz' }); k.box(0, h * 0.78, 0, w * 0.96, 0.02, d * 0.9, 0x37474f);
-      k.box(0, h + 0.006, -0.005, w + 0.012, 0.012, d + 0.01, dk); k.box(0, 0.04, 0, w + 0.004, 0.08, d - 0.04, 0x1f2427);
-      k.box(0, h * 0.72, -d / 2 + 0.06, 0.02, 0.02, 0.08, 0x9ea4a8);
-    });
-    const bm = new THREE.Mesh(body, g.mats.get('props', o.zone)); bm.castShadow = bm.receiveShadow = true; this.group.add(bm);
+    const col = this.col = o.color || 0x546e7a, dk = 0x2f3a40;
+    this.bodyMesh = new THREE.Mesh(this.bodyGeo(o.contents || []), g.mats.get('props', o.zone)); this.bodyMesh.castShadow = this.bodyMesh.receiveShadow = true; this.group.add(this.bodyMesh);
     this.doorPivot = new THREE.Group(); this.doorPivot.position.set(-w / 2, 0, d / 2); this.group.add(this.doorPivot);
-    const { geometry: door } = quickGeometry(g.atlas, (k) => { // porte : persiennes embouties, poignée à palette, porte-cadenas, paumelles
+    const { geometry: door } = quickGeometry(g.atlas, (k) => { // porte : persiennes embouties, poignée à palette, porte-cadenas, paumelles ; dedans : raidisseur et tringle de fermeture
       k.box(w / 2, h / 2 + 0.04, 0.01, w, h - 0.08, 0.02, col);
       for (const y0 of [h * 0.86, 0.22]) for (let i = 0; i < 5; i++) k.b.box(0, 0, 0, w * 0.62, 0.012, 0.006, { color: dk, flat: true, matrix: trs(w / 2, y0 + i * 0.028, 0.022, -0.5, 0, 0) });
       k.box(w * 0.86, h * 0.52, 0.026, 0.035, 0.12, 0.012, 0x23292c); k.box(w * 0.86, h * 0.53, 0.036, 0.016, 0.07, 0.012, 0xa9afb3); k.box(w * 0.86, h * 0.45, 0.03, 0.02, 0.025, 0.02, 0xa9afb3);
       for (const y of [0.25, h * 0.5, h - 0.25]) k.box(0.004, y, 0.012, 0.012, 0.07, 0.02, 0x7d8387);
       if (o.name) { const r = k.label('lk_' + o.name, o.name, 0xffffff); k.box(w / 2, h * 0.7, 0.022, w * 0.6, 0.06, 0.003, 0xffffff, { label: { face: 'Z', rect: r } }); }
+      k.box(w * 0.45, h / 2 + 0.02, -0.006, 0.07, h - 0.46, 0.012, shadeHex(col, 0.82)); k.box(w * 0.45, h / 2 + 0.02, -0.0125, 0.05, h - 0.5, 0.002, shadeHex(col, 0.7));
+      k.box(w * 0.86, h / 2, -0.005, 0.012, h - 0.34, 0.01, 0x8a9094); k.box(w * 0.86, h * 0.52, -0.012, 0.03, 0.08, 0.008, 0x6f767a);
     });
     this.door = new THREE.Mesh(door, g.mats.get('props', o.zone)); this.doorPivot.add(this.door);
     (world.zone(o.zone)?.group || world.root).add(this.group);
     world.physics.add(new Box(o.x - 0.25, o.y, o.z - 0.25, o.x + 0.25, o.y + h, o.z + 0.25, LAYER.FURN));
     this.setPick(o.x - 0.26, o.y, o.z - 0.26, o.x + 0.26, o.y + h, o.z + 0.26);
     this.init({ open: 0, contents: o.contents || [], locked: !!o.locked, hidden: null });
+    this._ck = (o.contents || []).join(',');
     this.ang = 0; this.active = true;
+  }
+  // Caisson en tôle pliée, réellement creux (avant, les parois n'avaient que leurs faces extérieures : porte ouverte, on
+  // voyait au travers) : faces extérieures, chants de la tôle autour de l'ouverture, faces intérieures assombries vers
+  // le fond (peu de lumière entre dans un casier), plinthe, dessus à rebord, tablette pliée, tringle et patère double ;
+  // le contenu est posé dedans, dans le même lot (aucun appel de rendu en plus), refait quand on prend un objet.
+  bodyGeo(contents) {
+    const g = this.world.game, { w, h, d, t, base } = LK, col = this.col, dk = 0x2f3a40;
+    const xa = -w / 2 + t, xb = w / 2 - t, ya = base + t, yb = h - t, za = -d / 2 + t, zb = d / 2, ys = h * 0.78, zs = zb - 0.03;
+    const { geometry } = quickGeometry(g.atlas, (k) => {
+      k.box(0, h / 2, 0, w, h, d, col, { faces: 'xXyYz' }); // extérieur
+      k.box(0, h + 0.006, -0.005, w + 0.012, 0.012, d + 0.01, dk); k.box(0, 0.04, 0, w + 0.004, 0.08, d - 0.04, 0x1f2427);
+      // chants autour de l'ouverture (plinthe sombre sous la porte)
+      const rim = (x0, x1, y0, y1, c) => k.quad([x0, y0, zb], [x1, y0, zb], [x1, y1, zb], [x0, y1, zb], c);
+      rim(-w / 2, xa, 0, h, col); rim(xb, w / 2, 0, h, col); rim(xa, xb, yb, h, col); rim(xa, xb, base, ya, col); rim(xa, xb, 0, base, 0x1f2427);
+      // intérieur : clair près de l'ouverture, sombre au fond et en bas
+      const I = (f) => linC(col, f);
+      gq(k, [[xa, ya, za], [xb, ya, za], [xb, yb, za], [xa, yb, za]], [0, 0, 1], [I(0.3), I(0.3), I(0.42), I(0.42)]); // fond
+      gq(k, [[xa, ya, zb], [xa, ya, za], [xa, yb, za], [xa, yb, zb]], [1, 0, 0], [I(0.62), I(0.32), I(0.42), I(0.78)]); // flanc gauche
+      gq(k, [[xb, ya, za], [xb, ya, zb], [xb, yb, zb], [xb, yb, za]], [-1, 0, 0], [I(0.32), I(0.62), I(0.78), I(0.42)]); // flanc droit
+      gq(k, [[xa, yb, za], [xb, yb, za], [xb, yb, zb], [xa, yb, zb]], [0, -1, 0], [I(0.25), I(0.25), I(0.5), I(0.5)]); // plafond
+      gq(k, [[xa, ya, zb], [xb, ya, zb], [xb, ya, za], [xa, ya, za]], [0, 1, 0], [I(0.66), I(0.66), I(0.34), I(0.34)]); // fond du casier
+      // tablette pliée (rebord avant), tringle, patère double vissée au fond
+      k.box(0, ys, (za + zs) / 2, xb - xa, 0.01, zs - za, shadeHex(col, 0.62)); k.box(0, ys - 0.012, zs - 0.004, xb - xa, 0.034, 0.008, shadeHex(col, 0.75));
+      k.cyl(0, ys - 0.07, (za + zs) / 2 + 0.02, 0.007, xb - xa, 0x9ea4a8, 0, 0, Math.PI / 2);
+      const yh = ys - 0.2; k.box(0, yh, za + 0.003, 0.03, 0.06, 0.006, 0x8a9094);
+      for (const s of [-1, 1]) { k.box(s * 0.008, yh - 0.012, za + 0.03, 0.008, 0.008, 0.05, 0x9ea4a8); k.box(s * 0.008, yh, za + 0.052, 0.008, 0.03, 0.008, 0x9ea4a8); }
+      // contenu : le premier objet sur la tablette s'il y tient, les autres au fond du casier ; cartes et magazines à plat
+      let fl = 0;
+      (contents || []).forEach((id, i) => {
+        const def = ITEMS[id]; if (!def?.s) return;
+        let [sx, sy, sz] = def.s, rx = 0, ry = 0;
+        if (sz < 0.025 && sy > 0.05) { rx = -Math.PI / 2; [sy, sz] = [sz, sy]; }
+        if (sx > xb - xa - 0.03 && sz < sx) { ry = Math.PI / 2; [sx, sz] = [sz, sx]; }
+        const top = i === 0 && sy < yb - ys - 0.02 && sz < zs - za - 0.02, ft = top ? 0 : fl++;
+        const x = top ? 0 : (ft % 2 ? -1 : 1) * Math.max(0, (xb - xa - sx) / 2 - 0.015) * 0.6;
+        const y = (top ? ys + 0.005 : ya) + sy / 2, z = top ? (za + zs) / 2 : za + 0.02 + Math.min(sz / 2 + Math.floor(ft / 2) * 0.12, d * 0.55);
+        k.copyGeo(buildItemGeometry(def, g.atlas), new THREE.Matrix4().makeRotationY(ry + (ft % 2 ? 0.25 : -0.18)).multiply(new THREE.Matrix4().makeRotationX(rx)).setPosition(x, y, z));
+      });
+    });
+    return geometry;
   }
   prompt(p) {
     if (this.state.hidden && this.state.hidden !== p.id) return null;
@@ -499,6 +548,8 @@ export class Locker extends WorldObject {
   onState(patch, isReset) {
     if ('open' in patch && !isReset) this.world.game.sfx(patch.open ? 'cabinet_open' : 'cabinet_close', this.pos, { volume: 0.7 });
     if (isReset) { this.ang = 0; this.doorPivot.rotation.y = 0; }
+    const ck = (this.state.contents || []).join(','); // contenu visible : caisson refait quand il change
+    if (ck !== this._ck) { this._ck = ck; this.bodyMesh.geometry.dispose(); this.bodyMesh.geometry = this.bodyGeo(this.state.contents); }
   }
   update(dt) {
     const t = this.state.open ? -1.9 : 0;

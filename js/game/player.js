@@ -490,21 +490,24 @@ export class Player {
     if (this.mode === 'sit' && this.seat) { x = this.seat.pos.x; y = this.seat.pos.y + 0.75; z = this.seat.pos.z; }
     if (this.mode === 'hide') { y = b.pos[1] + 1.0; }
     if (this.mode === 'dead') { y = b.pos[1] + 0.3; }
-    // balancement ; caméra-piéton (sur la poitrine) : rebond sec à chaque pas, balancement latéral et léger roulis
+    // balancement ; caméra-piéton (sur la poitrine) : rebond sec à chaque pas (creux en pointe à l'appui), balancement
+    // latéral et roulis, petit hochement vers le bas à l'impact ; respiration à l'arrêt
     const bobA = Math.min(1, Math.hypot(b.vel[0], b.vel[2]) / 5);
     let by, bx, bodyRoll = 0, bodyPitch = 0;
     if (bc) {
-      by = (Math.abs(Math.sin(this.bob)) - 0.64) * 0.045 * bobA; bx = Math.sin(this.bob) * 0.02 * bobA;
-      bodyRoll = Math.sin(this.bob) * 0.01 * bobA; bodyPitch = (Math.abs(Math.cos(this.bob)) - 0.64) * 0.006 * bobA;
+      const sb = Math.abs(Math.sin(this.bob)), imp = Math.pow(1 - sb, 4); // imp : pic bref à la pose du pied (sb = 0)
+      by = (Math.pow(sb, 0.6) - 0.7) * 0.056 * bobA; bx = Math.sin(this.bob) * 0.026 * bobA;
+      bodyRoll = Math.sin(this.bob) * 0.014 * bobA; bodyPitch = ((Math.abs(Math.cos(this.bob)) - 0.64) * 0.006 - imp * 0.008) * bobA;
       bodyPitch += Math.sin(g.time * 1.7) * 0.0012; bodyRoll += Math.sin(g.time * 0.9 + 1.3) * 0.001; // respiration
     } else { by = Math.sin(this.bob * 2) * 0.035 * bobA; bx = Math.cos(this.bob) * 0.025 * bobA; }
-    // retard / léger dépassement sur les rotations rapides : ressorts amortis vers un décalage proportionnel à la vitesse
+    // retard puis léger dépassement sur les rotations rapides : ressorts peu amortis (ζ ≈ 0,42 : ~20 % de dépassement
+    // quand on s'arrête de tourner) vers un décalage proportionnel à la vitesse de rotation
     const lg = this.lag;
     if (bc && dt > 0) {
       const dy = Math.atan2(Math.sin(this.yaw - lg.lyaw), Math.cos(this.yaw - lg.lyaw)) / dt, dp = (this.pitch - lg.lpitch) / dt;
-      const ty = clampA(-dy * 0.006, 0.03), tp = clampA(-dp * 0.004, 0.02), tr = clampA(dy * 0.004, 0.022);
+      const ty = clampA(-dy * 0.007, 0.035), tp = clampA(-dp * 0.0045, 0.022), tr = clampA(dy * 0.0045, 0.026);
       for (let st = Math.min(dt, 0.1); st > 1e-6;) {
-        const h = Math.min(st, 1 / 120), w2 = 26 * 26, k = 2 * 0.55 * 26; st -= h;
+        const h = Math.min(st, 1 / 120), w2 = 22 * 22, k = 2 * 0.42 * 22; st -= h;
         lg.vy += (w2 * (ty - lg.y) - k * lg.vy) * h; lg.y += lg.vy * h;
         lg.vp += (w2 * (tp - lg.p) - k * lg.vp) * h; lg.p += lg.vp * h;
         lg.vr += (w2 * (tr - lg.r) - k * lg.vr) * h; lg.r += lg.vr * h;
