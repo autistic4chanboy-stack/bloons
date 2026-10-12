@@ -21,6 +21,16 @@ const FLASH_GAIN = 1.35;
 const _white = (() => { const t = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); t.needsUpdate = true; return t; })();
 const clampA = (v, a) => (v < -a ? -a : v > a ? a : v);
 const _q = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _v = new THREE.Vector3(), _fw = new THREE.Vector3(0, 0, -1), _col = new THREE.Color();
+// bras et objet tenu : calque vu par la seule caméra du joueur (ni les caméras de surveillance, ni l'appareil photo)
+const VM_LAYER = 4;
+// halo lumineux (dégradé radial) posé sur la lentille allumée ou la flamme : l'avant de la lampe se lit au premier coup d'œil
+let _glow = null;
+const glowTex = () => {
+  if (_glow) return _glow;
+  const n = 32, d = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const r = Math.hypot(x + 0.5 - n / 2, y + 0.5 - n / 2) / (n / 2), a = Math.max(0, 1 - r) ** 2.2, i = (y * n + x) * 4; d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = Math.round(a * 255); }
+  _glow = new THREE.DataTexture(d, n, n); _glow.magFilter = _glow.minFilter = THREE.LinearFilter; _glow.needsUpdate = true; return _glow;
+};
 // Prise d'un objet par la main droite (repère de la prise, −z vers l'avant) : position / rotation de l'objet, fermeture de la
 // main, paume p (de la paume vers l'objet), index i (direction de l'index le long de la prise), avant-bras fa (repère de la main)
 function gripPose(def, k) {
@@ -28,7 +38,8 @@ function gripPose(def, k) {
   // point d'émission de la lumière (repère de l'objet) : lentille, flamme du briquet, flash du téléphone
   const src = lens ? (ml || [0, 0, def.s[2] / 2]) : def.use === 'lighter' || def.id === 'matches' ? [0, def.s[1] * 0.5 + 0.012, 0] : def.use === 'mobile' ? [0, def.s[1] * 0.38, -def.s[2] * 0.5] : null;
   let g;
-  if (lens || (M2 < 0.45 * L && ax !== 1 && L > 0.12)) g = { grip: 0.94, pos: [0, 0, -0.2 * L], rot: [0, ax === 0 ? Math.PI / 2 : lens ? Math.PI : 0, 0], p: [-1, 0.12, 0], i: [0, 0, 1], fa: [-0.25, -1, 0.45] };
+  // manche : la lampe est tenue par le culot (caché dans le poing, pouce dessus), tête et lentille vers l'avant (−z)
+  if (lens || (M2 < 0.45 * L && ax !== 1 && L > 0.12)) g = { grip: 0.94, pos: [0, 0, (lens ? -0.38 : -0.2) * L], rot: [0, ax === 0 ? Math.PI / 2 : lens ? Math.PI : 0, 0], p: [-1, 0.12, 0], i: [0, 0, 1], fa: [-0.25, -1, 0.45] };
   else if (ax === 1 && M2 < 0.75 * L) g = { grip: 0.66, pos: [0, 0.12 * L, 0], rot: [0, 0, 0], p: [-1, 0, 0.3], i: [0, 1, 0], fa: [0, -1, -0.45] };
   else if (L < 0.13) g = { grip: 0.74, pos: [-0.012, 0.03, -0.012], rot: [0, 0, 0], p: [-1, 0, 0.3], i: [0, 1, 0], fa: [0, -1, -0.45] };
   else g = { grip: 0.22, pos: [0, s[1] * 0.5 + 0.035, -0.04], rot: [0, 0, 0], p: [0, 1, 0], i: [1, 0, 0], fa: [0.05, -1, 0.15] };
@@ -170,14 +181,17 @@ export class Player {
     this.gripR = new THREE.Group(); this.vm.add(this.gripR);
     this.gripL = new THREE.Group(); this.hands.add(this.gripL);
     this.armR = new THREE.Mesh(new THREE.BufferGeometry(), this.handMat); this.armL = new THREE.Mesh(new THREE.BufferGeometry(), this.handMat);
-    for (const m of [this.armR, this.armL]) { m.castShadow = false; m.frustumCulled = false; m.renderOrder = 10; }
+    for (const m of [this.armR, this.armL]) { m.castShadow = false; m.frustumCulled = false; m.renderOrder = 10; m.layers.set(VM_LAYER); }
     this.gripR.add(this.armR); this.gripL.add(this.armL);
     this.vmLeft = null; this.vmLeftKey = null; this.vmLens = new THREE.Vector3(); this.vmLensOn = false;
+    this.vmGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    this.vmGlow.renderOrder = 11; this.vmGlow.frustumCulled = false; this.vmGlow.visible = false; this.vmGlow.layers.set(VM_LAYER); this.hands.add(this.vmGlow);
+    this.camera.layers.enable(VM_LAYER);
   }
   _fpMesh(def) {
     const s = def.s, size = Math.max(s[0], s[1], s[2]), k = size > 0.6 ? 0.55 / size : size < 0.08 ? 1.6 : 1;
     const m = new THREE.Mesh(buildItemGeometry(def, this.game.atlas), this.vmItemMat);
-    m.castShadow = false; m.frustumCulled = false; m.renderOrder = 10; m.scale.setScalar(k); m.userData.k = k; m.userData.size = size * k;
+    m.castShadow = false; m.frustumCulled = false; m.renderOrder = 10; m.layers.set(VM_LAYER); m.scale.setScalar(k); m.userData.k = k; m.userData.size = size * k;
     const gp = gripPose(def, k); m.position.fromArray(gp.pos); m.rotation.set(...gp.rot); m.userData.gp = gp;
     return m;
   }
@@ -563,7 +577,13 @@ export class Player {
     this.vmLensOn = !!ls;
     if (ls) this.vmLens.fromArray(ls).multiplyScalar(lm.userData.k).applyQuaternion(lm.quaternion).add(lm.position).applyQuaternion(gr.quaternion).add(gr.position);
     // éclairage des bras : zone de la caméra + lumière de la lampe renvoyée par les surfaces proches
-    const I = this.spot.intensity;
+    const I = this.spot.intensity, gw = this.vmGlow;
+    gw.visible = this.vmLensOn && I > 0;
+    if (gw.visible) { // halo : flamme étirée, flash du téléphone discret, lentille de lampe
+      const fl = this.flashKind === 'lighter', ph = this.flashKind === 'phone', sz = fl ? 0.03 : ph ? 0.03 : 0.085;
+      gw.position.copy(this.vmLens); gw.scale.set(sz, fl ? sz * 1.7 : sz, 1);
+      gw.material.color.copy(this.spot.color).multiplyScalar(Math.min(1, I / (fl ? 6 : 18)) * (g.isDay ? 0.5 : 1));
+    }
     this.vmZone.value.copy(g.mats.zoneUniform(null).value); if (I > 0) this.vmZone.value.add(_col.copy(this.spot.color).multiplyScalar(Math.min(1.2, I * 0.03) * (g.isDay ? 0.4 : 1)));
     this.vm.visible = this.hands.visible = this.mode !== 'hide' && this.mode !== 'dead';
   }

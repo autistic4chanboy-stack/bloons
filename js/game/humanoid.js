@@ -207,7 +207,7 @@ function profile(o, kind) {
     hs: c ? 1.3 : f ? 0.955 : 1, ar: c ? 0.82 : f ? 0.84 : 1, lr: c ? 0.8 : f ? 0.95 : 1, hd: c ? 0.8 : f ? 0.9 : 1, ft: c ? 0.78 : f ? 0.9 : 1,
     torso: T7(c ? TORSO_C : f ? TORSO_F : TORSO_M),
   };
-  if (kind === 'bear') Object.assign(pr, { sh: [0.215, 1.39, -0.02], hip: 0.105, ar: 1.55, lr: 1.35, torso: T7(TORSO_M.map((q) => [q[0], q[1] * (q[0] < 1.45 ? 1.28 : 1.2), q[2] * (1.3 + 0.55 * G(q[0] - 1.08, 0.14)), q[3] * 1.3, q[4] + 0.03 * G(q[0] - 1.08, 0.14), 2.1])) });
+  if (kind === 'bear') Object.assign(pr, { sh: [0.24, 1.39, -0.02], hip: 0.108, ar: 1.65, lr: 1.5, torso: T7(TORSO_M.map((q) => [q[0], q[1] * (q[0] < 1.45 ? 1.32 : 1.22), q[2] * (1.4 + 0.8 * G(q[0] - 1.06, 0.15)), q[3] * 1.36, q[4] + 0.045 * G(q[0] - 1.06, 0.15), 2.05])) }); // costume rembourré : ventre rond
   if (kind === 'crawler' || kind === 'shadow') Object.assign(pr, { gaunt: true, ar: 0.62, lr: 0.68, hd: 1.25, wr: 0.3, el: 0.34, torso: T7(TORSO_M.map((q) => [q[0], q[1] * (q[0] < 1.2 ? 0.74 : 0.86), q[2] * (q[0] < 1.2 ? 0.68 : 0.8), q[3] * 0.8, q[4], q[5]])) });
   if (kind === 'mannequin') Object.assign(pr, { smooth: true, f: true, sh: [0.178, 1.405, -0.022], neck: [1.49, -0.018], head: [1.59, -0.004], ar: 0.85, lr: 0.9, torso: T7(TORSO_F) });
   if (kind === 'firefighter') Object.assign(pr, { ar: 1.14, lr: 1.12, torso: T7(TORSO_M.map((q) => [q[0], q[1] * 1.07 + 0.006, q[2] * 1.12 + 0.008, q[3] * 1.1 + 0.008, q[4], q[5]])) }); // tenue de feu épaisse
@@ -851,7 +851,7 @@ export function buildHumanoid(opts = {}) {
   }
   root.userData.parts = parts; root.userData.kind = kind;
   root.userData.anim = { phase: 0, speed: 0 };
-  root.userData.propPoses = O.prop ? PROP_POSES[O.prop] : undefined;
+  root.userData.propPoses = O.prop ? PROP_POSES[O.prop] : undefined; root.userData.prop = O.prop || null;
   root.userData.back = -K.zb; root.userData.backW = -K.zb * k; // couché sur le dos : dos, fessiers et crâne posés au sol
   root.userData.eyePos = O.eyePos || (pr.c ? [0.031 * pr.hs, 0.058 * pr.hs, 0.0735 * pr.hs, 0.0142 * pr.hs] : [0.032 * pr.hs, 0.0635 * pr.hs, (0.0735 - (pr.gaunt ? 0.005 : 0)) * pr.hs, 0.0118 * pr.hs]); // yeux (repère de la tête) : x, y, z, rayon
   if (!O.prop) bones.propR.scale.setScalar(0.001);
@@ -890,7 +890,7 @@ export function animateHumanoid(h, dt, speed, pose = 'auto', extra = {}) {
   if (pose === 'sit') { P.hips.position.y = 0.5; P.legL.rotation.x = P.legR.rotation.x = -1.5; P.kneeL.rotation.x = P.kneeR.rotation.x = 1.95; P.legL.rotation.z = -0.06; P.legR.rotation.z = 0.06; P.armL.rotation.x = P.armR.rotation.x = -0.3; P.elbowL.rotation.x = P.elbowR.rotation.x = -0.7; P.torso.rotation.x = -0.04; }
   if (pose === 'reach' || extra.holding) { P.armR.rotation.x = -1.1; P.elbowR.rotation.x = -0.4; }
   if (pose === 'aim') { P.armR.rotation.x = -1.5; P.armL.rotation.x = -1.4; P.armL.rotation.z = 0.34; P.armR.rotation.z = -0.08; P.elbowR.rotation.x = 0; P.elbowL.rotation.x = -0.2; P.handR.rotation.x = 0; P.torso.rotation.y = 0.12; P.head.rotation.y = -0.1; }
-  if (pose === 'flashlight') { P.armR.rotation.x = -1.3 - (extra.pitch || 0); P.armR.rotation.z = -0.12; P.elbowR.rotation.x = -0.1; P.handR.rotation.x = 0; }
+  if (pose === 'flashlight') { P.armR.rotation.x = -1.42 - (extra.pitch || 0); P.armR.rotation.z = -0.12; P.elbowR.rotation.x = -0.1; P.handR.rotation.x = 0; }
   if (pose === 'tpose') { P.armL.rotation.z = -1.5; P.armR.rotation.z = 1.5; P.armL.rotation.x = P.armR.rotation.x = 0; P.elbowL.rotation.x = P.elbowR.rotation.x = 0; }
   if (P.stand) P.stand.rotation.x = pose === 'dead' ? Math.PI / 2 : 0; // mannequin tombé : le socle reste à plat
   if (pose === 'dead') { h.rotation.x = -Math.PI / 2; P.hips.position.y = 0.15; P.hips.position.z = h.userData.back ?? 0.11; P.armL.rotation.set(0.15, 0, -0.55); P.armR.rotation.set(-0.1, 0, 0.4); P.elbowL.rotation.x = -0.4; P.elbowR.rotation.x = -0.15; P.legL.rotation.set(0, 0, -0.08); P.legR.rotation.set(-0.12, 0, 0.1); P.kneeL.rotation.x = 0.05; P.kneeR.rotation.x = 0.25; P.head.rotation.set(0, 0.45, 0.1); P.torso.rotation.set(0, 0, 0); P.hips.rotation.set(0, 0, 0); }
@@ -930,6 +930,13 @@ function mannequinPose(P, i) {
 }
 
 export function setHumanoidLayer(h, layer) { h.traverse(o => o.layers.set(layer)); }
+// lentille de la lampe tenue (pose « flashlight ») en coordonnées monde, ou null : la lampe est dans l'axe de la main
+// (repère de l'os propR, lentille 11 cm vers le bout des doigts), sa tête et son faisceau pointent devant le personnage
+const TORCH_LENS = new THREE.Vector3(0, -0.112, 0);
+export function torchLens(h, out = new THREE.Vector3()) {
+  const b = h.userData.parts?.propR; if (h.userData.prop !== 'torch' || !b || b.scale.x < 0.5) return null;
+  b.updateWorldMatrix(true, false); return out.copy(TORCH_LENS).applyMatrix4(b.matrixWorld);
+}
 // libère la géométrie, les matériaux et le squelette propres à un personnage ou une présence retirés de la scène
 export function disposeHumanoid(h) { h.traverse((o) => { if (!o.isMesh) return; o.geometry.dispose(); if (o.material !== _mat) o.material.dispose(); if (o.isSkinnedMesh) o.skeleton.dispose(); }); }
 
