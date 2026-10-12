@@ -121,10 +121,34 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
 - Depuis un magasin, les magasins mitoyens du même côté sont masqués ; une réserve ne se voit qu'à moins de 14 m.
 - Personnages : les pièces rigides de chaque segment sont fusionnées (couleurs par sommet, ~10 meshes par personnage).
 
+## Rendu : pipeline et matériaux (`js/engine/renderer.js`, `materials.js`, `textures.js`, `js/world/power.js`)
+- Scène rendue dans une cible HalfFloat avec texture de profondeur ; passe demi-résolution : SSAO (12 échantillons,
+  16 en qualité haute) + brume volumétrique du faisceau de la lampe torche, flou bilatéral ; exposition automatique
+  lente au GPU (gain plafonné : le noir reste noir) ; AgX, balance des blancs légèrement fluorescente, bruit de capteur
+  qui monte avec le gain ; objectif de caméra-piéton (distorsion en barillet, aberration chromatique, vignettage) et
+  incrustation « ● REC » (réglage `bodycam`). Qualité basse : ni SSAO, ni brume, ni reflets d'environnement.
+- `patchZone(mat, zoneUniform)` (appliqué par `Materials.get(name, zone)` ; à utiliser pour tout matériau standard
+  créé à part, comme les étiquettes de rayon) : ambiance de zone hémisphérique, reflets d'environnement dosés par la
+  lumière de la zone, lumière des ouvertures (lune ou soleil par la verrière, lampadaires par les façades vitrées, ombres
+  analytiques des montants), masque des lumières du pool par boîte de zone (la lumière ne traverse plus les murs) et,
+  en alpha, la part directe de l'éclairage (la SSAO n'assombrit que la part ambiante). Les emplacements du pool sont
+  codés dans le `decay` des PointLight (1,6 + n × 0,001) : ne pas créer d'autres PointLight dans cette plage, et passer
+  par `lighting.addSource({getLight})` plutôt que d'ajouter des lumières (recompilation de tous les shaders).
+- Textures procédurales PBR (sols 1024) empaquetées : rugosité dans l'alpha de la couleur, métal dans l'alpha de la
+  normale ; envoyées au GPU dès leur création (copies CPU libérées). Ce qui doit luire dans le noir (LED, écrans,
+  façades de distributeurs) reste en MeshBasicMaterial ; les dalles lumineuses et enseignes de zone (`zone.panelMat`,
+  `zone.signMats`) s'éteignent sans courant mais réagissent à la lampe torche.
+
 ## Monde : construction (`js/world/`)
 - `mall.js` : architecture (galeries, vide central coupé de passerelles, verrière à deux pans, aile administrative,
   parking, sous-sol, toit, couloirs de service), navigation, caméras fixes. Zones déclarées avant la géométrie ;
   la géométrie statique est regroupée par (zone, matériau) par `Arch` (`arch.js`).
+- `stocking.js` : planogramme dense après `placeContents` : premier rang de chaque planche rempli à ~92 % (`FILL`) de
+  « facings » du même produit poussés vers le client, rangées en profondeur, piles des formes plates, cartons en haut
+  et en réserve, présentoirs de sol ; budget d'objets par boutique (`BUDGET`, ~16 500 au total, plafond `HARD`). Les
+  articles déjà posés sont réutilisés (déplacés avant la fusion des meshes) ; ceux qui ne trouvent pas de place sont
+  alignés au sol de la réserve le long de la cloison (les objets uniques restent dans la boutique). Rien n'est posé sur
+  les planches `noLabels`.
 - `shopbuilder.js` : coque et aménagement des boutiques ; `stocking.js` complète les rayons ; `shopfront.js` ajoute
   les détails de façade (autocollants des vitrines sur une seule planche de texture, enfants des vitres : ils
   disparaissent avec elles ; portiques antivol `TheftGate`).

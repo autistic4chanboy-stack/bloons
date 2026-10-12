@@ -34,7 +34,9 @@ Il faut un navigateur récent avec **WebGL 2** (Chrome, Edge, Firefox, Safari 15
 sons sont spatialisés, avec réverbération selon la pièce et sons étouffés à travers les murs.
 
 Si le jeu rame : la résolution dynamique (activée par défaut) baisse d'elle-même la définition ; dans les options,
-« Qualité : basse » réduit aussi la distance d'affichage et les ombres, et « Échelle de rendu » descend jusqu'à 40 %.
+« Qualité : basse » réduit aussi la distance d'affichage et les ombres (et coupe l'occlusion ambiante, la brume du
+faisceau et les reflets), et « Échelle de rendu » descend jusqu'à 40 %. La case « Effet caméra-piéton » retire la
+distorsion de l'objectif et l'incrustation « REC » si elles vous gênent.
 
 ### Sauvegardes
 
