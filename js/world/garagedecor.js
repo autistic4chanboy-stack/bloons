@@ -10,6 +10,8 @@ const COLS = 'ABCDEFGHIJ';
 const PILLAR_X = [-54, -42, -30, -18, -6, 6, 18, 30, 42, 54], PILLAR_Z = [-12, 0, 12];
 const SIGNS = { pietons: [0, 640], ascenseur: [512, 640], vehicules: [0, 768], hauteur: [512, 768], fumer: [0, 896], niveau: [512, 896] };
 let sheet = null;
+// profil d'une butée de roue (plan transversal : largeur 18 cm, hauteur 11 cm, arêtes chanfreinées)
+const WHEEL_STOP = [[-0.09, 0], [0.09, 0], [0.065, 0.1], [0.045, 0.11], [-0.045, 0.11], [-0.065, 0.1]];
 
 function uvRect(px, py, pw, ph) { return [px / AT, 1 - (py + ph) / AT, (px + pw) / AT, 1 - py / AT]; }
 function fitFont(ctx, text, max, size, weight = 900, family = 'Arial, Helvetica, sans-serif') {
@@ -134,7 +136,12 @@ export function buildGarageDecor(world, A, dev, rng) {
       const right = -r.u; // axe x du lecteur
       for (let d = 0; d < 3; d++) Q.floor(x + right * (d - 1) * 0.19, yb + 0.007, r.num, 0, r.u, 0.18, 0.36, uvRect(+label[d] * 64, 512, 64, 128));
       if (rng.chance(0.28)) { const zc = (r.z0 + r.z1) / 2 + rng.range(-0.8, 0.8), a = rng.range(0, Math.PI * 2), sz = rng.range(0.6, 1.3); Q.floor(x + rng.range(-0.5, 0.5), yb + 0.003, zc, Math.sin(a), Math.cos(a), sz, sz * 0.8, stainUV); }
-      if (r.wall) { const zw = r.u < 0 ? -23.0 : 23.0; A.furn(zn, x - 0.75, yb, zw - 0.09, x + 0.75, yb + 0.11, zw + 0.09, 0x8e8c86, { collide: false }); A.furn(zn, x - 0.6, yb + 0.11, zw - 0.091, x - 0.3, yb + 0.112, zw + 0.091, 0xd4a017, { collide: false }); A.furn(zn, x + 0.3, yb + 0.11, zw - 0.091, x + 0.6, yb + 0.112, zw + 0.091, 0xd4a017, { collide: false }); }
+      if (r.wall) { // butée de roue préfabriquée (profil trapézoïdal chanfreiné), bandes jaunes, deux boulons d'ancrage
+        const zw = r.u < 0 ? -23.0 : 23.0;
+        A.plate(zn, 'concrete', WHEEL_STOP, -0.75, 0.75, 0xffffff, { m: new THREE.Matrix4().makeRotationY(Math.PI / 2).setPosition(x, yb, zw) });
+        for (const dx of [-0.45, 0.45]) A.furn(zn, x + dx - 0.15, yb + 0.11, zw - 0.046, x + dx + 0.15, yb + 0.113, zw + 0.046, 0xd4a017, { collide: false });
+        for (const dx of [-0.62, 0.62]) A.lathe(zn, 'furniture_metal', [[0, 0], [0.018, 0], [0.018, 0.006], [0.01, 0.012], [0, 0.012]], 8, x + dx, yb + 0.11, zw, 0x55595c);
+      }
     }
   }
   // ── flèches de circulation : on entre par l'allée centrale (vers l'ouest), on ressort par les allées latérales (vers l'est) ──
@@ -167,8 +174,14 @@ export function buildGarageDecor(world, A, dev, rng) {
   const fUV = uvRect(SIGNS.fumer[0], SIGNS.fumer[1], 512, 128), nUV = uvRect(SIGNS.niveau[0], SIGNS.niveau[1], 512, 128);
   for (const x of [-36, 12, 48]) { Q.wall(x, yb + 1.9, -23.99, 0, 1, 1.4, 0.35, fUV); Q.wall(x - 12, yb + 1.9, 23.99, 0, -1, 1.4, 0.35, fUV); }
   Q.wall(65.99, yb + 2.6, 11.4, -1, 0, 1.6, 0.4, nUV); Q.wall(-65.99, yb + 2.6, 4.4, 1, 0, 1.6, 0.4, nUV);
-  // ── plafond : gaine de ventilation, chemin de câbles, sprinklers ──
+  // ── avaloirs : grilles de fonte dans l'allée centrale ──
+  for (const x of [-48, -24, 0, 24, 48]) for (const z of [-3, 3]) {
+    A.furn(zn, x - 0.3, yb, z - 0.2, x + 0.3, yb + 0.006, z + 0.2, 0x2a2b2c, { metal: true, collide: false });
+    for (let k = 0; k < 7; k++) A.furn(zn, x - 0.26 + k * 0.08, yb + 0.006, z - 0.16, x - 0.22 + k * 0.08, yb + 0.009, z + 0.16, 0x3d3f41, { metal: true, collide: false });
+  }
+  // ── plafond : gaine de ventilation (brides tous les 1,5 m), chemin de câbles, sprinklers ──
   A.box(zn, 'aluminium', -64, yc - 0.55, 14.6, 64, yc - 0.05, 15.4, { collide: false });
+  for (let x = -61.5; x <= 61.5; x += 3) A.box(zn, 'aluminium', x - 0.02, yc - 0.57, 14.58, x + 0.02, yc - 0.03, 15.42, { collide: false });
   for (let x = -63; x <= 63; x += 3) {
     A.box(zn, 'steel_dark', x - 0.02, yc - 0.6, 14.5, x + 0.02, yc, 14.54, { collide: false }); A.box(zn, 'steel_dark', x - 0.02, yc - 0.6, 15.46, x + 0.02, yc, 15.5, { collide: false });
     A.box(zn, 'steel_dark', x - 0.03, yc - 0.62, 14.5, x + 0.03, yc - 0.56, 15.5, { collide: false });

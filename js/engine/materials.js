@@ -177,6 +177,7 @@ const DEFS = {
   wood_slats: () => ({ m: std(TX.woodSlats(0x9a6b42)), rep: 0.6 }),
   rubber: () => ({ m: std(TX.rubber(0x2c2e30)), rep: 1.5 }),
   office_carpet: () => ({ m: std(TX.officeCarpet(0x4a5262), { env: 0.3 }), rep: 0.5 }),
+  cleats: () => ({ m: std(TX.stepCleats()), rep: 2 }), // marches et tôles de palier des escalators (nervures selon u)
 };
 
 // Vitres : le blending conserve l'alpha déjà écrit dessous (masque de SSAO des surfaces vues à travers)

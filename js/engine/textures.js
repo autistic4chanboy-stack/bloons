@@ -381,6 +381,23 @@ export function diamondPlate(color = 0x9a9ea3) {
   });
 }
 
+// Marches et tôles de palier d'escalator : aluminium moulé à nervures fines (pas de 8 mm pour une texture de 50 cm),
+// rainures sombres encrassées, usure brillante au centre des nervures. Les nervures sont des colonnes de l'image (u constant)
+export function stepCleats(color = 0xa9adb1) {
+  return cached('cleats' + color, () => {
+    release();
+    const size = 512, s = surf(size, true), [r0, g0, b0] = rgb(color), dirt = fbm(size, 6, 6, 4, 251), wear = fbm(size, 3, 24, 3, 252), fine = fbm(size, 128, 256, 1, 253);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const i = y * size + x, lx = x & 7, groove = lx < 3, edge = lx === 3 || lx === 7;
+      if (groove) { const k = 0.22 + dirt[i] * 0.12; s.r[i] = r0 * k; s.g[i] = g0 * k; s.b[i] = b0 * k; s.h[i] = 0.05; s.ro[i] = 0.85; s.me[i] = 0.3; continue; }
+      const w = sstep(0.45, 0.8, wear[i]), dd = dirt[i] > 0.62 ? (dirt[i] - 0.62) * 1.2 : 0;
+      const k = (edge ? 0.86 : 1) * (1 + (fine[i] - 0.5) * 0.08 + w * 0.1 - dd * 0.4);
+      s.r[i] = r0 * k; s.g[i] = g0 * k; s.b[i] = b0 * k; s.h[i] = edge ? 0.7 : 0.85; s.ro[i] = 0.42 - w * 0.16 + dd * 0.3; s.me[i] = 1 - dd * 0.6;
+    }
+    return packSurf(s, 3);
+  });
+}
+
 // Bardage / tôle ondulée galvanisée, coulures de rouille
 export function corrugated(color = 0xa7aaa8) {
   return cached('corr' + color, () => {
