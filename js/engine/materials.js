@@ -44,6 +44,16 @@ const DEFS = {
   ceiling: () => ({ tex: TX.ceilingTiles(), rough: 0.95, rep: 0.5 }),
   corrugated: () => ({ tex: TX.corrugated(), rough: 0.5, rep: 0.3, metal: 0.4 }),
   toilet_tiles: () => ({ tex: TX.tiles(0xe6eef0, 0x9aa5a8, 8, 'wc', 0.2), rough: 0.2, rep: 0.5 }),
+  // architecture du centre (charpente de la verrière, habillages, sols de prestige)
+  steel: () => ({ tex: TX.metalPanel(0xc9ced2), rough: 0.42, rep: 0.6, metal: 0.65 }),
+  steel_dark: () => ({ tex: TX.metalPanel(0x4a5056), rough: 0.5, rep: 0.6, metal: 0.6 }),
+  aluminium: () => ({ tex: TX.metalPanel(0xb8bdc2), rough: 0.3, rep: 0.8, metal: 0.8 }),
+  marble: () => ({ tex: TX.terrazzo(0xe9e5de), rough: 0.18, rep: 0.2 }),
+  granite: () => ({ tex: TX.terrazzo(0x4a4744), rough: 0.25, rep: 0.3 }),
+  stone: () => ({ tex: TX.concrete(0xb3aa9a, 's'), rough: 0.75, rep: 0.3 }),
+  wood_slats: () => ({ tex: TX.woodPanelWall(0x9a6b42), rough: 0.55, rep: 0.6 }),
+  rubber: () => ({ tex: TX.linoleum(0x2c2e30), rough: 0.85, rep: 0.4 }),
+  office_carpet: () => ({ tex: TX.carpet(0x4a5262), rough: 1, rep: 0.5 }),
 };
 
 export class Materials {
@@ -87,6 +97,7 @@ export class Materials {
     if (name === 'furniture_metal') return new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.6 });
     if (name === 'props') return new THREE.MeshStandardMaterial({ vertexColors: true, map: this.atlas, roughness: 0.55, metalness: 0.02 });
     if (name === 'glass') return new THREE.MeshStandardMaterial({ color: 0xaac8d0, transparent: true, opacity: 0.16, roughness: 0.04, metalness: 0.1, depthWrite: false, side: THREE.DoubleSide });
+    if (name === 'glass_roof') return new THREE.MeshStandardMaterial({ color: 0x9fb8c4, transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.2, depthWrite: false, side: THREE.DoubleSide });
     if (name === 'glass_dirty') return new THREE.MeshStandardMaterial({ color: 0x8aa0a0, transparent: true, opacity: 0.32, roughness: 0.3, metalness: 0.0, depthWrite: false, side: THREE.DoubleSide });
     if (name === 'chrome') return new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.18, metalness: 1 });
     if (name === 'black') return new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.6 });

@@ -44,6 +44,8 @@ class Kit {
 
 const SHAPES = {};
 function S(names, fn) { for (const n of names.split(',')) SHAPES[n.trim()] = fn; }
+// Formes ajoutées par d'autres modules (décor du centre…) : fn(kit, s, couleur, définition)
+export function registerShape(names, fn) { S(names, fn); }
 
 // ───────── génériques ─────────
 S('box', (k, s, c) => k.box(0, 0, 0, s[0], s[1], s[2], c));

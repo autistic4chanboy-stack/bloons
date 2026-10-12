@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { Renderer } from '../engine/renderer.js';
 import { Input } from '../engine/input.js';
 import { Materials, GLOBAL_UNIFORMS } from '../engine/materials.js';
-import { LabelAtlas } from '../engine/textures.js';
+import { LabelAtlas } from '../engine/atlas.js';
 import { Audio } from '../engine/audio.js';
 import { Music } from '../engine/music.js';
 import { World } from '../world/world.js';

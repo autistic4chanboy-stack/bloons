@@ -423,7 +423,7 @@ function buildSecurityRoom(world, A, dev) {
   // table d'appoint + machine à café + mini frigo
   A.furn(zn, -70.8, 0, 3.9, -68.2, 0.9, 4.9, 0x4e3a28);
   dev('coffee_maker', zn, -69.9, 1.075, 4.45, Math.PI);
-  dev('radio', zn, -68.8, 0.99, 4.5, Math.PI, { security: true, autoOn: true });
+  dev('radio', zn, -68.8, 0.99, 4.5, Math.PI, { security: true }); // éteinte : c'est au gardien de l'allumer
   A.furn(zn, -67.9, 0, 4.0, -66.5, 0.85, 4.9, 0xd0d0d0, { metal: true });
   dev('kettle', zn, -69.2, 1.03, 4.15, Math.PI);
   // plante, porte-manteau, horloge

@@ -121,7 +121,7 @@ export class Story {
     g.sim.emit('night', { phase: day ? 'day' : 'dusk', n, time: start, mode: this.mode, unlockedShops: [...this.unlockedShops], unlockedAreas: [...this.unlockedAreas] });
     g.events.configure(this.mode, n);
     g.entities.configure(this.mode, n, day);
-    if (day) { g.entities.spawnDay(); g.sim.emit('pa', { music: 'muzak' }); } // musique d'ambiance du centre jusqu'à la fermeture
+    if (day) g.entities.spawnDay();
     else g.entities.spawnDusk();
     this.lastDirectorNight = n;
   }
@@ -222,7 +222,7 @@ export class Story {
     if (m < parseT('20:00')) this.crowdLevel = 1; else this.crowdLevel = Math.max(0, 1 - (m - parseT('20:00')) / 30);
     if (!this._closingAnnounce && m >= parseT('19:45')) { this._closingAnnounce = true; g.sim.emit('pa', { chime: true, text: 'Mesdames et messieurs, le centre commercial Hélios fermera ses portes dans quinze minutes. Merci de vous diriger vers les caisses.' }); }
     if (!this._closed && m >= parseT('20:00')) {
-      this._closed = true; g.sim.emit('pa', { music: 'stop' }); g.sim.emit('pa', { chime: true, text: 'Le centre commercial Hélios est maintenant fermé. Merci de votre visite et à demain.' });
+      this._closed = true; g.sim.emit('pa', { chime: true, text: 'Le centre commercial Hélios est maintenant fermé. Merci de votre visite et à demain.' });
       g.entities.crowdLeave();
       for (const [id, ctl] of Object.entries(g.world.shops)) if (ctl.shutter) setTimeout(() => ctl.shutter.set({ target: 1 }), 20000 + Math.random() * 40000);
       g.env.timeScale = 1.0;
@@ -398,7 +398,6 @@ export class Story {
     if (this.mode === 'story') Save.deleteSlot(this.slot);
     const eps = (p.epilogues || []).map(id => EPILOGUES.find(x => x.id === id)).filter(Boolean);
     g.ui.showSummary(`<h1>FIN — ${e.name}</h1><p>${e.desc}</p>${eps.map(x => `<h3>Épilogue : ${x.name}</h3><p>${x.desc}</p>`).join('')}<p class="small">Fins débloquées : ${Object.keys(Save.load().endings).length}/${ENDINGS.length}</p>`, [['Menu principal', () => g.onQuit()]]);
-    g.music(p.id === 'truth' ? 'music_box' : p.id === 'guardian' ? 'lofi' : 'creepy_vinyl', { volume: 0.6 });
   }
 
   // ── sauvegarde ──

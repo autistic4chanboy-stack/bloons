@@ -3,6 +3,7 @@
 // température (zones froides).
 import * as THREE from 'three';
 import { Audio } from '../engine/audio.js';
+import { Ambience } from './ambience.js';
 
 const SKY_VERT = 'varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w * 0.9999; }';
 const SKY_FRAG = /* glsl */`
@@ -48,7 +49,7 @@ export class Environment {
     this.skyMat = new THREE.ShaderMaterial({ vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { zenith: { value: new THREE.Color() }, horizon: { value: new THREE.Color() }, sunDir: { value: new THREE.Vector3() }, moonDir: { value: new THREE.Vector3(-0.4, 0.5, 0.6).normalize() }, sunColor: { value: new THREE.Color(1, 0.8, 0.5) }, stars: { value: 1 }, time: { value: 0 }, clouds: { value: 0.4 }, flash: { value: 0 }, cityGlow: { value: 1 }, sunVis: { value: 1 }, moonVis: { value: 1 } } });
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(650, 32, 16), this.skyMat); this.sky.renderOrder = -10; this.sky.frustumCulled = false; sc.add(this.sky);
     sc.fog = new THREE.FogExp2(0x05060a, 0.02);
-    this.ambience = {}; this.coldSpots = [];
+    this.sound = new Ambience(game, this); this.coldSpots = [];
     this.lastZoneType = null;
   }
   setTime(min) { this.minutes = ((min % 1440) + 1440) % 1440; }
@@ -119,28 +120,7 @@ export class Environment {
     // réverbération
     const type = zone?.type || 'corridor';
     if (type !== this.lastZoneType) { this.lastZoneType = type; try { Audio.setReverbZone(type === 'shop' && zone?.shop === 'hyper' ? 'bigstore' : type); } catch (e) { /* */ } }
-    this.updateAmbience(dt, zone, outdoor);
+    this.sound.update(dt, zone, outdoor);
     for (const c of this.coldSpots) c.t -= dt; this.coldSpots = this.coldSpots.filter(c => c.t > 0);
-  }
-
-  amb(name, vol, param) {
-    let a = this.ambience[name];
-    if (vol <= 0.001) { if (a) { a.stop(1.5); delete this.ambience[name]; } return; }
-    if (!a) { a = this.ambience[name] = this.game.loop(name, null, { volume: 0, bus: 'ambience' }); }
-    a.setVolume(vol, 0.8); if (param) for (const k in param) a.setParam?.(k, param[k]);
-  }
-  updateAmbience(dt, zone, outdoor) {
-    const g = this.game; const t = zone?.type;
-    const night = !g.isDay;
-    const stress = (g.player?.stats.stress || 0) / 100;
-    this.amb('drone', night && zone?.id !== 'security' ? 0.12 + stress * 0.35 : 0, { tension: stress });
-    this.amb('hvac', !outdoor && t !== 'vent' && g.power?.isOn('hvac') ? (t === 'corridor' || t === 'backroom' ? 0.18 : 0.08) : 0);
-    this.amb('wind', outdoor ? 0.4 + (this.weather === 'storm' ? 0.4 : 0) : t === 'vent' ? 0.08 : 0, { strength: this.weather === 'storm' ? 1 : 0.4 });
-    this.amb('distant_traffic', outdoor || zone?.id === 'entrance' || zone?.id === 'ramp' ? 0.25 : t === 'atrium' ? 0.04 : 0);
-    const rain = this.weather === 'rain' || this.weather === 'storm';
-    this.amb('rain', rain ? (outdoor ? 0.7 : t === 'atrium' ? 0.35 : zone?.floor === 1 || zone?.id === 'entrance' ? 0.15 : 0.05) : 0, { intensity: this.weather === 'storm' ? 1 : 0.5 });
-    this.amb('crowd', g.isDay && g.story?.crowdLevel ? g.story.crowdLevel * (t === 'corridor' || t === 'atrium' ? 0.5 : 0.25) : 0, { density: g.story?.crowdLevel || 0 });
-    this.amb('fluorescent_buzz', zone && zone._level > 0.3 && (t === 'corridor' || t === 'backroom' || t === 'garage' || t === 'basement') ? 0.06 : 0);
-    this.amb('electric_hum', zone?.type === 'basement' ? 0.15 : 0);
   }
 }

@@ -7,6 +7,7 @@ import { Zone } from './world.js';
 import { Box, LAYER } from '../engine/physics.js';
 import { Door, Shutter, GlassPane, LightSwitch, HideSpot, Container, Seat } from './fixtures.js';
 import { signTexture } from '../engine/textures.js';
+import { stockShop } from './stocking.js';
 
 export function shopX(s) { const x0 = GALLERY_X0 + s.slot * SLOT_W; return { x0, x1: x0 + s.w * SLOT_W }; }
 export function ventXForShop(s) { return shopX(s).x0 + 9; }
@@ -659,6 +660,8 @@ function placeContents(world, dev, ctl, P, s, rng) {
       g.props.addStatic(itemId, pl.pos[0], pl.pos[1], pl.pos[2], pl.ry, pl.zone);
     }
   }
+  // rayons complétés (assortiment dense)
+  stockShop({ world, game: g, ctl, P, s, rng, boards, floorSpots, addStatic: (defId, x, y, z, ry, zone, data) => g.props.addStatic(defId, x, y, z, ry, zone, data) });
   // réserve : cartons
   for (const b of P.back) {
     const def = ITEMS[b.def];
