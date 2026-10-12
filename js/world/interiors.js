@@ -294,7 +294,7 @@ export const INTERIOR_LAYOUTS = {
     L.wallShelf('L', 1.4, 5.2, 5, 1.9, 0.3, 0x6d4c41, null, rk);    // cartes, briquets, confiserie
     L.table(7.6, 1.6, 9.4, 2.4, 0.8, 0x5d4037, 1);                   // quotidiens
     L.furn(1.0, 1.6, 2.4, 2.2, 0, 1.1, 0x1565c0); L.furn(0.98, 1.58, 2.42, 2.22, 1.1, 1.14, 0x0d47a1, { collide: false }); // stand de jeux
-    L.board('u', 1.1, 2.3, 1.9, 1.14, 0.5, 0.3, L.faceFront);
+    L.board('u', 1.1, 2.3, 1.9, 1.14, 0.5, 0.3, L.faceFront, null, { noLabels: true });
     L.furn(3.3, 2.6, 3.5, 2.8, 0, 1.75, 0x9e9e9e, { metal: true });   // tourniquet à cartes postales
     for (let h = 0.5; h < 1.7; h += 0.3) L.furn(3.08, 2.48, 3.72, 2.92, h, h + 0.22, L.rng.pick([0xffffff, 0xfff3e0, 0xe3f2fd, 0xfce4ec]), { collide: false });
     L.pendant(2.4, 6.4, 2.35, 0x8a6d3b, 'cone', 0.32); L.pendant(5.0, 6.4, 2.35, 0x8a6d3b, 'cone', 0.32);
@@ -346,7 +346,7 @@ export const INTERIOR_LAYOUTS = {
     L.wallShelf('R', 1.4, 8.8, 5, 2.2, 0.35, black, null, sh);
     for (const [a, b] of [[1.6, 4.0], [8.0, 10.4]]) L.island(a, b, 2.0, 3, 1.2, white, 0.9, { metal: false, cap: gold, back: 0xe8e2d8, base: black, capH: 0.02 });
     L.counter(2.0, 6.6, 8.6, 7.3, 1.0, white, 1, gold);
-    L.board('u', 2.15, 7.6, 6.95, 1.0, 0.5, 0.35, L.faceFront);        // testeurs
+    L.board('u', 2.15, 7.6, 6.95, 1.0, 0.5, 0.35, L.faceFront, null, { noLabels: true }); // testeurs
     L.wallHigh('B', 5.3, 1.3);                                         // miroir derrière le comptoir
     for (const [u, v, h] of [[2.8, 2.45, 2.35], [9.2, 2.45, 2.35], [4.2, 6.95, 2.3], [6.4, 6.95, 2.3]]) L.pendant(u, v, h, gold, 'globe', 0.3);
   },
@@ -373,7 +373,7 @@ export const INTERIOR_LAYOUTS = {
     L.furn(1.6, 6.0, 2.8, 7.0, 0, 0.06, dark, { metal: true });         // bac à ballons
     for (const [u, v] of [[1.6, 6.0], [2.8, 6.0], [1.6, 7.0], [2.8, 7.0]]) L.furn(u - 0.02, v - 0.02, u + 0.02, v + 0.02, 0, 0.9, 0x9aa0a6, { metal: true, collide: false });
     L.furn(1.6, 6.0, 2.8, 7.0, 0, 0.9, dark, { visible: false });
-    L.board('u', 1.65, 2.75, 6.5, 0.4, 0.9, 0.6, L.faceFront);
+    L.board('u', 1.65, 2.75, 6.5, 0.4, 0.9, 0.6, L.faceFront, null, { noLabels: true });
     L.counter(0.9, 3.0, 2.8, 3.7, 1.0, dark, 1, 0x455a64);
     L.floorSpot(3.4, 8.0, L.faceFront);                                 // tente
     L.floorSpot(8.4, 1.5, L.faceFront); L.floorSpot(9.4, 1.5, L.faceFront); // vélos
@@ -434,7 +434,7 @@ export const INTERIOR_LAYOUTS = {
     const white = 0xf2f4f6, grey = 0x455a64;
     L.furn(0.17, 1.6, 0.95, 7.8, 0, 0.75, white); L.furn(0.15, 1.58, 0.97, 7.82, 0.75, 0.78, grey, { collide: false });
     for (const v of [2.2, 3.4, 4.6, 5.8, 7.0]) L.counterSpot(0.55, v, 0.78, PI / 2);
-    L.board('v', 1.7, 7.7, 0.55, 0.78, 0.7, 0.5, PI / 2);
+    L.board('v', 1.7, 7.7, 0.55, 0.78, 0.7, 0.5, PI / 2, null, { noLabels: true });
     L.wallShelf('R', 1.4, 9.0, 5, 2.2, 0.4, white, null, { back: 0xd7d2c6, backMetal: false });
     L.table(7.6, 2.0, 10.6, 2.8, 0.9, white, 1); L.table(2.2, 2.0, 4.6, 2.8, 0.9, white, 1);
     L.island(2.4, 7.6, 6.2, 4, 1.5, white, 0.9, { cap: grey });
@@ -511,7 +511,7 @@ export const INTERIOR_LAYOUTS = {
     const white = 0xfafafa, blue = 0x81d4fa;
     L.glassCounter(1.0, 5.4, 9.6, 6.2, 1.15, white, blue, { regU: 8.9 });
     L.wallFloor('B', 2.2); L.wallFloor('B', 4.0);                         // congélateurs
-    L.wallBlock('B', 5.2, 8.8, 0, 0.92, 0.6, white); L.board('u', 5.3, 8.7, 9.58, 0.92, 0.5, 0.4, L.faceFront);
+    L.wallBlock('B', 5.2, 8.8, 0, 0.92, 0.6, white); L.board('u', 5.3, 8.7, 9.58, 0.92, 0.5, 0.4, L.faceFront, null, { noLabels: true });
     for (const [u, v] of [[2.0, 2.2], [9.6, 2.2]]) { L.table(u - 0.35, v - 0.35, u + 0.35, v + 0.35, 0.74, white, 1); L.floorSpot(u - 0.62, v, PI / 2); L.floorSpot(u + 0.62, v, -PI / 2); }
     for (const [u, c] of [[2.4, 0xf8bbd0], [5.0, 0xb3e5fc], [7.6, 0xfff59d]]) L.pendant(u, 5.8, 2.35, c, 'globe', 0.34);
     L.wallPicture('B', 7.0, 2.7, 3.2, 0.9, menuTex('Nos parfums', [['1 boule', '2,50 €'], ['2 boules', '4,50 €'], ['3 boules', '6,00 €'], ['Coupe Banquise', '7,90 €']]));

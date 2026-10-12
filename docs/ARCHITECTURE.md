@@ -136,6 +136,12 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   matériaux (`installInteriorMaterials`), donc par l'éclairage de zone. Règle d'aménagement : l'allée d'entrée, l'allée
   transversale (v ≈ 4,5 m) et le couloir de droite vers la réserve restent libres ; la navigation des présences suit ce
   tracé (nœud `<magasin>_m`). Les articles remplissent les rayons du magasin avant ceux de la réserve.
+- `shelflabels.js` : étiquetage des rayons, appelé après le placement et le réassort. Les produits sont retrouvés
+  d'après leur position sur chaque planche (`P.boards` : `pad` = retrait du chant, `flat` = table, `picks` = vitrine
+  réfrigérée, `noLabels` = plan de travail du personnel) ; une étiquette par groupe de produits identiques sur un rail
+  porte-étiquettes, prix plausibles et stables (`priceOf`), environ un produit sur dix en promotion (étiquettes
+  « PROMO », « PRIX CHOC », « 2 + 1 OFFERT », « NOUVEAU », stop-rayons imprimés des deux côtés), affichettes sur les
+  têtes de gondole (`P.caps`). Une texture pour tout le centre, un mesh par magasin, éclairage de zone conservé.
 - `decor.js` : décor des galeries (colonnes, bannières, totems, plans, kiosques, cabines, manèges, consignes, boutons
   d'arrêt d'urgence des escalators, comptoir d'accueil avec sonnette `DeskBell` et bac d'objets trouvés).
   `garagedecor.js` (parking : repères des piliers, numéros des places, flèches, gabarit, gaines, sprinklers ; tous

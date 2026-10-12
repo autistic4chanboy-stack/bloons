@@ -8,6 +8,7 @@ import { Box, LAYER } from '../engine/physics.js';
 import { Door, Shutter, GlassPane, LightSwitch, HideSpot, Container, Seat } from './fixtures.js';
 import { signTexture } from '../engine/textures.js';
 import { stockShop } from './stocking.js';
+import { labelShop } from './shelflabels.js';
 import { buildShopFront } from './shopfront.js';
 import { installInteriorMaterials, designFor, finishShop, INTERIOR_LAYOUTS } from './interiors.js';
 
@@ -179,6 +180,7 @@ function buildShop(world, A, dev, s, rng) {
   fn(L, s);
   if (back) L.backroom();
   placeContents(world, dev, ctl, P, s, rng);
+  labelShop(world, ctl, rng.fork('labels'));
 
   // ── navigation ──
   world.shopNavHooks.push((nav, doors) => {
@@ -225,10 +227,15 @@ class LayoutKit {
     return this.A.furn(o.zone || this.id, this.X(Math.min(u0, u1)), this.y + h0, Math.min(za, zb), this.X(Math.max(u0, u1)), this.y + h1, Math.max(za, zb), color, o);
   }
   // planche (emplacement d'articles) : le long de u (axis 'u') ou de v
-  board(axis, a0, a1, c, h, depth, clear, ry, zone = null) {
+  // o.pad : distance entre le bord de la planche et le chant du meuble (étiquettes) ; o.picks : pique-prix (vitrine) ;
+  // o.noLabels : pas d'étiquettes (côté personnel, réserve)
+  board(axis, a0, a1, c, h, depth, clear, ry, zone = null, o = {}) {
     const y = this.y + h;
-    if (axis === 'u') this.P.boards.push({ ax: 'x', a0: this.X(Math.min(a0, a1)), a1: this.X(Math.max(a0, a1)), c: this.Z(c), y, depth, clear, ry, zone: zone || this.id, cur: 0 });
-    else { const za = this.Z(a0), zb = this.Z(a1); this.P.boards.push({ ax: 'z', a0: Math.min(za, zb), a1: Math.max(za, zb), c: this.X(c), y, depth, clear, ry, zone: zone || this.id, cur: 0 }); }
+    let b;
+    if (axis === 'u') b = { ax: 'x', a0: this.X(Math.min(a0, a1)), a1: this.X(Math.max(a0, a1)), c: this.Z(c), y, depth, clear, ry, zone: zone || this.id, cur: 0 };
+    else { const za = this.Z(a0), zb = this.Z(a1); b = { ax: 'z', a0: Math.min(za, zb), a1: Math.max(za, zb), c: this.X(c), y, depth, clear, ry, zone: zone || this.id, cur: 0 }; }
+    Object.assign(b, o); this.P.boards.push(b);
+    return b;
   }
   // étagère murale : côté 'L' (u≈0), 'R' (u≈W), 'B' (cloison, v≈D)
   wallShelf(side, a0, a1, levels = 4, height = 2.1, depth = 0.5, color = 0xb0b4b8, zone = null, o = {}) {
@@ -261,14 +268,15 @@ class LayoutKit {
     for (let i = 0; i < levels; i++) {
       const h = 0.12 + i * step;
       this.furn(u0, v0, u1, v0 + depth, h - 0.03, h, color, { metal, collide: false });
-      this.board('u', u0 + 0.05, u1 - 0.05, v0 + depth * 0.25, h, depth / 2 - 0.04, step - 0.04, this.faceFront);
-      this.board('u', u0 + 0.05, u1 - 0.05, v0 + depth * 0.75, h, depth / 2 - 0.04, step - 0.04, this.faceIn);
+      this.board('u', u0 + 0.05, u1 - 0.05, v0 + depth * 0.25, h, depth / 2 - 0.04, step - 0.04, this.faceFront, null, { pad: 0.02 });
+      this.board('u', u0 + 0.05, u1 - 0.05, v0 + depth * 0.75, h, depth / 2 - 0.04, step - 0.04, this.faceIn, null, { pad: 0.02 });
     }
     this.furn(u0, v0, u1, v0 + depth, 0, height, color, { visible: false });
     // tête de gondole
     const cap = o.cap ?? this.color, ch = height + (o.capH ?? 0.25);
     this.furn(u0 - 0.05, v0, u0, v0 + depth, 0, ch, cap, {});
     this.furn(u1, v0, u1 + 0.05, v0 + depth, 0, ch, cap, {});
+    (this.P.caps ||= []).push({ x: this.X(u0 - 0.05), y: this.y + ch, z: this.Z(v0 + depth / 2), nx: -1, depth }, { x: this.X(u1 + 0.05), y: this.y + ch, z: this.Z(v0 + depth / 2), nx: 1, depth });
   }
   // table / présentoir avec plateau
   table(u0, v0, u1, v1, h, color = 0x8d6e63, levels = 1) {
@@ -276,9 +284,9 @@ class LayoutKit {
     for (const [a, b] of [[u0 + 0.05, v0 + 0.05], [u1 - 0.1, v0 + 0.05], [u0 + 0.05, v1 - 0.1], [u1 - 0.1, v1 - 0.1]]) this.furn(a, b, a + 0.05, b + 0.05, 0, h - 0.05, 0x4e342e, { collide: false });
     this.furn(u0, v0, u1, v1, 0, h, color, { visible: false });
     const along = Math.abs(u1 - u0) >= Math.abs(v1 - v0);
-    if (along) this.board('u', u0 + 0.05, u1 - 0.05, (v0 + v1) / 2, h, Math.abs(v1 - v0) - 0.1, 0.8, this.faceFront);
-    else this.board('v', v0 + 0.05, v1 - 0.05, (u0 + u1) / 2, h, Math.abs(u1 - u0) - 0.1, 0.8, Math.PI / 2);
-    if (levels > 1) { this.furn(u0 + 0.2, v0 + 0.2, u1 - 0.2, v1 - 0.2, h + 0.35, h + 0.38, color, { collide: false }); this.board(along ? 'u' : 'v', along ? u0 + 0.25 : v0 + 0.25, along ? u1 - 0.25 : v1 - 0.25, along ? (v0 + v1) / 2 : (u0 + u1) / 2, h + 0.38, 0.3, 0.6, along ? this.faceFront : Math.PI / 2); }
+    if (along) this.board('u', u0 + 0.05, u1 - 0.05, (v0 + v1) / 2, h, Math.abs(v1 - v0) - 0.1, 0.8, this.faceFront, null, { pad: 0.05, flat: true });
+    else this.board('v', v0 + 0.05, v1 - 0.05, (u0 + u1) / 2, h, Math.abs(u1 - u0) - 0.1, 0.8, Math.PI / 2, null, { pad: 0.05, flat: true });
+    if (levels > 1) { this.furn(u0 + 0.2, v0 + 0.2, u1 - 0.2, v1 - 0.2, h + 0.35, h + 0.38, color, { collide: false }); this.board(along ? 'u' : 'v', along ? u0 + 0.25 : v0 + 0.25, along ? u1 - 0.25 : v1 - 0.25, along ? (v0 + v1) / 2 : (u0 + u1) / 2, h + 0.38, 0.3, 0.6, along ? this.faceFront : Math.PI / 2, null, { flat: true }); }
   }
   // comptoir de caisse (le long de u) avec emplacement de caisse
   counter(u0, v0, u1, v1, h = 1.0, color = null, nRegisters = 1, top = 0x3e2c1e) {
@@ -347,7 +355,7 @@ class LayoutKit {
     this.furn(u0, bv - 0.25, u1, bv, h - 0.06, h, top, { collide: false });                    // plan de service
     for (const u of [u0, u1]) this.furn(u - 0.02, fv, u + 0.02, bv, h - 0.38, h, 0x9aa0a6, { metal: true, collide: false });
     this.furn(u0, fv, u1, bv, 0, h, color, { visible: false });
-    this.board('u', u0 + 0.06, u1 - 0.06, (fv + bv - 0.25) / 2, h - 0.38, Math.abs(bv - fv) - 0.35, 0.3, this.faceFront);
+    this.board('u', u0 + 0.06, u1 - 0.06, (fv + bv - 0.25) / 2, h - 0.38, Math.abs(bv - fv) - 0.35, 0.3, this.faceFront, null, { picks: true });
     if (o.register !== false) this.P.register.push({ x: this.X(o.regU ?? (u1 - 0.5)), y: this.y + h, z: this.Z(bv - 0.12), ry: this.faceFront + Math.PI, zone: this.id });
     return { u0, v0, u1, v1, h };
   }
@@ -426,9 +434,9 @@ class LayoutKit {
         else this.furn(a, this.D - 0.12 - d, b, this.D - 0.12, h, h + 0.05, c, { collide: false });
       }
       if (side === 'L') this.wallBlock('L', a0, a1, h, h + 0.03, d, 0xf5f5f5); else if (side === 'R') this.wallBlock('R', a0, a1, h, h + 0.03, d, 0xf5f5f5); else this.wallBlock('B', a0, a1, h, h + 0.03, d, 0xf5f5f5);
-      if (side === 'L') this.board('v', a0 + 0.05, a1 - 0.05, 0.17 + d / 2, h + 0.05, d - 0.06, 0.3, Math.PI / 2);
-      else if (side === 'R') this.board('v', a0 + 0.05, a1 - 0.05, this.W - 0.17 - d / 2, h + 0.05, d - 0.06, 0.3, -Math.PI / 2);
-      else this.board('u', a0 + 0.05, a1 - 0.05, this.D - 0.12 - d / 2, h + 0.05, d - 0.06, 0.3, this.faceFront);
+      if (side === 'L') this.board('v', a0 + 0.05, a1 - 0.05, 0.17 + d / 2, h + 0.05, d - 0.06, 0.3, Math.PI / 2, null, { pad: 0.03 });
+      else if (side === 'R') this.board('v', a0 + 0.05, a1 - 0.05, this.W - 0.17 - d / 2, h + 0.05, d - 0.06, 0.3, -Math.PI / 2, null, { pad: 0.03 });
+      else this.board('u', a0 + 0.05, a1 - 0.05, this.D - 0.12 - d / 2, h + 0.05, d - 0.06, 0.3, this.faceFront, null, { pad: 0.03 });
     }
   }
   // cloison basse ou pleine (cabine, salle d'examen) avec collision
@@ -600,7 +608,7 @@ const LAYOUTS = {
     for (let u = 1.2; u < W - 1.5; u += 1.6) L.wallFloor('B', u);
     L.furn(0.6, D - 1.0, W - 0.6, D - 0.2, 0, 0.92, 0xb0bec5, { metal: true });
     for (let u = 1.0; u < W - 1; u += 1.1) L.counterSpot(u, D - 0.6, 0.92, L.faceFront);
-    L.board('u', 0.8, W - 0.8, D - 0.6, 0.92, 0.6, 0.6, L.faceFront);
+    L.board('u', 0.8, W - 0.8, D - 0.6, 0.92, 0.6, 0.6, L.faceFront, null, { noLabels: true });
     L.wallShelf('L', 5.6, D - 1.4, 3, 1.9, 0.35, 0x8d6e63);
     // salle : tables et chaises
     const tables = W >= 12 ? [[2.5, 2.2], [6, 2.2], [9.5, 2.2]] : [[3, 2.2]];
@@ -696,7 +704,7 @@ const LAYOUTS = {
   salon(L, s) {
     const W = L.W, D = L.D;
     for (let k = 0; k < 4; k++) { L.floorSpot(1.6, 2.0 + k * 1.8, -Math.PI / 2); L.wallHigh('L', 2.0 + k * 1.8, 1.6); }
-    L.furn(0.17, 1.4, 0.6, D - 1.0, 0, 0.85, 0xf5f5f5); L.board('v', 1.5, D - 1.1, 0.4, 0.85, 0.35, 0.5, Math.PI / 2);
+    L.furn(0.17, 1.4, 0.6, D - 1.0, 0, 0.85, 0xf5f5f5); L.board('v', 1.5, D - 1.1, 0.4, 0.85, 0.35, 0.5, Math.PI / 2, null, { noLabels: true });
     L.wallFloor('B', W - 3); L.wallFloor('B', W - 4.5);
     L.wallShelf('R', 1.6, D - 1.0, 4, 2.0, 0.4, 0xf8bbd0);
     L.counter(W - 2.8, 1.0, W - 1.0, 1.7, 1.0, 0xf06292);
@@ -734,7 +742,7 @@ const LAYOUTS = {
     const W = L.W, D = L.D;
     L.furn(4.5, 5.5, 7.5, 6.5, 0, 0.76, 0x4e342e);
     L.counterSpot(5.0, 5.9, 0.76, L.faceFront); L.counterSpot(6.0, 5.9, 0.76, L.faceFront); L.counterSpot(7.0, 5.9, 0.76, L.faceFront);
-    L.board('u', 4.6, 7.4, 6.0, 0.76, 0.9, 0.6, L.faceFront);
+    L.board('u', 4.6, 7.4, 6.0, 0.76, 0.9, 0.6, L.faceFront, null, { noLabels: true });
     L.floorSpot(6, 6.9, L.faceFront);
     L.wallShelf('L', 2.0, D - 1.0, 5, 2.2, 0.35, 0x5d4037);
     L.furn(W - 1.2, 2.0, W - 0.3, 4.5, 0, 0.45, 0x3e2723); L.furn(W - 0.5, 2.0, W - 0.3, 4.5, 0.45, 0.95, 0x3e2723);
@@ -750,7 +758,7 @@ const LAYOUTS = {
     L.floorSpot(3.3, 6.7, Math.PI / 2); L.floorSpot(6.9, 6.7, -Math.PI / 2); L.floorSpot(5.1, 5.6, L.faceIn); L.floorSpot(5.1, 7.8, L.faceFront);
     L.furn(3.0, D - 0.8, 6.6, D - 0.15, 0, 0.92, 0xd7ccc8);
     L.counterSpot(3.5, D - 0.5, 0.92, L.faceFront); L.counterSpot(4.5, D - 0.5, 0.92, L.faceFront);
-    L.board('u', 5.0, 6.5, D - 0.5, 0.92, 0.5, 0.5, L.faceFront);
+    L.board('u', 5.0, 6.5, D - 0.5, 0.92, 0.5, 0.5, L.faceFront, null, { noLabels: true });
     L.wallFloor('R', 2.0); L.wallFloor('R', 3.4);
     L.wallHigh('R', 6.0, 1.6);
     L.floorSpot(9.2, 2.2, -Math.PI / 2);
