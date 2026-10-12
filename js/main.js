@@ -23,7 +23,7 @@ let settings = Save.settings();
 let mpInfo = null;
 
 function menu(html) { const m = $('#menu'); m.innerHTML = html; m.classList.remove('hidden'); return m; }
-function hideMenu() { $('#menu').classList.add('hidden'); }
+function hideMenu() { const m = $('#menu'); m.classList.add('hidden'); m.innerHTML = ''; } // vide le menu : l'animation du fond titre s'arrête
 
 function titleScreen() {
   const s = Save.load();

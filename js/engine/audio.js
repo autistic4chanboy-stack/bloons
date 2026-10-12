@@ -2297,7 +2297,7 @@ const BUSES = ['sfx', 'music', 'ambience', 'voice', 'ui'];
 const WORLD_2D = { sfx: 1, ambience: 1, voice: 1 }; // bus 2D « diégétiques » soumis à l'étouffement (musique 2D et UI y échappent : baladeur, interface)
 const SEND_2D = { sfx: 0.16, voice: 0.2 };          // réverbération des sons 2D du joueur (ses propres gestes sonnent dans la pièce)
 const OCC_CUT = [20000, 2500, 900, 400];            // coupure du passe-bas selon le nombre de murs
-const REV = 0.5, MAX_SHOTS = 48, MAX_HRTF = 32, OCC_BUDGET = 10, MEM_LIMIT = 40e6;
+const REV = 0.5, MAX_SHOTS = 48, MAX_HRTF = 16, OCC_BUDGET = 10, MEM_LIMIT = 40e6;
 const INSTR = { piano: 1, guitar: 1, xylo: 1, bell: 1, organ: 1, synth: 1, musicbox: 1 };
 const DRUMS = { kick: 1, snare: 1, hat: 1, tom: 1, crash: 1 };
 const DTMF = { 1: [697, 1209], 2: [697, 1336], 3: [697, 1477], A: [697, 1633], 4: [770, 1209], 5: [770, 1336], 6: [770, 1477], B: [770, 1633], 7: [852, 1209], 8: [852, 1336], 9: [852, 1477], C: [852, 1633], '*': [941, 1209], 0: [941, 1336], '#': [941, 1477], D: [941, 1633] };
@@ -2348,14 +2348,15 @@ class Voice {
     const B = E.bus[this.bus];
     if (this.sp) {
       this.d = mkGain(ctx, 1); this.p = ctx.createPanner();
-      this.hr = E.hrtf < MAX_HRTF; if (this.hr) E.hrtf++;
-      this.p.panningModel = this.hr ? 'HRTF' : 'equalpower'; this.p.distanceModel = 'inverse';
+      this.hr = false; this.aud = 0; this.dist = 0; // HRTF attribué par le moteur aux sources les plus audibles
+      this.p.panningModel = 'equalpower'; this.p.distanceModel = 'inverse';
       this.p.refDistance = this.ref; this.p.maxDistance = Math.max(10000, this.maxD); this.p.rolloffFactor = def.roll ?? 1;
       setPannerPos(this.p, p);
       tail.connect(this.d); this.d.connect(this.p); this.p.connect(B.sp);
       this.s = mkGain(ctx, 0); tail.connect(this.s); this.s.connect(B.rv);
       if (this.occ) { const w = E.occlude(p); if (w == null) E.occQ.push(this); else { this.walls = w; this.occT = ctx.currentTime; } }
       this.place(true);
+      E.grantHRTF(this);
     } else {
       tail.connect(B.d2);
       const s2 = num(+o.send, this.bus === 'ui' ? 0 : (SEND_2D[this.bus] || 0) * (def.rev ?? 1));
@@ -2368,6 +2369,8 @@ class Voice {
     const dist = Math.hypot(P.x - L.x, P.y - L.y, P.z - L.z), w = this.occ ? this.walls : 0;
     const culled = this.mode !== 'shot' && dist > this.maxD; // continu hors de portée : muet mais conservé
     const cut = Math.min(this.cut0, wallCut(w)), dry = culled ? 0 : Math.pow(10, -0.2 * w); // −4 dB par mur
+    const r = this.ref, roll = this.def.roll ?? 1;
+    this.dist = dist; this.aud = this.stopping ? 0 : this.vol * this.base * dry * (dist <= r ? 1 : r / (r + roll * (dist - r)));
     // le champ réverbéré décroît bien moins vite que le direct ; derrière des murs : plus de réverbération, moins de direct
     const send = culled ? 0 : REV * (this.def.rev ?? 1) * this.ref / (this.ref + 0.15 * Math.max(0, dist - this.ref)) * Math.pow(10, -0.075 * w) * (1 + 0.12 * w);
     this.culled = culled;
@@ -2685,6 +2688,26 @@ class Engine {
     if (v.ctl && v.ctl.tick) { try { v.ctl.tick(t, t + 0.3); } catch (e) { /* */ } }
     return new Handle(v);
   }
+  // HRTF (coûteux pour le processeur) : réservé aux MAX_HRTF sources les plus audibles, réattribué en continu.
+  // Un son proche qui démarre (pas d'une présence…) prend aussitôt la place de la source HRTF la moins audible.
+  setHR(v, on) {
+    if (v.hr === on) return;
+    try { v.p.panningModel = on ? 'HRTF' : 'equalpower'; } catch (e) { return; }
+    v.hr = on; this.hrtf += on ? 1 : -1;
+  }
+  grantHRTF(v) {
+    if (!v.sp || v.culled || v.aud <= 1e-5) return;
+    if (this.hrtf < MAX_HRTF) { this.setHR(v, true); return; }
+    let low = null; for (const x of this.spatial) if (x.hr && x !== v && (!low || x.aud < low.aud)) low = x;
+    if (low && v.aud > low.aud * 1.3) { this.setHR(low, false); this.setHR(v, true); }
+  }
+  rebalance() {
+    const S = this.spatial; if (!S.length) return;
+    const cand = S.filter((v) => v.alive && !v.stopping && !v.culled && v.aud > 1e-5).sort((a, b) => b.aud - a.aud);
+    const top = new Set(cand.slice(0, MAX_HRTF)), floor = cand.length > MAX_HRTF ? cand[MAX_HRTF - 1].aud : 0;
+    for (const v of S) if (v.hr && !top.has(v) && (!v.alive || v.stopping || v.culled || v.aud < floor * 0.7)) this.setHR(v, false); // hystérésis
+    for (const v of cand) { if (this.hrtf >= MAX_HRTF) break; if (top.has(v) && !v.hr) this.setHR(v, true); }
+  }
   steal() { // trop de sons ponctuels : on coupe le plus ancien
     let old = null; for (const v of this.voices) if (v.shot && !v.stopping && (!old || v.t0 < old.t0)) old = v;
     if (old) old.stop(0.03);
@@ -2804,6 +2827,7 @@ class Engine {
       this.rr = (this.rr + k) % n;
       const now = perfNow() / 1000;
       for (let i = S.length - 1; i >= 0; i--) { const v = S[i]; if (!v.alive) continue; v.place(false); if (v.vel && v.pt && now - v.pt > 0.25) v.vel *= 0.85; }
+      if (now - (this.rbT || 0) > 0.25) { this.rbT = now; this.rebalance(); }
     }
     for (const v of this.voices) if (v.endAt && t > v.endAt) v.end();
     this.pump();
@@ -2856,6 +2880,7 @@ export const Audio = {
   has(name) { return !!SND[name]; },
   get names() { return Object.keys(SND).filter((n) => n[0] !== '_'); },
   stats() { return E ? E.stats() : null; },
+  voices() { return E ? [...E.voices].map((v) => ({ name: v.name, mode: v.mode, bus: v.bus, d: v.sp ? +v.dist.toFixed(1) : null, aud: v.sp ? +v.aud.toFixed(4) : null, hrtf: !!v.hr, culled: v.culled, walls: v.walls })) : []; },
   render(name, variant = 0) { return E ? safe('render', () => E.buf(String(name), variant), null) : null; },
 };
 

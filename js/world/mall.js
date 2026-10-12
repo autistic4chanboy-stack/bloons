@@ -40,7 +40,7 @@ export function buildMall(world) {
   Z('westwing1', 'Aile ouest — couloir (étage)', 'corridor', 1, [-80, 5, -25, -76, 10, 25], { circuit: 'service', area: 'service' });
   Z('archives', 'Archives', 'backroom', 1, [-76, 5, -22, -66, 10, 13], { circuit: 'service', area: 'gallery1' });
   Z('gallery0_w', 'Galerie RDC — ouest', 'corridor', 0, [-66, 0, -8, -24, 4.6, 8], { circuit: 'gallery', area: 'gallery0', cull: 70 });
-  Z('atrium', 'Atrium', 'atrium', 0, [-24, 0, -8, 24, 12, 8], { circuit: 'gallery', area: 'gallery0', cull: 80 });
+  Z('atrium', 'Atrium', 'atrium', 0, [-24, 0, -8, 24, 12, 8], { circuit: 'gallery', area: 'gallery0', cull: 80, void: true });
   Z('gallery0_e', 'Galerie RDC — est', 'corridor', 0, [24, 0, -8, 66, 4.6, 8], { circuit: 'gallery', area: 'gallery0', cull: 70 });
   Z('gallery1_w', 'Galerie étage — ouest', 'corridor', 1, [-66, 5, -8, -24, 10, 8], { circuit: 'gallery', area: 'gallery1', cull: 70 });
   Z('gallery1_e', 'Galerie étage — est', 'corridor', 1, [24, 5, -8, 66, 10, 8], { circuit: 'gallery', area: 'gallery1', cull: 70 });

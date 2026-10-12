@@ -256,7 +256,7 @@ export class Game {
       this.sync.update(sdt);
     }
     const cam = this.camera;
-    this.world.cull(cam.position, this.security.cullExtras());
+    this.world.cull(cam.position, this.security.cullExtras(), cam);
     this.lighting.update(dt, cam.position);
     this.screens.update(dt, cam.position);
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion), up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);

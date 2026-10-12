@@ -28,7 +28,7 @@ jobs:
       - name: Préparer le site
         run: |
           mkdir -p _site
-          cp -r index.html .nojekyll css js vendor wiki _site/
+          cp -r index.html mp-info.json .nojekyll css js vendor wiki _site/
           cp -r docs _site/ 2>/dev/null || true
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

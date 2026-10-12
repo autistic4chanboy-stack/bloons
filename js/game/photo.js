@@ -45,7 +45,7 @@ export class PhotoSystem {
     this.targets(w, h);
     const c = this.cam; c.position.copy(pos); c.rotation.set(pitch, yaw, 0, 'YXZ'); c.fov = opts.fov || 60; c.aspect = w / h; c.updateProjectionMatrix();
     c.layers.mask = 1 | (opts.self ? (1 << CAM_LAYERS.avatar) : 0) | (opts.spirits ? (1 << CAM_LAYERS.cam) : 0);
-    g.world.cull(pos);
+    g.world.cull(pos, [], c);
     const auto = R.shadowMap.autoUpdate; R.shadowMap.autoUpdate = false;
     g.renderer.renderTo(g.scene, c, this.rtScene);
     R.shadowMap.autoUpdate = auto;
@@ -56,7 +56,7 @@ export class PhotoSystem {
     const ctx = cv.getContext('2d'); const img = ctx.createImageData(w, h);
     for (let y = 0; y < h; y++) img.data.set(px.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
     ctx.putImageData(img, 0, 0);
-    g.world.cull(g.camera.position);
+    g.world.cull(g.camera.position, [], g.camera);
     return cv;
   }
 

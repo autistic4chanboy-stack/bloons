@@ -15,7 +15,7 @@ export class WorldObject {
   onState(patch, isReset) { }
   reset() { this.applyState(JSON.parse(JSON.stringify(this.initial)), true); }
   // Hôte : modifie l'état et le réplique
-  set(patch) { this.world.setState(this.id, patch); }
+  set(patch, snap = false) { this.world.setState(this.id, patch, snap); } // snap : appliqué sans transition (remise à zéro)
   // Texte affiché quand le joueur vise l'objet (null = pas interactif)
   prompt(player) { return null; }
   // Interaction côté joueur local. Retourne true si gérée localement (UI), sinon l'action est envoyée à l'hôte.
@@ -35,6 +35,11 @@ export class WorldObject {
   get pos() { if (this.pickBox) return new THREE.Vector3((this.pickBox.min[0] + this.pickBox.max[0]) / 2, (this.pickBox.min[1] + this.pickBox.max[1]) / 2, (this.pickBox.min[2] + this.pickBox.max[2]) / 2); return new THREE.Vector3(); }
 }
 
+const _cm = new THREE.Matrix4(), _fr = new THREE.Frustum(), _vb = new THREE.Box3(), _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3();
+// Bandes de hauteur des niveaux : sous-sol | rez-de-chaussée | étage | toit
+const BANDS = [-Infinity, -0.6, 5, 10.3, Infinity];
+export const levelAtY = (y) => (y < BANDS[1] ? 0 : y < BANDS[2] ? 1 : y < BANDS[3] ? 2 : 3);
+
 export class Zone {
   constructor(id, name, type, floor, x0, y0, z0, x1, y1, z1, opts = {}) {
     this.id = id; this.name = name; this.type = type; this.floor = floor;
@@ -50,6 +55,10 @@ export class Zone {
     this.panelMat = null; this.signMats = [];
     this.alwaysVisible = !!opts.alwaysVisible;
     this.cull = opts.cull ?? 55;
+    // niveaux couverts (0 sous-sol, 1 rez-de-chaussée, 2 étage, 3 toit) ; un vide (atrium) relie ceux qu'il traverse
+    this.levels = [0, 1, 2, 3].filter((k) => this.min[1] + 0.3 < BANDS[k + 1] && this.max[1] - 0.3 > BANDS[k]);
+    this.void = !!opts.void;
+    this.side = Math.sign(this.min[2] + this.max[2]); // magasins : côté nord ou sud de la galerie
     this.outdoor = !!opts.outdoor;
     this.temp = 19;
   }
@@ -159,8 +168,8 @@ export class World {
   }
 
   // ── Réplication ──
-  setState(id, patch) { this.game.sim.emit('obj', { id, s: patch }); }
-  applyEffectState(p) { const o = this.objects.get(p.id); if (o) o.applyState(p.s); }
+  setState(id, patch, snap = false) { this.game.sim.emit('obj', snap ? { id, s: patch, r: 1 } : { id, s: patch }); }
+  applyEffectState(p) { const o = this.objects.get(p.id); if (o) o.applyState(p.s, !!p.r); }
 
   // État complet (objets dont l'état diffère de l'initial) pour un joueur qui rejoint
   serialize() {
@@ -179,13 +188,50 @@ export class World {
 
   update(dt, t) { for (const o of this.active) o.update(dt, t); }
 
-  // Visibilité des zones selon la distance à la caméra (culling grossier)
-  cull(pos, extraPositions = []) {
+  // Passages entre niveaux (escaliers, escalators, rampe), déduits du graphe de navigation
+  buildPortals() {
+    this.portals = new Map(); this.voids = this.zones.filter((z) => z.void);
+    for (const n of this.nav.nodes.values()) {
+      const a = levelAtY(n.y);
+      for (const id of n.links) {
+        const m = this.nav.nodes.get(id); if (!m) continue;
+        const b = levelAtY(m.y); if (a === b) continue;
+        const k = a * 4 + b; // depuis le niveau a, près de n, on voit le niveau b
+        if (!this.portals.has(k)) this.portals.set(k, []);
+        this.portals.get(k).push(n);
+      }
+    }
+  }
+  nearPortal(a, b, pos, R = 8) {
+    const L = this.portals.get(a * 4 + b); if (!L) return false;
+    for (const n of L) if (Math.hypot(n.x - pos.x, (n.y - pos.y) * 1.5, n.z - pos.z) < R) return true;
+    return false;
+  }
+  // Visibilité des zones selon la distance à la caméra (culling grossier), par niveau : un niveau n'est dessiné depuis
+  // un autre qu'à proximité d'un passage ou d'un vide (atrium). L'étage n'est plus rendu au-dessus de la galerie du
+  // rez-de-chaussée, ni le parking sous les pieds des clients.
+  // cam (facultatif) : un vide dans le champ de la caméra compte jusqu'à 45 m (on voit l'étage d'en face de loin).
+  // range : facteur sur les distances (caméras de surveillance : image basse définition, le lointain s'y perd)
+  cull(pos, extraPositions = [], cam = null, range = 1) {
+    if (!this.portals) this.buildPortals();
+    const lv = levelAtY(pos.y), near = [false, false, false, false]; near[lv] = true;
+    if (cam) { cam.updateMatrixWorld(); _cm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); _fr.setFromProjectionMatrix(_cm); }
+    for (const v of this.voids) {
+      if (!v.levels.includes(lv)) continue;
+      const d = v.distTo(pos.x, pos.y, pos.z);
+      if (d < 10 || (cam && d < 45 * range && _fr.intersectsBox(_vb.set(_v1.fromArray(v.min), _v2.fromArray(v.max))))) for (const k of v.levels) near[k] = true;
+    }
+    for (let k = 0; k < 4; k++) if (!near[k]) near[k] = this.nearPortal(lv, k, pos);
+    // depuis un magasin, les murs mitoyens cachent les voisins du même côté ; une réserve ne se voit que de près
+    const cz = this.zoneAt(pos.x, pos.y, pos.z), shop = cz && cz.shop ? cz : null;
     for (const z of this.zones) {
-      if (z.alwaysVisible) { z.group.visible = true; continue; }
-      let d = z.distTo(pos.x, pos.y, pos.z);
+      if (z.alwaysVisible) { z.group.visible = lv !== 0 || near[1]; continue; }
+      let seen = false; for (const k of z.levels) if (near[k]) { seen = true; break; }
+      if (seen && z.shop && shop && z.shop !== shop.shop && z.side === shop.side && z.levels[0] === shop.levels[0]) seen = false;
+      let d = seen ? z.distTo(pos.x, pos.y, pos.z) : Infinity;
+      if (z.type === 'backroom' && d > 14 && (!shop || z.shop !== shop.shop)) d = Infinity;
       for (const p of extraPositions) d = Math.min(d, z.distTo(p.x, p.y, p.z));
-      z.group.visible = d < z.cull;
+      z.group.visible = d < z.cull * range;
     }
   }
 }

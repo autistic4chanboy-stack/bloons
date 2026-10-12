@@ -2,6 +2,7 @@
 // policiers, pompiers, mannequins, Bobby l'Ourson.
 import * as THREE from 'three';
 import { GLOBAL_UNIFORMS } from '../engine/materials.js';
+import { concatGeometries } from '../engine/geo.js';
 
 const geoCache = {};
 function G(key, fn) { return geoCache[key] || (geoCache[key] = fn()); }
@@ -97,7 +98,37 @@ export function buildHumanoid(opts = {}) {
   }
   root.userData.parts = parts; root.userData.kind = kind;
   root.userData.anim = { phase: 0, speed: 0 };
+  if (opts.merge !== false) mergeRigid(root);
   return root;
+}
+
+// Fusion des pièces rigides : un seul mesh (couleurs par sommet) par segment animé (tête, torse, bras, avant-bras…).
+// Environ 10 appels de dessin par personnage au lieu de 22 : la foule de la journée coûte deux fois moins cher.
+const vcMats = new Map();
+function vcMat(rough) {
+  if (!vcMats.has(rough)) vcMats.set(rough, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough, metalness: 0.02 }));
+  return vcMats.get(rough);
+}
+function mergeRigid(root) {
+  const groups = []; root.traverse((o) => { if (o.isGroup) groups.push(o); });
+  for (const grp of groups) {
+    const ms = grp.children.filter((c) => c.isMesh && c.visible && c.material && c.material.isMeshStandardMaterial && !c.material.transparent && c.material.emissive.getHex() === 0 && c.geometry.index && c.geometry.attributes.uv);
+    if (ms.length < 2) continue;
+    const list = []; let rough = 0;
+    for (const m of ms) {
+      m.updateMatrix();
+      const src = m.geometry, n = src.attributes.position.count, col = new Float32Array(n * 3), c = m.material.color;
+      for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', src.attributes.position); g.setAttribute('normal', src.attributes.normal); g.setAttribute('uv', src.attributes.uv);
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(src.index);
+      list.push({ geo: g, matrix: m.matrix.clone() }); rough += m.material.roughness;
+    }
+    const mesh = new THREE.Mesh(concatGeometries(list).geometry, vcMat(Math.round((rough / ms.length) * 10) / 10));
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    for (const m of ms) grp.remove(m);
+    grp.add(mesh);
+  }
 }
 
 // Animation de marche / pose. speed en m/s. pose : 'idle' | 'walk' | 'run' | 'crouch' | 'sit' | 'reach' | 'aim' | 'tpose' | 'dead' | 'crawl' | 'cheer' | mannequin poses 0..3

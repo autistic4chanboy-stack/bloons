@@ -80,12 +80,13 @@ export class Story {
     const g = this.game; if (!Net.isHost) return;
     const N = this.mode === 'story' ? NIGHTS[Math.min(10, n)] : null;
     const day = this.mode === 'story' && N.day && !g.flags['day_done_' + n];
+    this._closingAnnounce = this._closed = this._lightsOff = this._gerardLeaves = false;
     g.sim.emit('night', { phase: 'reset', n, mode: this.mode, day, flags: g.flags, stats: this.stats });
     // déblocages → verrous
     const W = g.world;
     for (const [id, ctl] of Object.entries(W.shops)) {
       const open = this.isShopUnlocked(id);
-      if (ctl.shutter) ctl.shutter.set({ locked: day ? false : !open, target: day ? 0 : 1 });
+      if (ctl.shutter) ctl.shutter.set({ locked: day ? false : !open, target: day ? 0 : 1 }, true); // en place d'emblée : pas 33 rideaux qui bougent au chargement
       if (ctl.rearDoor) ctl.rearDoor.set({ locked: true });
       if (ctl.frontDoor && !open) ctl.frontDoor.set({ locked: true });
     }
@@ -120,7 +121,7 @@ export class Story {
     g.sim.emit('night', { phase: day ? 'day' : 'dusk', n, time: start, mode: this.mode, unlockedShops: [...this.unlockedShops], unlockedAreas: [...this.unlockedAreas] });
     g.events.configure(this.mode, n);
     g.entities.configure(this.mode, n, day);
-    if (day) g.entities.spawnDay();
+    if (day) { g.entities.spawnDay(); g.sim.emit('pa', { music: 'muzak' }); } // musique d'ambiance du centre jusqu'à la fermeture
     else g.entities.spawnDusk();
     this.lastDirectorNight = n;
   }
@@ -221,7 +222,7 @@ export class Story {
     if (m < parseT('20:00')) this.crowdLevel = 1; else this.crowdLevel = Math.max(0, 1 - (m - parseT('20:00')) / 30);
     if (!this._closingAnnounce && m >= parseT('19:45')) { this._closingAnnounce = true; g.sim.emit('pa', { chime: true, text: 'Mesdames et messieurs, le centre commercial Hélios fermera ses portes dans quinze minutes. Merci de vous diriger vers les caisses.' }); }
     if (!this._closed && m >= parseT('20:00')) {
-      this._closed = true; g.sim.emit('pa', { chime: true, text: 'Le centre commercial Hélios est maintenant fermé. Merci de votre visite et à demain.' });
+      this._closed = true; g.sim.emit('pa', { music: 'stop' }); g.sim.emit('pa', { chime: true, text: 'Le centre commercial Hélios est maintenant fermé. Merci de votre visite et à demain.' });
       g.entities.crowdLeave();
       for (const [id, ctl] of Object.entries(g.world.shops)) if (ctl.shutter) setTimeout(() => ctl.shutter.set({ target: 1 }), 20000 + Math.random() * 40000);
       g.env.timeScale = 1.0;

@@ -317,7 +317,7 @@ export class Security {
     const ir = opts.ir ?? this.useIR(c, t);
     cam.layers.mask = 1 | (1 << CAM_LAYERS.avatar) | (1 << CAM_LAYERS.cam) | (ir ? (1 << CAM_LAYERS.ir) : 0);
     if (c.kind === 'player') cam.layers.mask = 1 | (1 << CAM_LAYERS.avatar);
-    g.world.cull(t.pos);
+    g.world.cull(t.pos, [], cam, w < 400 ? 0.65 : 0.85);
     if (opts.lights) g.lighting.update(0, t.pos);
     if (ir) { GLOBAL_UNIFORMS.irBoost.value = 0.32; this.irLight.intensity = 1.5; }
     const auto = R.shadowMap.autoUpdate; R.shadowMap.autoUpdate = false;
@@ -353,15 +353,19 @@ export class Security {
     const pages = Math.max(1, Math.ceil(L.length / this.monitors.length));
     if (this.monPageT > 12) { this.monPageT = 0; this.monPage = (this.monPage + 1) % pages; }
     if (this.monPage >= pages) this.monPage = 0;
+    // 1 à 2 écrans rafraîchis par 1/60 s, jamais plus d'un lot par image : sur un écran 144 Hz on ne refait pas
+    // 288 rendus de caméra par seconde, sur une machine lente on ne rattrape pas le retard
     const n = this.mode === 'desk' ? 2 : 1;
-    for (let k = 0; k < n; k++) {
+    this.monAcc = Math.min((this.monAcc || 0) + dt * 60 * n, n);
+    const todo = Math.floor(this.monAcc); this.monAcc -= todo;
+    for (let k = 0; k < todo; k++) {
       const i = this.monIdx = (this.monIdx + 1) % this.monitors.length;
       const m = this.monitors[i];
       const c = L.length ? L[(this.monPage * this.monitors.length + i)] || null : null;
       m.cam = c;
       this.drawMonitor(m);
     }
-    g.world.cull(cp);
+    g.world.cull(cp, [], g.camera);
   }
   drawMonitor(m) {
     const g = this.game; const c = m.cam;
@@ -408,7 +412,7 @@ export class Security {
     if (st === 'dead') { R.setRenderTarget(null); R.setClearColor(0x000000, 1); R.clear(); return; }
     const overlay = this.glitchT > 0 && this.glitchFigure ? this.overlayTex : null;
     g.renderer.renderCCTV(this.fsRT.texture, { ir, offline: st === 'offline' || st === 'nosignal', noise: this.mode === 'tablet' ? 0.14 : 0.1, glitch: this.glitchT > 0 ? Math.min(1, 0.4 + this.glitchT * 0.2) : (c?.kind === 'rc' ? 0.05 : 0), overlay, brightness: st === 'blocked' ? 0.35 : 1.12 });
-    g.world.cull(g.camera.position);
+    g.world.cull(g.camera.position, [], g.camera);
   }
   drawFigure() {
     const x = this.overlayCanvas.getContext('2d'); const W = 512, H = 384;
@@ -435,7 +439,7 @@ export class Security {
     if (!c || this.camStatus(c) !== 'ok') return;
     const ir = this.renderCam(c, this.capScene, CAP_W, CAP_H);
     this.capture(c, this.capScene.texture, ir);
-    g.world.cull(g.camera.position);
+    g.world.cull(g.camera.position, [], g.camera);
   }
   maybeCapture(c, tex, ir) {
     if (!this.S.rec || c.kind === 'player' || c.kind === 'rc') return;
