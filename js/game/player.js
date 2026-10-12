@@ -5,11 +5,11 @@ import * as THREE from 'three';
 import { Net } from '../net/net.js';
 import { ITEMS } from '../data/items.js';
 import { FLASHLIGHTS, COSTUMES } from '../data/costumes.js';
-import { buildItemGeometry } from '../world/meshes.js';
+import { buildItemGeometry, itemMeta } from '../world/meshes.js';
 import { FLOORS } from '../world/shopbuilder.js';
 import { GLOBAL_UNIFORMS } from '../engine/materials.js';
 import { flashlightCookie } from '../engine/textures.js';
-import { buildHumanoid, animateHumanoid, setHumanoidLayer, litHumanoid } from './humanoid.js';
+import { buildHumanoid, animateHumanoid, setHumanoidLayer, litHumanoid, disposeHumanoid, buildFPArm, litMaterial } from './humanoid.js';
 import { useHeld } from './behaviors.js';
 import { Audio } from '../engine/audio.js';
 
@@ -20,6 +20,45 @@ const SLOT_COUNT = 10;
 const FLASH_GAIN = 1.35;
 const _white = (() => { const t = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); t.needsUpdate = true; return t; })();
 const clampA = (v, a) => (v < -a ? -a : v > a ? a : v);
+const _q = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _v = new THREE.Vector3(), _fw = new THREE.Vector3(0, 0, -1), _col = new THREE.Color();
+// Prise d'un objet par la main droite (repère de la prise, −z vers l'avant) : position / rotation de l'objet, fermeture de la
+// main, paume p (de la paume vers l'objet), index i (direction de l'index le long de la prise), avant-bras fa (repère de la main)
+function gripPose(def, k) {
+  const s = def.s.map((v) => v * k), L = Math.max(...s), ax = s.indexOf(L), M2 = [...s].sort((a, b) => b - a)[1], ml = itemMeta(def.id).lens, lens = !!ml || def.shape === 'flashlight';
+  // point d'émission de la lumière (repère de l'objet) : lentille, flamme du briquet, flash du téléphone
+  const src = lens ? (ml || [0, 0, def.s[2] / 2]) : def.use === 'lighter' || def.id === 'matches' ? [0, def.s[1] * 0.5 + 0.012, 0] : def.use === 'mobile' ? [0, def.s[1] * 0.38, -def.s[2] * 0.5] : null;
+  let g;
+  if (lens || (M2 < 0.45 * L && ax !== 1 && L > 0.12)) g = { grip: 0.94, pos: [0, 0, -0.2 * L], rot: [0, ax === 0 ? Math.PI / 2 : lens ? Math.PI : 0, 0], p: [-1, 0.12, 0], i: [0, 0, 1], fa: [-0.25, -1, 0.45] };
+  else if (ax === 1 && M2 < 0.75 * L) g = { grip: 0.66, pos: [0, 0.12 * L, 0], rot: [0, 0, 0], p: [-1, 0, 0.3], i: [0, 1, 0], fa: [0, -1, -0.45] };
+  else if (L < 0.13) g = { grip: 0.74, pos: [-0.012, 0.03, -0.012], rot: [0, 0, 0], p: [-1, 0, 0.3], i: [0, 1, 0], fa: [0, -1, -0.45] };
+  else g = { grip: 0.22, pos: [0, s[1] * 0.5 + 0.035, -0.04], rot: [0, 0, 0], p: [0, 1, 0], i: [1, 0, 0], fa: [0.05, -1, 0.15] };
+  g.src = src; return g;
+}
+// placement de la main canonique (main gauche ; la droite en miroir) pour que le centre du poing soit à l'origine de la prise
+function handPlace(gp, right) {
+  const P = new THREE.Vector3(...gp.p).normalize(), I = new THREE.Vector3(...gp.i); I.addScaledVector(P, -I.dot(P)).normalize();
+  if (!right) { P.x = -P.x; I.x = -I.x; }
+  const F = right ? new THREE.Vector3().crossVectors(P, I) : new THREE.Vector3().crossVectors(I, P);
+  const m = new THREE.Matrix4().makeBasis(right ? P.clone().negate() : P, F, I);
+  if (right) m.multiply(new THREE.Matrix4().makeScale(-1, 1, 1));
+  const c = new THREE.Vector3(0.024 + 0.02 * (1 - gp.grip), 0.057, 0).applyMatrix4(m);
+  return m.setPosition(-c.x, -c.y, -c.z);
+}
+// manches et mains selon le costume
+function fpArmOpts(co) {
+  const C = COSTUMES[co] || COSTUMES.guard;
+  switch (co) {
+    case 'bear': return { sleeve: 0xb87a38, glove: 0xb87a38, fur: true, fat: 1.45, cuff: 'none' };
+    case 'ghost': return { glove: 0xf2f2ee, fat: 1.2, cuff: 'none' };
+    case 'mannequin': return { skin: 0xe9e2d4, plastic: true, cuff: 'none' };
+    case 'astronaut': return { sleeve: 0xeceff1, glove: 0xe0e0e0, fat: 1.25, cuff: 'ring' };
+    case 'firefighter': return { sleeve: C.color, glove: 0x2a2a24, fat: 1.08, cuff: 'rib', band: true };
+    case 'cat': return { sleeve: C.color, glove: 0x232323, cuff: 'rib' };
+    case 'clown': return { sleeve: C.color, glove: 0xf6f6f6, fat: 1.05, cuff: 'ruff' };
+    case 'police': return { sleeve: C.color, skin: 0xd9ab8c, cuff: 'shirt', watch: true };
+    default: return { sleeve: 0x2b3a55, skin: 0xd9ab8c, cuff: 'shirt', watch: true };
+  }
+}
 
 export class Inventory {
   constructor(p) { this.p = p; this.slots = new Array(SLOT_COUNT).fill(null); this.sel = 0; this.version = 0; }
@@ -95,7 +134,7 @@ export class Player {
     this.hands = new THREE.Group(); cam.add(this.hands);
     this._buildHands();
     // avatar visible uniquement par les caméras de surveillance (calque 1)
-    this.avatar = buildHumanoid({ shirt: 0x2b3a55, pants: 0x1f2a44, badge: true, hat: null }); litHumanoid(this.avatar);
+    this.avatar = buildHumanoid(avatarOpts('guard', this.wear)); litHumanoid(this.avatar);
     setHumanoidLayer(this.avatar, 1); game.scene.add(this.avatar);
     // sons continus
     this.heart = null; this.breath = null;
@@ -122,25 +161,38 @@ export class Player {
     this.game.renderer?.resetAdaptation?.(); // téléportation : l'exposition automatique se recale aussitôt
   }
 
+  // Bras à la première personne : la main droite empoigne l'objet tenu ; la main gauche tient la source de lumière
+  // (lampe, téléphone, briquet) quand ce n'est pas l'objet en main. Manches, gants et montre selon le costume ; éclairés
+  // comme le décor par la zone de la caméra, plus la lumière de la lampe renvoyée par les surfaces proches.
   _buildHands() {
-    const skin = new THREE.MeshStandardMaterial({ color: 0xd8a888, roughness: 0.7 });
-    const sleeve = new THREE.MeshStandardMaterial({ color: 0x2b3a55, roughness: 0.85 });
-    this.handMats = { skin, sleeve };
-    const mk = (side) => {
-      const g = new THREE.Group();
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.34), sleeve); arm.position.set(0, 0, 0.12); g.add(arm);
-      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.06, 0.1), skin); hand.position.set(0, 0.0, -0.08); g.add(hand);
-      g.position.set(side * 0.23, -0.27, -0.42);
-      g.traverse(o => { o.castShadow = false; o.frustumCulled = false; });
-      this.hands.add(g); return g;
-    };
-    this.handL = mk(-1); this.handR = mk(1);
+    const g = this.game;
+    this.vmZone = g.mats.zoneUniform('_vm'); this.vmItemMat = g.mats.get('props', '_vm'); this.handMat = litMaterial(this.vmZone);
+    this.gripR = new THREE.Group(); this.vm.add(this.gripR);
+    this.gripL = new THREE.Group(); this.hands.add(this.gripL);
+    this.armR = new THREE.Mesh(new THREE.BufferGeometry(), this.handMat); this.armL = new THREE.Mesh(new THREE.BufferGeometry(), this.handMat);
+    for (const m of [this.armR, this.armL]) { m.castShadow = false; m.frustumCulled = false; m.renderOrder = 10; }
+    this.gripR.add(this.armR); this.gripL.add(this.armL);
+    this.vmLeft = null; this.vmLeftKey = null; this.vmLens = new THREE.Vector3(); this.vmLensOn = false;
+  }
+  _fpMesh(def) {
+    const s = def.s, size = Math.max(s[0], s[1], s[2]), k = size > 0.6 ? 0.55 / size : size < 0.08 ? 1.6 : 1;
+    const m = new THREE.Mesh(buildItemGeometry(def, this.game.atlas), this.vmItemMat);
+    m.castShadow = false; m.frustumCulled = false; m.renderOrder = 10; m.scale.setScalar(k); m.userData.k = k; m.userData.size = size * k;
+    const gp = gripPose(def, k); m.position.fromArray(gp.pos); m.rotation.set(...gp.rot); m.userData.gp = gp;
+    return m;
+  }
+  heldIsFlame() { const d = this.heldProp?.defId; return d === 'lighter' || d === 'matches'; }
+  // définition de l'objet lumineux tenu de la main gauche (null si c'est l'objet en main, ou une lampe frontale)
+  leftLight() {
+    if (!this.flashOn || this.flashKind === 'none' || FLASHLIGHTS[this.flashKind]?.head) return null;
+    if (this.flashKind === 'lighter') return this.heldIsFlame() ? null : (this.hasItem('lighter') ? ITEMS.lighter : ITEMS.matches) || ITEMS.lighter || null;
+    const fp = this.flashProp ? this.game.props.get(this.flashProp) : null;
+    return fp && fp.id !== this.heldProp?.id ? fp.def : null;
   }
   setCostume(c) {
     this.costume = c in COSTUMES ? c : 'guard';
-    const co = COSTUMES[this.costume];
-    this.handMats.sleeve.color.set(co.color);
-    if (this.avatar) { this.game.scene.remove(this.avatar); }
+    this.vmHeldId = -1; this.vmLeftKey = null; // bras rebâtis (manches, gants)
+    if (this.avatar) { this.game.scene.remove(this.avatar); disposeHumanoid(this.avatar); }
     this.avatar = buildHumanoid(avatarOpts(this.costume, this.wear)); litHumanoid(this.avatar); setHumanoidLayer(this.avatar, 1); this.game.scene.add(this.avatar);
     Audio.setMuffle(c === 'astronaut' ? 0.55 : 0);
     this.game.hooks.emit('costume', this.id, c);
@@ -400,8 +452,10 @@ export class Player {
     const off = kindDef.head ? this._off.set(0, 0.08, 0) : this._off.set(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(0.2);
     if (!kindDef.head) off.y -= 0.18;
     this.flashDir.lerp(fwd, Math.min(1, dt * (kindDef.head ? 30 : 14))).normalize();
-    // la source est placée juste devant la lentille : la lampe tenue en main ne s'éclaire pas elle-même
-    this.flashPos.copy(cam.position).add(off).addScaledVector(this.flashDir, kindDef.head ? 0.12 : 0.38);
+    // la source est placée juste devant la lentille : la lampe tenue en main ne s'éclaire pas elle-même (lentille visible
+    // de la main qui tient la lampe, sinon un point devant l'épaule droite)
+    if (this.vmLensOn && !kindDef.head && this.hands.visible) this.flashPos.copy(this.vmLens).applyMatrix4(cam.matrixWorld).addScaledVector(this.flashDir, 0.025);
+    else this.flashPos.copy(cam.position).add(off).addScaledVector(this.flashDir, kindDef.head ? 0.12 : 0.38);
     sl.position.copy(this.flashPos);
     sl.target.position.copy(this.flashPos).addScaledVector(this.flashDir, 5);
     const lighter = this.flashKind === 'lighter';
@@ -477,33 +531,40 @@ export class Player {
   }
 
   updateViewmodel(dt) {
-    const held = this.heldProp; const id = held ? held.id : null;
-    if (id !== this.vmHeldId) {
-      if (this.vmHeld) { this.vm.remove(this.vmHeld); this.vmHeld = null; }
+    const g = this.game, held = this.heldProp, id = held ? held.id : null, co = this.costume, armO = fpArmOpts(co);
+    if (id !== this.vmHeldId) { // objet en main droite et main qui l'empoigne
+      if (this.vmHeld) { this.gripR.remove(this.vmHeld); this.vmHeld = null; }
       this.vmHeldId = id;
-      if (held) {
-        const geo = buildItemGeometry(held.def, this.game.atlas);
-        const m = new THREE.Mesh(geo, this.game.mats.get('props'));
-        m.castShadow = false; m.frustumCulled = false; m.renderOrder = 10;
-        const s = held.def.s; const size = Math.max(s[0], s[1], s[2]);
-        const k = size > 0.6 ? 0.55 / size : size < 0.08 ? 1.6 : 1;
-        m.scale.setScalar(k);
-        m.userData.k = k; m.userData.size = size * k;
-        this.vmHeld = m; this.vm.add(m);
-      }
+      if (held) { const m = this._fpMesh(held.def), gp = m.userData.gp; this.vmHeld = m; this.gripR.add(m); this.armR.geometry.dispose(); this.armR.geometry = buildFPArm({ ...armO, watch: false, m: handPlace(gp, true), grip: gp.grip, fa: gp.fa }); }
+    }
+    const ld = this.leftLight(), lk = ld ? ld.id + '|' + co : null;
+    if (lk !== this.vmLeftKey) { // main gauche : lampe, téléphone ou briquet
+      this.vmLeftKey = lk;
+      if (this.vmLeft) { this.gripL.remove(this.vmLeft); this.vmLeft = null; }
+      if (ld) { const m = this._fpMesh(ld), gp = m.userData.gp; this.vmLeft = m; m.position.x = -m.position.x; this.gripL.add(m); this.armL.geometry.dispose(); this.armL.geometry = buildFPArm({ ...armO, m: handPlace(gp, false), grip: gp.grip, fa: gp.fa }); }
     }
     const a = this.vmAnim;
     a.swing = Math.max(0, a.swing - dt * 4); a.raise = Math.max(0, a.raise - dt * 2.5);
     const bobA = Math.min(1, Math.hypot(this.body.vel[0], this.body.vel[2]) / 5);
     const bx = Math.cos(this.bob) * 0.012 * bobA, by = Math.abs(Math.sin(this.bob)) * 0.012 * bobA;
+    // orientation du faisceau (avec son inertie) dans le repère de la caméra : la main qui tient la lampe la suit
+    _qi.copy(this.camera.quaternion).invert(); _v.copy(this.flashDir).applyQuaternion(_qi); _q.setFromUnitVectors(_fw, _v.normalize());
+    const lightR = !!(this.vmHeld && held && this.flashOn && (this.flashKind === 'lighter' ? this.heldIsFlame() : held.id === this.flashProp));
     if (this.vmHeld) {
-      const sz = this.vmHeld.userData.size || 0.2;
-      this.vmHeld.position.set(0.24 + bx, -0.22 - sz * 0.25 + by + a.raise * 0.12 - this.throwCharge * 0.05, -0.45 - sz * 0.3 + a.raise * 0.15 + this.throwCharge * 0.12);
-      this.vmHeld.rotation.set(-0.15 - a.swing * 1.2 + a.raise * 0.6, -0.35 + a.swing * 0.6, a.swing * 0.4);
+      this.gripR.position.set(0.19 + bx, -0.21 + by + a.raise * 0.12 - this.throwCharge * 0.05, -0.41 + a.raise * 0.15 + this.throwCharge * 0.12);
+      this.gripR.rotation.set(-0.06 - a.swing * 1.2 + a.raise * 0.6, -0.1 + a.swing * 0.6, a.swing * 0.4);
+      if (lightR) this.gripR.quaternion.premultiply(_q);
     }
-    this.handR.visible = !!this.vmHeld; this.handR.position.set(0.24 + bx, -0.3 + by + a.raise * 0.1, -0.38);
-    this.handL.visible = this.flashOn && this.flashKind !== 'none';
-    this.handL.position.set(-0.24 - bx, -0.29 + by, -0.4);
+    this.gripR.visible = !!this.vmHeld;
+    if (this.vmLeft) { this.gripL.position.set(-0.18 - bx, -0.215 + by, -0.4); this.gripL.rotation.set(-0.04, 0.08, 0); this.gripL.quaternion.premultiply(_q); }
+    this.gripL.visible = !!this.vmLeft;
+    // lentille (repère de la caméra) pour placer la source de lumière
+    const lm = lightR ? this.vmHeld : this.vmLeft, gr = lightR ? this.gripR : this.gripL, ls = lm ? lm.userData.gp.src : null;
+    this.vmLensOn = !!ls;
+    if (ls) this.vmLens.fromArray(ls).multiplyScalar(lm.userData.k).applyQuaternion(lm.quaternion).add(lm.position).applyQuaternion(gr.quaternion).add(gr.position);
+    // éclairage des bras : zone de la caméra + lumière de la lampe renvoyée par les surfaces proches
+    const I = this.spot.intensity;
+    this.vmZone.value.copy(g.mats.zoneUniform(null).value); if (I > 0) this.vmZone.value.add(_col.copy(this.spot.color).multiplyScalar(Math.min(1.2, I * 0.03) * (g.isDay ? 0.4 : 1)));
     this.vm.visible = this.hands.visible = this.mode !== 'hide' && this.mode !== 'dead';
   }
 
@@ -567,13 +628,13 @@ export class Player {
 
 export function avatarOpts(costume, wear = {}) {
   const co = COSTUMES[costume] || COSTUMES.guard;
-  if (costume === 'bear') return { kind: 'bear' };
+  if (costume === 'bear') return { kind: 'bear', height: 1.8 };
   if (costume === 'ghost') return { kind: 'ghost' };
   if (costume === 'mannequin') return { kind: 'mannequin' };
-  if (costume === 'police') return { kind: 'police', shirt: co.color, pants: co.color2, hat: 'cap', hatColor: 0x0d1450 };
-  if (costume === 'firefighter') return { kind: 'firefighter', shirt: co.color, pants: co.color, hat: 'firehelmet' };
-  if (costume === 'astronaut') return { shirt: co.color, pants: co.color, hat: 'helmet' };
-  if (costume === 'cat') return { shirt: co.color, pants: co.color, hair: 0x111111 };
-  if (costume === 'clown') return { shirt: co.color, pants: co.color2, hair: 0xff6d00 };
-  return { shirt: wear.bodyColor ?? 0x2b3a55, pants: 0x1f2a44, badge: true };
+  if (costume === 'police') return { kind: 'police', shirt: co.color, pants: co.color2, hat: 'police', hatColor: 0x0d1450, hairStyle: 'short', prop: 'torch' };
+  if (costume === 'firefighter') return { kind: 'firefighter', shirt: co.color, pants: co.color, hat: 'firehelmet', hatColor: co.color2 };
+  if (costume === 'astronaut') return { kind: 'astronaut' };
+  if (costume === 'cat') return { outfit: 'catsuit', shirt: co.color, pants: co.color, hair: 0x111111 };
+  if (costume === 'clown') return { outfit: 'clown', shirt: co.color, pants: co.color2, hair: 0xff6d00 };
+  return { outfit: 'guard', shirt: wear.bodyColor ?? 0x2b3a55, pants: 0x1f2a44, badge: true, hairStyle: 'short', seed: 3, prop: 'torch' };
 }
