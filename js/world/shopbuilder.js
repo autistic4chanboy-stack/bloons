@@ -14,7 +14,7 @@ import { installInteriorMaterials, designFor, finishShop, INTERIOR_LAYOUTS } fro
 import {
   Pen, wallBay, gondola, table as kTable, riser, podium, stall, counter as kCounter, checkout as kCheckout, laneRail, cabinet, drawerBank,
   displayCase, candyBins, partitionWall, banquette, sofa, barStool, chair, clothesRail, plant as kPlant, pendantLamp, floorLamp as kFloorLamp,
-  frame, desk, fittingRoom, wcDivider, wcDoor, cinemaStep, cinemaSeat, cinemaArm, stage, projBooth, woodMat, shade, FU, ME,
+  frame, desk, fittingRoom, wcDivider, wcDoor, cinemaStep, cinemaSeat, cinemaArm, stage, projBooth, woodMat, shade, FU, ME, FA,
   sill, transom, mullion, shutterPost, doorCasing, troffer, diffuser, sprinkler, cardTerminal, exitSign,
 } from './furnkit.js';
 
@@ -146,6 +146,7 @@ function buildShop(world, A, dev, s, rng) {
     mullion(fp, x0 + 0.15, ft); mullion(fp, x1 - 0.15, ft); // dormants contre les murs mitoyens
     A.box(id, 'chrome', ex0 - 0.08, y, zF - 0.1, ex0, frontTop, zF + 0.1, { visible: false }); A.box(id, 'chrome', ex1, y, zF - 0.1, ex1 + 0.08, frontTop, zF + 0.1, { visible: false });
     shutterPost(fp, ex0, -1, ft); shutterPost(fp, ex1, 1, ft);
+    fp.rbox(FU, ex0 + 0.25, 0, Math.min(sg * 0.25, sg * 1.45), ex1 - 0.25, 0.008, Math.max(sg * 0.25, sg * 1.45), 0.004, 0x2c2d2f, 'xXYzZ'); // tapis d'entrée
     // bandeau : filet d'aluminium sous l'enseigne
     const gpn = new Pen(A, galleryZone).at(0, y, zF, 0);
     gpn.rbox(ME, x0 + 0.15, ft + 0.2, -0.165, x1 - 0.15, ft + 0.245, 0.165, 0.006, 0x9ea4aa, 'xXyYzZ');
@@ -214,6 +215,7 @@ function buildShop(world, A, dev, s, rng) {
   const fn = INTERIOR_LAYOUTS[id] || LAYOUTS[id] || LAYOUTS[s.layout] || LAYOUTS.walls;
   fn(L, s);
   if (back) L.backroom();
+  L.finish();
   placeContents(world, dev, ctl, P, s, rng);
   labelShop(world, ctl, rng.fork('labels'));
 
@@ -363,7 +365,7 @@ class LayoutKit {
     kCounter(p, { L, D, h, color: c, top });
     for (let i = 0; i < nRegisters; i++) { // terminal de paiement à côté de chaque caisse, côté client
       const t = (i + 0.5) / nRegisters, ox = along ? -this.sg * (t - 0.5) * (u1 - u0) : this.sg * (t - 0.5) * (v1 - v0);
-      if (Math.abs(ox) + 0.42 < L / 2) { p.push(ox + 0.36, h, D / 2 - 0.1); cardTerminal(p); p.pop(); }
+      if (Math.abs(ox) + 0.42 < L / 2) (this.later ||= []).push({ at: p.world(ox + 0.36, 0, D / 2 - 0.1), ry: along ? this.faceFront : this.ryOf(-1, 0), h });
     }
     return { u0, v0, u1, v1, h };
   }
@@ -381,6 +383,13 @@ class LayoutKit {
     this.solid(u0, v0, u1, v1, 0, h);
     const along = Math.abs(u1 - u0) >= Math.abs(v1 - v0);
     podium(this.penAt((u0 + u1) / 2, (v0 + v1) / 2, along ? this.faceFront : this.ryOf(1, 0)), along ? Math.abs(u1 - u0) : Math.abs(v1 - v0), along ? Math.abs(v1 - v0) : Math.abs(u1 - u0), h, color);
+  }
+  // accessoires posés après l'aménagement : terminaux de paiement, sauf là où une planche occupe le comptoir
+  finish() {
+    for (const t of this.later || []) {
+      const x = t.at.x, z = t.at.z, busy = this.P.boards.some((b) => Math.abs(b.y - this.y - t.h) < 0.05 && (b.ax === 'x' ? x > b.a0 - 0.1 && x < b.a1 + 0.1 && Math.abs(z - b.c) < b.depth / 2 + 0.1 : z > b.a0 - 0.1 && z < b.a1 + 0.1 && Math.abs(x - b.c) < b.depth / 2 + 0.1));
+      if (!busy) { this.pen.zone = this.id; cardTerminal(this.pen.at(x, this.y + t.h, z, t.ry)); }
+    }
   }
   counterSpot(u, v, h, ry, zone = null) { this.P.counter.push({ x: this.X(u), y: this.y + h, z: this.Z(v), ry, zone: zone || this.id }); }
   floorSpot(u, v, ry, zone = null) { this.P.floor.push({ x: this.X(u), y: this.y, z: this.Z(v), ry, zone: zone || this.id }); }

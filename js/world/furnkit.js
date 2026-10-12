@@ -416,7 +416,7 @@ export function wallBay(p, o) {
   // menuiserie (bois ou laque) : joues, fond, tablettes à chant arrondi, plinthe en retrait, corniche, pilastres
   const m = woodMat(sc), g = 0.022, bm = woodMat(o.back), pil = o.uprights;
   p.box(bm, -hx + g, h0, -0.006, hx - g, H, 0.006, o.back, 'Z');
-  for (const s of [-1, 1]) p.rbox(m, s > 0 ? hx - g : -hx, h0 > 0.5 ? h0 : 0, -0.006, s > 0 ? hx : -hx + g, H, zf, 0.004, sc, h0 > 0.5 ? 'xXyYZ' : 'xXYZ');
+  p.vg = true; for (const s of [-1, 1]) p.rbox(m, s > 0 ? hx - g : -hx, h0 > 0.5 ? h0 : 0, -0.006, s > 0 ? hx : -hx + g, H, zf, 0.004, sc, h0 > 0.5 ? 'xXyYZ' : 'xXYZ'); p.vg = false;
   for (const h of hs) p.rbox(m, -hx + g, h - 0.024, 0.006, hx - g, h, zf, 0.004, sc, 'yYZ');
   if (pil !== undefined) for (const x of xs.slice(1, -1)) p.box(woodMat(pil), x - 0.01, h0, 0.006, x + 0.01, H, 0.013, pil, 'xXZ');
   if (hs[0] > 0.06 && hs[0] < 0.4 && h0 < 0.05 && !o.plinthBlock) p.box(m, -hx + g, 0, zf - 0.045, hx - g, hs[0] - 0.024, zf - 0.025, shade(sc, -0.3), 'YZ');
@@ -447,7 +447,7 @@ export function gondola(p, o) {
   for (const s of [-1, 1]) {
     const a = s > 0 ? hx : -hx - 0.05, b = s > 0 ? hx + 0.05 : -hx;
     p.box(FU, a + 0.006, 0, -hd + 0.012, b - 0.006, 0.1, hd - 0.012, DARK, s > 0 ? 'XzZY' : 'xzZY');
-    p.rbox(cm, a, 0.1, -hd, b, ch - 0.04, hd, 0.012, o.cap, s > 0 ? 'XyzZ' : 'xyzZ');
+    p.vg = true; p.rbox(cm, a, 0.1, -hd, b, ch - 0.04, hd, 0.012, o.cap, s > 0 ? 'XyzZ' : 'xyzZ'); p.vg = false;
     p.rbox(metal ? ME : cm, a - 0.004, ch - 0.04, -hd - 0.006, b + 0.004, ch, hd + 0.006, 0.014, trim, 'xXyYzZ');
   }
 }
@@ -467,7 +467,8 @@ export function handleBar(p, x, y, z, len, vertical = true, c = CHROME) {
 }
 // façade de porte ou de tiroir (panneau à chants adoucis, 18 mm, posé devant z) avec poignée
 export function front(p, mat, x0, y0, x1, y1, z, c, o = {}) {
-  p.rbox(mat, x0 + 0.002, y0 + 0.002, z, x1 - 0.002, y1 - 0.002, z + 0.018, 0.004, c, 'xXyYZ');
+  const vg = p.vg; p.vg = !o.drawer; // fil vertical sur les portes, horizontal sur les tiroirs
+  p.rbox(mat, x0 + 0.002, y0 + 0.002, z, x1 - 0.002, y1 - 0.002, z + 0.018, 0.004, c, 'xXyYZ'); p.vg = vg;
   if (o.handle === false) return;
   const hc = o.hc ?? CHROME;
   if (o.drawer) handleBar(p, (x0 + x1) / 2, y1 - Math.min(0.05, (y1 - y0) * 0.35), z + 0.018, Math.min(0.16, (x1 - x0) * 0.45), false, hc);
@@ -487,7 +488,7 @@ export function cabinet(p, o) {
     if (kitchen || (st === 'doors' && i % 3 === 1)) { front(p, m, a, plinth + dh * 0.72, b, h - tt - 0.006, d - 0.02, c, { drawer: true }); front(p, m, a, plinth + 0.004, b, plinth + dh * 0.72 - 0.004, d - 0.02, c, { right: i % 2 === 1 }); }
     else front(p, m, a, plinth + 0.004, b, h - tt - 0.006, d - 0.02, c, { right: i % 2 === 1 });
   }
-  p.rbox(topMat(tc), -hx - 0.005, h - tt, 0, hx + 0.005, h, d + 0.02, kitchen ? 0.004 : 0.006, tc, 'xXyYZ');      // plan de travail
+  p.rbox(topMat(tc), -hx - 0.005, h - tt, 0, hx + 0.005, h, kitchen ? d + 0.02 : d, kitchen ? 0.004 : 0.006, tc, 'xXyYZ'); // plan de travail (affleurant hors cuisine : porte-étiquettes visibles)
   if (kitchen) p.box(ME, -hx, h, 0, hx, h + 0.06, 0.012, tc, 'xXYZ');                                               // remontée
 }
 // Comptoir (repère : centre, x le long, face client vers +z, dessus à h). o : { L, D, h, color, top, staff: true (côté personnel aménagé), panels }
@@ -517,7 +518,9 @@ export function counter(p, o) {
 export function checkout(p, o) {
   const hx = o.L / 2, hz = o.D / 2, h = o.h, c = o.color, inox = 0xc6cacd;
   p.box(FU, -hx + 0.02, 0, -hz + 0.05, hx - 0.02, 0.1, hz - 0.02, DARK, 'xXzZ');
-  p.rbox(FU, -hx, 0.1, -hz, hx, h - 0.04, hz, 0.008, c, 'xXzZ');
+  p.rbox(FU, -hx, 0.1, -hz, hx, h - 0.04, hz - 0.018, 0.008, c, 'xXzZ');
+  front(p, FU, -0.26, h - 0.2, 0.26, h - 0.045, hz - 0.018, shade(c, 0.12), { drawer: true });                    // tiroir-caisse, portes côté caissière
+  front(p, FU, -hx + 0.03, 0.11, -0.3, h - 0.05, hz - 0.018, c); front(p, FU, 0.3, 0.11, hx - 0.03, h - 0.05, hz - 0.018, c, { right: true });
   p.box(FU, -hx + 0.002, 0.5, -hz - 0.004, hx - 0.002, 0.56, -hz, o.accent ?? 0x2e7d32, 'z');               // bandeau aux couleurs du magasin
   p.rbox(ME, -hx - 0.01, h - 0.03, -hz - 0.01, hx + 0.01, h, hz + 0.01, 0.006, inox);                       // plateau inox
   // tapis roulant (côté magasin) : bande caoutchouc, rouleaux d'extrémité, glissières
@@ -597,7 +600,7 @@ export function displayCase(p, o) {
   const n = Math.max(1, Math.round(o.L / 0.9)), w = o.L / n;
   for (let i = 0; i < n; i++) p.rbox(m, -hx + i * w + 0.05, 0.18, hz, -hx + (i + 1) * w - 0.05, dk - 0.12, hz + 0.01, 0.004, shade(c, -0.06), 'xXyYZ');
   p.rbox(topMat(tc), -hx - 0.02, dk - 0.04, -hz - 0.02, hx + 0.02, dk, hz + 0.02, 0.01, tc);                 // ceinture (plateau du bas)
-  p.box(ME, -hx + 0.02, dk, zb, hx - 0.02, dk + 0.004, hz - 0.01, 0xd9dcdf, 'Y');                             // sole inox
+  p.box(ME, -hx + 0.02, dk - 0.004, zb, hx - 0.02, dk + 0.002, hz - 0.01, 0xd9dcdf, 'Y');                             // sole inox
   // vitre avant presque droite, bombée en haut, puis vitre du dessus
   const curve = (s, t) => { const x = -hx + 0.02 + s * (o.L - 0.04); if (t < 0.5) { const k = t / 0.5; return [x, dk + 0.004 + k * (h - 0.1 - dk), hz - 0.005 - k * 0.015]; } const a = (t - 0.5) / 0.5 * Math.PI / 2; return [x, h - 0.1 + Math.sin(a) * 0.1, hz - 0.12 + Math.cos(a) * 0.1]; };
   p.sheet('glass', curve, 1, 6, 0xffffff, { both: true, thick: 0.002 });
@@ -605,7 +608,7 @@ export function displayCase(p, o) {
   for (let x = -hx + 0.02; x < hx - 0.05; x += o.L / 2) p.box('glass', x, dk + 0.004, zb - 0.004, x + o.L / 2 - 0.04, h - 0.005, zb, 0xffffff, 'zZ'); // portes coulissantes côté personnel
   p.box(FU, -hx + 0.02, h - 0.018, gz - 0.035, hx - 0.02, h - 0.004, gz - 0.005, 0xfff6e0, 'y');            // réglette LED sous la vitre
   // joues profilées suivant la vitre
-  const cheek = hard([[hz, dk - 0.04], [hz, dk], [hz - 0.02, h - 0.1], [hz - 0.05, h - 0.03], [gz, h + 0.012], [zb - 0.02, h + 0.012], [zb - 0.02, dk], [-hz, dk], [-hz, dk - 0.04]]);
+  const cheek = hard([[hz, dk - 0.04], [hz, dk], [hz - 0.02, h - 0.1], [hz - 0.05, h - 0.03], [gz, h + 0.012], [zb - 0.02, h + 0.012], [zb - 0.02, h], [-hz, h], [-hz, dk - 0.04]]);
   for (const s of [-1, 1]) p.extrudeX(ME, cheek, s * hx - 0.02, s * hx + 0.02, o.cheek ?? 0xb8bdc2, { caps: true });
   p.rbox(topMat(tc), -hx, h - 0.06, -hz, hx, h, zb - 0.02, 0.006, tc);                                       // plan de service
 }
@@ -755,11 +758,11 @@ export function curtain(p, x0, x1, y0, y1, c, open = 0.25, folds = 9) {
 export function plant(p, s, pot, rnd) {
   p.lathe(FU, 0, 0, 0, [[0.15 * s, 0], [0.2 * s, 0.38 * s], [0.22 * s, 0.385 * s], [0.22 * s, 0.42 * s], [0.195 * s, 0.42 * s], [0.19 * s, 0.37 * s], [0, 0.37 * s]], 16, pot);
   p.cyl(FU, 0, 0.37 * s, 0, 0.19 * s, 0.01, 12, 0x3a2a1e, { bottom: false });
-  const tip = [0, 0.75 * s, 0]; p.tube(WO, [0, 0.37 * s, 0], tip, 0.018 * s, 6, 0x5d4632);
+  const tip = [0, 0.75 * s, 0]; p.tube(FU, [0, 0.37 * s, 0], tip, 0.018 * s, 6, 0x5d4632);
   const greens = [0x2f6a2c, 0x3f7a3a, 0x4f8f45, 0x2a5c2a, 0x5a9a4a];
   for (let b = 0; b < 5; b++) {
     const a = b * 2.4 + rnd() * 0.5, r = (0.12 + rnd() * 0.12) * s, end = [Math.cos(a) * r, (0.95 + rnd() * 0.35) * s, Math.sin(a) * r];
-    p.tube(WO, tip, end, 0.008 * s, 4, 0x5d4632);
+    p.tube(FU, tip, end, 0.008 * s, 4, 0x5d4632);
     for (let k = 0; k < 9; k++) { // feuilles elliptiques double face autour de l'extrémité de la branche
       const t = 0.35 + k / 9 * 0.75, cx = tip[0] + (end[0] - tip[0]) * t, cy = tip[1] + (end[1] - tip[1]) * t, cz = tip[2] + (end[2] - tip[2]) * t;
       const la = rnd() * Math.PI * 2, tilt = -0.3 - rnd() * 0.6, L = (0.11 + rnd() * 0.06) * s, W = L * 0.42, dx = Math.cos(la), dz = Math.sin(la);
@@ -830,7 +833,8 @@ export function candyBins(p, L, h, d, fill, prev) {
   p.box(FU, -hx, h - 0.028, d, hx, h - 0.006, d + 0.002, 0xf8bbd0, 'Z');                                      // bandeau d'étiquettes
   for (let k = 0; k < n; k++) {
     const a = -hx + k * w, b = a + w;
-    p.rbox(FU, a + 0.01, h - 0.004, 0.02, b - 0.01, h + 0.05, d - 0.014, 0.022, fill[k], 'xXYzZ');             // tas de bonbons
+    p.box(FU, a + 0.01, h - 0.004, 0.02, b - 0.01, h + 0.03, d - 0.014, fill[k], 'xXzZ');                          // tas de bonbons : flancs, dessus bosselé
+    p.sheet(FU, (s, t) => { const x = a + 0.01 + s * (w - 0.02), z = 0.02 + t * (d - 0.034), e = Math.sin(s * Math.PI) * Math.sin(t * Math.PI); return [x, h + 0.03 + e * 0.022 + 0.006 * Math.sin(x * 97 + z * 61) * Math.sin(z * 83 - x * 41), z]; }, 6, 4, fill[k], { flip: true });
     p.box('glass', a + 0.004, h, d - 0.006, b - 0.004, h + 0.09, d, 0xffffff, 'zZ');                         // façade en plexiglas
     p.box('glass', a - 0.002, h, 0.02, a + 0.002, h + 0.09, d - 0.006, 0xffffff, 'xX');                      // séparation
     p.box(FU, (a + b) / 2 - 0.03, h - 0.024, d + 0.002, (a + b) / 2 + 0.03, h - 0.01, d + 0.003, 0xffffff, 'Z');
