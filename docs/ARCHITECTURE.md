@@ -20,12 +20,15 @@ Audio.setListener(pos, forward, up) // THREE.Vector3-like {x,y,z}
 Audio.setReverbZone(type, fade=1.5) // 'security'|'shop'|'bigstore'|'backroom'|'atrium'|'corridor'|'garage'|'vent'
                                     // |'roof'|'basement'|'warehouse'|'stairs'|'toilets'|'outside'
 Audio.setOcclusionFn(fn)            // fn(pos) -> nombre de murs entre auditeur et source (0..n). Fourni par le jeu.
-Audio.play(name, opts) -> Handle    // one-shot. opts: {pos, volume=1, pitch=1, bus='sfx', occlude=true, ref=2, maxDist=60, ...params}
+Audio.play(name, opts) -> Handle    // one-shot. opts: {pos, volume=1, pitch=1, bus='sfx', occlude=true, ref=2, maxDist=60,
+                                    //   late (s : attente max de la synthèse avant abandon), ...params}
 Audio.loop(name, opts) -> Handle    // boucle. Handle: {setPos(v), setVolume(v, ramp=0.1), setParam(k,v), stop(fade=0.2), playing}
 Audio.dtmf(digit)                   // touche téléphone (fréquences DTMF réelles)
 Audio.note(instr, midi, opts)       // instr: 'piano'|'guitar'|'xylo'|'bell'|'organ'|'synth'|'musicbox'
 Audio.drum(kind, opts)              // 'kick'|'snare'|'hat'|'tom'|'crash'
-Audio.setBusVolume(bus, v)          // 'master'|'sfx'|'music'|'ambience'|'voice'|'ui'
+Audio.setBusVolume(bus, v)          // 'master'|'sfx'|'music'|'ambience'|'voice'|'ui'|'pa'
+Audio.output(bus) -> AudioNode      // entrée d'un bus ; 'pa' = haut-parleurs du plafond (mono, saturation douce,
+                                    // 250 Hz–5 kHz, cinq haut-parleurs décalés, queue de grand hall ; jamais spatialisé)
 Audio.setMuffle(amount)             // 0..1 filtre passe-bas global (ex : sous l'eau / étourdi / masque)
 Audio.update(dt)                    // met à jour occlusion/positions (appelé chaque frame)
 ```
@@ -49,6 +52,7 @@ Téléphone : `phone_ring (loop, sonnerie française 440 Hz), dial_tone (loop, 4
 Alarmes : `alarm_siren (loop), car_alarm (loop), smoke_alarm (loop), shop_alarm (loop), fire_bell (loop)`
 Feu : `fire_crackle (loop, param size 0..1), fire_whoosh, extinguisher (loop), sprinkler (loop), smoke_hiss`
 Électricité/bâtiment : `generator (loop, param rpm 0..1), generator_start, generator_fail, generator_stop, electric_hum (loop, 50 Hz + harmoniques), fluorescent_buzz (loop), neon_flicker, hvac (loop), escalator (loop), fountain (loop), elevator_ding, water_drip, pipe_knock, building_creak`
+Nuit (bâtiment) : `room_tone (loop, params dark/tension/air 0..1), hall_air, glass_roof (params rain/wind/muffle), service_hum, boiler_room, garage_air, vent_air, equipment_hum` (boucles) ; ponctuels lointains : `amb_creak, amb_tick, amb_thud, amb_door, amb_pipe, amb_knock, amb_glass, amb_vent, amb_far` (pilotés par `js/game/ambience.js` selon la zone, l'heure, la nuit et le stress ; aucune musique de fond)
 Extérieur : `wind (loop, param strength), rain (loop, param intensity), thunder, distant_traffic (loop), dog_bark_far, owl, city_night (loop)`
 Foule/jour : `crowd (loop, param density), cart_roll (loop), baby_cry, laugh, pa_chime, pa_chime_end`
 Horreur : `whisper, breath (loop), heartbeat (loop, param bpm), scream, jumpscare, stinger, drone (loop, param tension 0..1), creak, knock, knock_triple, scratch, footsteps_distant, footstep_heavy, giggle, music_box_wrong, static_burst, low_boom, metal_screech, vent_crawl (loop), vent_bang, breathing_heavy, door_rattle, thud`

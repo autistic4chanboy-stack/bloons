@@ -2,6 +2,7 @@
 // régie d'annonces (voix, carillon, musique diffusée dans tout le centre), disjoncteurs et fusibles.
 import * as THREE from 'three';
 import { Net } from '../net/net.js';
+import { Audio } from '../engine/audio.js';
 
 export class Alarms {
   constructor(game) {
@@ -82,6 +83,9 @@ export class Alarms {
   }
   update(dt) {
     const g = this.game;
+    // sonorisation : sans courant sur le circuit « pa », les haut-parleurs du plafond se taisent (chaque pair localement)
+    const paOn = g.power.isOn('pa');
+    if (paOn !== this._paOn) { this._paOn = paOn; try { Audio.setBusVolume('pa', paOn ? 1 : 0); } catch (e) { /* bus absent */ } }
     if (this.fireAlarmOn) { this.fireAlarmT -= dt; if (this.fireAlarmT <= 0 && !g.fire.active) { this.fireAlarmOn = false; g.sim.emit('firebell', { on: false }); for (const d of g.devices.kind('fire_alarm')) if (d.state.pulled) d.set({ pulled: false }); } }
     // détecteurs de fumée : feu actif → alarme générale
     if (g.fire.active && g.fire.maxSize() > 0.25 && !this.fireAlarmOn) this.fireAlarm(null, { zone: g.fire.zoneId() });
