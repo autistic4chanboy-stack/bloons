@@ -1471,7 +1471,7 @@ function buildRoof(world, A, door, dev, rng) {
   for (const [x, z] of [[-40, -21], [0, 21], [40, 21], [-20, 21], [20, -21], [60, -21]]) A.lathe(zn, 'furniture', [[0, 0.09], [0.12, 0.06], [0.16, 0.02], [0.2, 0.0]], 10, x, y, z, 0x2a2a2a);
   for (let x = -75; x <= 75; x += 25) for (const z of [-25.5, 25.5]) A.tube(zn, 'furniture_metal', V3(x, y + 1.14, z), V3(x, y + 1.9, z), 0.008, 0xb08d57, { segs: 5 });
   world.points.antenna = new THREE.Vector3(61, y + 9.2, -20);
-  dev('extinguisher_box', zn, -80.225, y + 0.5, 15, Math.PI / 2); // contre l'acrotère (face à x = -80,35)
+  dev('extinguisher_box', zn, -80.225, y + 0.36, 15, Math.PI / 2); // posée sur la dalle, contre l'acrotère (face à x = -80,35)
   // potence de la caméra du toit (cam_roof, à côté de la cage d'escalier : rien au-dessus pour la suspendre) : bras
   // horizontal du haut du support de la caméra jusqu'au mur sud de la cage, platine murale
   A.furn(zn, -75.535, 13.385, 12.56, -75.505, 13.415, 12.9, 0x8a8f93, { metal: true, collide: false });
