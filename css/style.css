@@ -381,7 +381,8 @@ input.code { text-transform: uppercase; letter-spacing: 0.3em; }
 .ps-opts { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 14px; }
 .ps-opts .nb-win { max-height: 100%; }
 #hud.nb-paused .nb-osd { opacity: 0.9; } #hud.nb-paused .nb-osd .rec { animation: none; opacity: 0.35; } #hud.nb-psopts .nb-osd { opacity: 0; }
-#hud.nb-paused .nb-toasts, #hud.nb-paused .nb-alerts, #hud.nb-paused .nb-clock, #hud.nb-paused .nb-objective, #hud.nb-paused .nb-prompt, #hud.nb-paused .nb-subs, #hud.nb-paused .nb-card { visibility: hidden; }
+#hud.nb-paused .nb-toasts, #hud.nb-paused .nb-alerts, #hud.nb-paused .nb-clock, #hud.nb-paused .nb-objective, #hud.nb-paused .nb-prompt, #hud.nb-paused .nb-subs, #hud.nb-paused .nb-card,
+#hud.nb-paused .nb-quests, #hud.nb-paused .nb-hotbar, #hud.nb-paused .nb-stats, #hud.nb-paused .nb-cross, #hud.nb-paused .q-mark { visibility: hidden; } /* caméra en veille : seule l'incrustation reste */
 @media (max-height: 420px) { .nb-pause { padding: 48px 16px 34px; } .ps-osd b { font-size: 19px; } .ps-osd span { margin-top: 4px; font-size: 10px; } .ps-keys { bottom: 8px; } .ps-opts { padding: 8px; } }
 /* fenêtres de console en jeu : inventaire, tableau électrique, régie */
 .nb-win.nb-inv, .nb-win.nb-panel { width: min(760px, 100%); }
@@ -489,7 +490,7 @@ input.code { text-transform: uppercase; letter-spacing: 0.3em; }
 @media (max-width: 700px), (max-height: 420px) { /* console compacte : la barre du bas tient sur deux lignes au plus, sous le panneau */
   .cctv .dock { gap: 4px; bottom: 8px; } .cctv .bottom { gap: 4px; }
   .cctv .bottom button, .cctv .tabs button { font-size: 11px; padding-top: 3px; padding-bottom: 3px; padding-right: 7px; }
-  .cctv .cpanel, .cctv .pb { bottom: 96px; } .cctv .hint2 { bottom: 96px; font-size: 11px; }
+  .cctv .cpanel, .cctv .pb { bottom: 96px; } .cctv .hint2 { left: 10px; bottom: 96px; width: min(520px, calc(100% - 185px)); transform: none; padding: 3px 8px; font-size: 10.5px; line-height: 1.35; background: rgba(0, 8, 4, 0.55); border-radius: var(--r); }
 }
 
 .ph-r:empty { display: none; }
