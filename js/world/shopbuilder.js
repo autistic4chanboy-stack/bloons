@@ -891,10 +891,11 @@ const LAYOUTS = {
     L.wallShelf('R', 1.6, D - 0.8, 4, 2.1, 0.45, 0x8d6e63, null, { metal: false, back: 0x5d4037, uprights: 0x4e342e });
     L.wallShelf('B', 3.0, W - 2.4, 4, 2.1, 0.4, 0x8d6e63, null, { metal: false, back: 0x5d4037, uprights: 0x4e342e });
     // guitares debout sur un socle, devant un panneau rainuré, dans l'angle du fond (trop hautes pour les étagères,
-    // elles traînaient par terre) ; la planche n'accepte que les instruments à manche
+    // elles traînaient par terre) ; la planche n'accepte que les instruments à manche plus hauts que les étagères
+    // (guitares, basse, violon) ; les ukulélés vont sur les étagères et laissent la place à la basse
     L.wallBlock('B', 0.35, 2.85, 0, 0.12, 0.45, 0x4e342e, null, 'plain');
     L.wallPanel('B', 0.3, 2.9, 0.12, 1.75, 'wp_slat_6d4c41_3e2723', 0.02);
-    L.board('u', 0.4, 2.8, D - 0.12 - 0.225, 0.12, 0.42, 1.25, L.faceFront, null, { pad: 0.03, shapes: ['guitar'] });
+    L.board('u', 0.4, 2.8, D - 0.12 - 0.225, 0.12, 0.42, 1.25, L.faceFront, null, { pad: 0.03, shapes: ['guitar'], minH: 0.58 });
     L.solid(0.35, D - 0.57, 2.85, D - 0.12, 0.12, 1.25); // on ne marche pas dans les guitares
     L.table(1.6, 1.4, 4.2, 2.4, 0.8, 0x5d4037, 2);
     L.counter(W - 2.8, 1.0, W - 1.0, 1.7, 1.0, 0x6d4c41);
@@ -1025,7 +1026,7 @@ function placeContents(world, dev, ctl, P, s, rng) {
     const w = def.s[0], h = def.s[1], dpt = def.s[2], start = cursor.get(list);
     for (let tries = 0; tries < list.length; tries++) {
       const k = (start + tries) % list.length, b = list[k];
-      if (h > b.clear || dpt > b.depth + 0.15 || (b.shapes && !b.shapes.includes(def.shape))) continue;
+      if (h > b.clear || dpt > b.depth + 0.15 || (b.shapes && !b.shapes.includes(def.shape)) || h < (b.minH || 0)) continue;
       const len = b.a1 - b.a0;
       for (const [x0, x1] of b.blocked) if (b.a0 + b.cur + w + 0.03 > x0 && b.a0 + b.cur < x1) b.cur = x1 - b.a0; // appareil : on passe derrière
       if (b.cur + w + 0.03 > len) continue;
