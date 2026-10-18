@@ -14,7 +14,7 @@ import { installInteriorMaterials, designFor, finishShop, INTERIOR_LAYOUTS } fro
 import {
   Pen, wallBay, gondola, table as kTable, riser, podium, stall, counter as kCounter, checkout as kCheckout, laneRail, cabinet, drawerBank,
   displayCase, candyBins, partitionWall, banquette, sofa, barStool, chair, clothesRail, plant as kPlant, pendantLamp, floorLamp as kFloorLamp,
-  frame, desk, fittingRoom, wcDivider, wcDoor, cinemaStep, cinemaSeat, cinemaArm, stage, projBooth, woodMat, shade, FU, ME, FA,
+  frame, desk, fittingRoom, wcDivider, wcDoor, cinemaStep, cinemaSeat, cinemaArm, stairRail, keyboardStand, stage, projBooth, woodMat, shade, FU, ME, FA,
   sill, transom, mullion, shutterPost, doorCasing, troffer, diffuser, sprinkler, cardTerminal, exitSign,
 } from './furnkit.js';
 
@@ -41,7 +41,7 @@ function tint(c, k = 0.22, base = 0xece7dc) {
 const PLACE = {
   tv: 'wallHigh', mirror_wall: 'wallHigh', notice_board: 'wallHigh', eye_chart: 'wallHigh', hand_dryer: 'wallHigh', mirror_deco: 'wallHigh',
   washer: 'wallFloor', dishwasher: 'wallFloor', fridge: 'wallFloor', freezer: 'wallFloor', vending: 'wallFloor', locker: 'wallFloor', photobooth: 'wallFloor',
-  piano: 'wallFloor', organ: 'wallFloor', sink: 'wallFloor', fryer: 'wallFloor', pizza_oven: 'wallFloor', aquarium: 'wallFloor', terrarium: 'wallFloor', pc_tower: 'counter',
+  piano: 'wallFloor', organ: 'wallFloor', synth_keyboard: 'counter', sink: 'wallFloor', fryer: 'wallFloor', pizza_oven: 'wallFloor', aquarium: 'wallFloor', terrarium: 'wallFloor', pc_tower: 'counter',
   register: 'register', microwave: 'counter', oven: 'counter', coffee_maker: 'counter', turntable: 'counter', vcr: 'counter', console_station: 'counter', crt_tv: 'counter',
   printer: 'counter', rice_cooker: 'counter', soda_fountain: 'counter', desk_phone: 'counter', conveyor: 'special', projector: 'special', popcorn_machine: 'floor',
   safe: 'back', toilet: 'special', massage_chair: 'floor', office_chair: 'floor',
@@ -196,7 +196,10 @@ function buildShop(world, A, dev, s, rng) {
 
   // ── caméras ──
   const camCount = s.cams || 0;
-  const camPositions = [
+  const camPositions = cinema ? [
+    { p: [X(1.0), y + 4.2, zF + sg * 13.3], t: [X(W * 0.5), y + 1.2, zF + sg * 4.6] },  // salle, depuis l'avant-scène : tous les rangs
+    { p: [X(W - 0.5), y + 3.6, zF + sg * 0.5], t: [X(W * 0.3), y, zF + sg * 3.0] },    // hall
+  ] : [
     { p: [X(0.5), y + 3.6, zP - sg * 0.4], t: [X(W * 0.7), y, zF + sg * 1] },
     back ? { p: [X(W - 0.6), ceilB - 0.2, zB - sg * 0.3], t: [X(W * 0.3), y, zP + sg * 0.5], back: true } : { p: [X(W - 0.5), y + 3.6, zF + sg * 0.5], t: [X(W * 0.3), y, zP] },
     { p: [X(W - 0.5), y + 3.6, zF + sg * 0.5], t: [X(W * 0.3), y, zP - sg * 1] },
@@ -224,13 +227,21 @@ function buildShop(world, A, dev, s, rng) {
     const f = s.floor; const lane = (sg > 0 ? 'n' : 's');
     const nearX = (x, start, step, min, max) => Math.max(min, Math.min(max, Math.round((x - start) / step) * step + start));
     const inId = `${id}_in`, cId = `${id}_c`;
+    const vc = cinema ? 2.4 : Math.min(5, depth * 0.45); // cinéma : le centre est dans le hall, devant le mur de la salle
     nav.node(inId, cx, y, zF + sg * 1.4, id, ['shop']);
-    nav.node(cId, cx, y, zF + sg * Math.min(5, depth * 0.45), id, ['shop', 'center']);
+    nav.node(cId, cx, y, zF + sg * vc, id, ['shop', 'center']);
     nav.link(inId, `g${f}${lane}${nearX(cx, -63, 6, -63, 63)}`, s.noShutter ? { door: ctl.frontDoor.id } : { shutter: ctl.shutter.id });
     nav.link(inId, cId);
     let lastC = cId;
-    if (s.w > 1) for (let k = 0; k < s.w; k++) { const nid = `${id}_c${k}`; nav.node(nid, x0 + 6 + k * 12, y, zF + sg * Math.min(5, depth * 0.45), id, ['shop']); nav.link(cId, nid); lastC = nid; }
-    if (back) {
+    if (s.w > 1) for (let k = 0; k < s.w; k++) { const nid = `${id}_c${k}`; nav.node(nid, x0 + 6 + k * 12, y, zF + sg * vc, id, ['shop']); nav.link(cId, nid); lastC = nid; }
+    if (cinema) {
+      // porte de service (au pied de l'écran) : par l'entrée de gauche et le couloir latéral de plain-pied, sans
+      // traverser le mur du hall ni les gradins
+      const dl = `${id}_dl`, al = `${id}_al`, fl = `${id}_fl`;
+      nav.node(dl, x0 + 0.95, y, zF + sg * 2.6, id); nav.node(al, x0 + 0.95, y, zF + sg * 4.2, id); nav.node(fl, x0 + 0.95, y, zF + sg * 12.9, id);
+      nav.chain([cId, dl, al, fl]);
+      nav.node(`${id}_rd`, rearX, y, zB - sg * 0.8, id); nav.link(fl, `${id}_rd`);
+    } else if (back) {
       // allée transversale jusqu'au couloir de droite, puis la porte de la réserve (pas de diagonale à travers les rayons)
       const mId = `${id}_m`; nav.node(mId, partX, y, zF + sg * Math.min(5, depth * 0.45), id, ['shop']);
       nav.link(cId, mId); if (s.w > 1) nav.link(lastC, mId);
@@ -374,7 +385,11 @@ class LayoutKit {
     this.solid(u0, v0, u1, v1, 0, h - 0.05);
     this.solid(u0 - 0.03, v0 - 0.03, u1 + 0.03, v1 + 0.03, h - 0.05, h);
     this.P.register.push({ x: this.X((u0 + u1) / 2), y: this.y + h, z: this.Z(v0 + (v1 - v0) * 0.5), ry: Math.PI / 2, zone: this.id });
-    kCheckout(this.penAt((u0 + u1) / 2, (v0 + v1) / 2, this.sg * Math.PI / 2), { L: Math.abs(v1 - v0), D: Math.abs(u1 - u0), h, color, accent: this.color });
+    const p = this.penAt((u0 + u1) / 2, (v0 + v1) / 2, this.sg * Math.PI / 2), hz = Math.abs(u1 - u0) / 2;
+    kCheckout(p, { L: Math.abs(v1 - v0), D: Math.abs(u1 - u0), h, color, accent: this.color });
+    // afficheur client et terminal sur flexible, côté client : petite boîte de collision au-dessus du plateau
+    const a = p.world(-0.33, 0, -hz - 0.01), b = p.world(0.18, 0, -hz + 0.16);
+    this.world.physics.add(new Box(a.x, this.y + h, a.z, b.x, this.y + h + 0.47, b.z, LAYER.FURN, null));
   }
   // garde-corps de file de caisse (le long de v)
   laneRail(u0, v0, u1, v1, h) { this.solid(u0, v0, u1, v1, 0, h); laneRail(this.penAt((u0 + u1) / 2, (v0 + v1) / 2, this.ryOf(1, 0)), Math.abs(v1 - v0), h); }
@@ -388,15 +403,20 @@ class LayoutKit {
   finish() {
     for (const t of this.later || []) {
       const x = t.at.x, z = t.at.z, busy = this.P.boards.some((b) => Math.abs(b.y - this.y - t.h) < 0.05 && (b.ax === 'x' ? x > b.a0 - 0.1 && x < b.a1 + 0.1 && Math.abs(z - b.c) < b.depth / 2 + 0.1 : z > b.a0 - 0.1 && z < b.a1 + 0.1 && Math.abs(x - b.c) < b.depth / 2 + 0.1));
-      if (!busy) { this.pen.zone = this.id; cardTerminal(this.pen.at(x, this.y + t.h, z, t.ry)); }
+      if (!busy) {
+        this.pen.zone = this.id; cardTerminal(this.pen.at(x, this.y + t.h, z, t.ry));
+        this.world.physics.add(new Box(x - 0.07, this.y + t.h, z - 0.07, x + 0.07, this.y + t.h + 0.2, z + 0.07, LAYER.FURN, null)); // le terminal arrête les objets lancés
+      }
     }
   }
   counterSpot(u, v, h, ry, zone = null) { this.P.counter.push({ x: this.X(u), y: this.y + h, z: this.Z(v), ry, zone: zone || this.id }); }
-  floorSpot(u, v, ry, zone = null) { this.P.floor.push({ x: this.X(u), y: this.y, z: this.Z(v), ry, zone: zone || this.id }); }
+  // emplacement au sol (h : hauteur du plancher local, estrade par exemple)
+  floorSpot(u, v, ry, zone = null, h = 0) { this.P.floor.push({ x: this.X(u), y: this.y + h, z: this.Z(v), ry, zone: zone || this.id }); }
+  // appareil mural (miroir, téléviseur, tableau) : dos à 3 cm du revêtement (de quoi passer devant une cimaise)
   wallHigh(side, a, h, zone = null) {
-    if (side === 'L') this.P.wallHigh.push({ x: this.X(0.2), y: this.y + h, z: this.Z(a), ry: Math.PI / 2, zone: zone || this.id, wall: 'L' });
-    if (side === 'R') this.P.wallHigh.push({ x: this.X(this.W - 0.2), y: this.y + h, z: this.Z(a), ry: -Math.PI / 2, zone: zone || this.id, wall: 'R' });
-    if (side === 'B') this.P.wallHigh.push({ x: this.X(a), y: this.y + h, z: this.Z(this.D - 0.15), ry: this.faceFront, zone: zone || this.id, wall: 'B' });
+    if (side === 'L') this.P.wallHigh.push({ x: this.X(0.17), y: this.y + h, z: this.Z(a), ry: Math.PI / 2, zone: zone || this.id, wall: 'L' });
+    if (side === 'R') this.P.wallHigh.push({ x: this.X(this.W - 0.17), y: this.y + h, z: this.Z(a), ry: -Math.PI / 2, zone: zone || this.id, wall: 'R' });
+    if (side === 'B') this.P.wallHigh.push({ x: this.X(a), y: this.y + h, z: this.Z(this.D - 0.12), ry: this.faceFront, zone: zone || this.id, wall: 'B' });
   }
   wallFloor(side, a, zone = null) {
     if (side === 'L') this.P.wallFloor.push({ x: this.X(0.2), y: this.y, z: this.Z(a), ry: Math.PI / 2, zone: zone || this.id, wall: 'L' });
@@ -469,10 +489,12 @@ class LayoutKit {
     const p = this.penAt((u0 + u1) / 2, (v0 + v1) / 2, this.ryOf(dir[0], dir[1])), dim = { L: alongU ? Math.abs(u1 - u0) : Math.abs(v1 - v0), D: alongU ? Math.abs(v1 - v0) : Math.abs(u1 - u0), h, color, back: !!back, wall };
     if (o.sofa) sofa(p, dim); else banquette(p, dim);
   }
-  stool(u, v, color = 0x222222, h = 0.72) { barStool(this.penAt(u, v, 0), h, color); }
+  // tabouret de bar (embase Ø 41 cm, assise Ø 35 cm) : collision sur toute sa hauteur
+  stool(u, v, color = 0x222222, h = 0.72) { barStool(this.penAt(u, v, 0), h, color); this.solid(u - 0.19, v - 0.19, u + 0.19, v + 0.19, 0, h + 0.01); }
   chairDeco(u, v, ry = 0, color = 0x5d4037) { // chaise de décor (non interactive) tournée vers (sin ry, cos ry) : face à sa table
     const c = Math.cos(ry), sn = Math.sin(ry);
     chair(this.penAt(u, v, this.ryOf(sn, c)), color);
+    this.solid(u - 0.22, v - 0.22, u + 0.22, v + 0.22, 0, 0.9); // assise, pieds et dossier
   }
   // tapis : bordure tissée à chants arrondis, champ central, frange aux extrémités
   rug(u0, v0, u1, v1, color = 0x8d3b3b, border = 0xd8c39a) {
@@ -486,7 +508,8 @@ class LayoutKit {
   plant(u, v, s = 1, pot = 0xd7ccc8) {
     const x = this.X(u), z = this.Z(v), y = this.y;
     kPlant(this.penAt(u, v, 0), s, pot, () => this.frng.next());
-    this.world.physics.add(new Box(x - 0.22 * s, y, z - 0.22 * s, x + 0.22 * s, y + 0.5 * s, z + 0.22 * s, LAYER.FURN, null));
+    // pot, tronc et ramure (le feuillage dépasse à peine de la boîte : on ne traverse plus l'arbuste)
+    this.world.physics.add(new Box(x - 0.26 * s, y, z - 0.26 * s, x + 0.26 * s, y + 1.25 * s, z + 0.26 * s, LAYER.FURN, null));
   }
   // suspension : rosace et câble depuis le plafond, abat-jour à double paroi, disque lumineux (suit l'éclairage du magasin)
   pendant(u, v, low = 2.4, color = 0x1e1e1e, kind = 'cone', size = 0.35) {
@@ -498,6 +521,7 @@ class LayoutKit {
   floorLamp(u, v, color = 0xe8dcc0) {
     kFloorLamp(this.penAt(u, v, 0), color);
     this.A.panel(this.id, this.X(u), this.y + 1.5, this.Z(v), 0.3, 0.3, false);
+    this.solid(u - 0.17, v - 0.17, u + 0.17, v + 0.17, 0, 1.77); // socle, tige et abat-jour
   }
   // portant de vêtements le long de u (barre chromée, piètements à roulettes, cintres et vêtements)
   rack(u0, u1, v, colors, h = 1.5, kinds = ['tee', 'dress', 'coat', 'pants']) {
@@ -519,16 +543,16 @@ class LayoutKit {
     const rows = [[0.62, 0.55, 0.62], [0.98, 0.42, 0.5], [1.32, 0.3, 0.38]]; // [hauteur, profondeur avant, profondeur]
     const p = this.wallPen(side, a0, a1), L = a1 - a0;
     let prev = null;
-    for (const [h, d] of rows) {
+    rows.forEach(([h, d], i) => {
       const n = Math.max(2, Math.floor((a1 - a0) / 0.3)), fill = [];
       for (let k = 0; k < n; k++) fill.push(this.rng.pick(colors));
-      this.wallBlock(side, a0, a1, h, h + 0.03, d, 0xf5f5f5, null, 'none');
+      this.wallBlock(side, a0, a1, h, rows[i + 1]?.[0] ?? h + 0.12, d, 0xf5f5f5, null, 'none'); // gradin plein jusqu'au suivant (bacs compris)
       if (side === 'L') this.board('v', a0 + 0.05, a1 - 0.05, 0.17 + d / 2, h + 0.05, d - 0.06, 0.3, Math.PI / 2, null, { pad: 0.03 });
       else if (side === 'R') this.board('v', a0 + 0.05, a1 - 0.05, this.W - 0.17 - d / 2, h + 0.05, d - 0.06, 0.3, -Math.PI / 2, null, { pad: 0.03 });
       else this.board('u', a0 + 0.05, a1 - 0.05, this.D - 0.12 - d / 2, h + 0.05, d - 0.06, 0.3, this.faceFront, null, { pad: 0.03 });
       candyBins(p, L, h, d + 0.01, fill, prev);
       prev = [h, d + 0.01];
-    }
+    });
   }
   // cloison basse ou pleine (cabine, salle d'examen) avec collision
   partition(u0, v0, u1, v1, h = 2.3, color = 0xe8e4dc) {
@@ -591,11 +615,12 @@ class LayoutKit {
       const contents = items.length ? [this.rng.pick(items), this.rng.pick(items)].filter((x, k, a) => ITEMS[x] && (k === 0 || x !== a[0])) : [];
       this.P.back.push({ def: 'cardboard_box', x: this.X(u + 0.3), y: this.y, z: this.Z(v + 0.25), ry: this.rng.range(-0.2, 0.2), zone: zn, contents, stack: i % 2 });
     }
-    // bureau de réserve
-    const du = this.W - 2.0;
-    this.solid(du - 0.7, D0 + 0.4, du + 0.7, D0 + 1.1, 0, 0.75, zn);
-    desk(this.penAt(du, D0 + 0.75, this.faceFront, zn), 1.4, 0.7, 0.75, 0x6d5a48);
-    this.P.backDesk = { x: this.X(du), y: this.y + 0.75, z: this.Z(D0 + 0.75), zone: zn };
+    // bureau de réserve : contre le mur du fond, dans l'angle droit (après les rayonnages), hors du passage qui va de
+    // la porte de la réserve à la porte de service ; le coffre éventuel dans l'angle, à côté du bureau
+    const du = this.W - 1.6, dv = D1 - 0.36;
+    this.solid(du - 0.7, dv - 0.35, du + 0.7, dv + 0.35, 0, 0.75, zn);
+    desk(this.penAt(du, dv, this.faceFront, zn), 1.4, 0.7, 0.75, 0x6d5a48);
+    this.P.backDesk = { x: this.X(du), y: this.y + 0.75, z: this.Z(dv), zone: zn, safe: { x: this.X(this.W - 0.55), y: this.y, z: this.Z(dv), ry: this.faceFront, zone: zn } };
   }
 }
 
@@ -620,8 +645,11 @@ const LAYOUTS = {
   },
   hyper(L, s) {
     const W = L.W, D = L.D;
-    // caisses
-    for (let i = 0; i < 4; i++) { const u = 4 + i * 4; L.checkout(u, 1.6, u + 0.8, 3.6, 0.9, 0x37474f); L.laneRail(u + 0.85, 1.6, u + 1.0, 3.6, 0.6); }
+    // caisses : garde-corps côté client (allée de 0,8 m le long du tapis), la caissière garde sa place de l'autre côté
+    for (let i = 0; i < 4; i++) {
+      const u = 4 + i * 4; L.checkout(u, 1.6, u + 0.8, 3.6, 0.9, 0x37474f);
+      if (L.sg > 0) L.laneRail(u - 0.95, 1.6, u - 0.8, 3.6, 0.6); else L.laneRail(u + 1.6, 1.6, u + 1.75, 3.6, 0.6);
+    }
     // gondoles
     for (const v of [5.4, 7.4]) for (const [a, b] of [[1.5, 11.5], [13.5, 23.5], [25.5, 35.5], [37.5, 45.2]]) L.island(a, b, v, 5, 1.8, 0xe0e0e0, 1.0);
     L.wallShelf('B', 0.8, W - 2.4, 5, 2.2, 0.5, 0xd8d8d8);
@@ -739,7 +767,13 @@ const LAYOUTS = {
     for (let i = 0; i < nCab; i++) {
       const u0 = 0.4 + i * 1.3, v0 = D - 1.5;
       L.solid(u0, v0, u0 + 0.06, D - 0.15, 0, 2.2); L.solid(u0 + 1.24, v0, u0 + 1.3, D - 0.15, 0, 2.2);
-      fittingRoom(L.penAt(u0 + 0.65, v0, L.faceFront), 1.3, D - 0.15 - v0, 0x6d4c41, s.id === 'costumes' ? 0x4a148c : 0x880e4f, () => L.frng.next());
+      // rideau tiré aux deux tiers (cabine libre) : on entre par la partie ouverte, la partie tirée et le pouf arrêtent
+      const fp = L.penAt(u0 + 0.65, v0, L.faceFront);
+      const fr = fittingRoom(fp, 1.3, D - 0.15 - v0, 0x6d4c41, s.id === 'costumes' ? 0x4a148c : 0x880e4f, () => L.frng.next(), 0.58 + L.frng.next() * 0.14);
+      for (const [[a0, b0, a1, b1], h] of [[fr.curtain, 1.95], [fr.pouf, 0.45]]) {
+        const p0 = fp.world(a0, 0, b0), p1 = fp.world(a1, 0, b1);
+        L.world.physics.add(new Box(p0.x, L.y, p0.z, p1.x, L.y + h, p1.z, LAYER.FURN, null));
+      }
       const p = new THREE.Vector3(L.X(u0 + 0.65), L.y, L.Z(v0 + 0.7));
       L.world.add(new HideSpot(L.world, L.world.newId('hide'), { zone: L.id, name: 'Cabine d\'essayage', box: [Math.min(L.X(u0), L.X(u0 + 1.3)), L.y, Math.min(L.Z(v0), L.Z(D - 0.15)), Math.max(L.X(u0), L.X(u0 + 1.3)), L.y + 2, Math.max(L.Z(v0), L.Z(D - 0.15))], pos: p.toArray(), ry: L.faceFront }));
     }
@@ -777,21 +811,36 @@ const LAYOUTS = {
     L.floorSpot(3, 1.3, L.faceIn); L.floorSpot(4.4, 1.3, L.faceIn);
   },
   cinema(L, s) {
-    const W = L.W, sg = L.sg; const D = Math.abs(L.c.zB - L.c.zF) - 0.3;
+    const W = L.W, sg = L.sg; const D = Math.abs(L.c.zB - L.c.zF) - 0.3, H = L.H;
     const y = L.y;
-    // hall : comptoir, machine à pop-corn, mur de la salle avec deux entrées
+    // hall : comptoir, machine à pop-corn, mur de la salle ; ses deux entrées donnent sur les couloirs latéraux
     L.counter(2, 1.0, 7, 1.8, 1.05, 0x1a237e);
     L.floorSpot(8.2, 1.4, L.faceFront);
-    L.A.wallX(L.id, 'plaster_3a2f4a', L.c.x0 + 0.15, L.c.x1 - 0.15, L.Z(3.2), y, y + 4.6, 0.2, [{ a: L.X(1.5), b: L.X(3.0), y0: y, y1: y + 2.4 }, { a: L.X(W - 3.0), b: L.X(W - 1.5), y0: y, y1: y + 2.4 }]);
-    for (const u of [2.25, W - 2.25]) doorCasing(L.penAt(u, 3.2, 0), 1.5, 2.4, 0.2, 0x2a1a14, { lining: 0.03, arch: 0.09 }); // encadrements des entrées de salle
-    // gradins (13 rangs : A … M) face à l'écran ; fauteuils au pas de 58 cm, accoudoirs partagés
-    const rows = 13, rowD = 0.62, v0 = 4.4, pitch = (W - 8.4) / 27, red = 0x8e1b2e;
+    // confiserie : rayonnage mural du hall (friandises, boissons, programmes) — les articles n'attendent plus par terre
+    L.wallShelf('R', 0.5, 2.75, 5, 1.9, 0.4, 0x1a237e, null, { back: 0x101a4a, backMetal: false });
+    const ent = [[0.3, 1.6], [W - 1.6, W - 0.3]];
+    L.A.wallX(L.id, 'plaster_3a2f4a', L.c.x0 + 0.15, L.c.x1 - 0.15, L.Z(3.2), y, y + 4.6, 0.2, ent.map(([a, b]) => ({ a: L.X(a), b: L.X(b), y0: y, y1: y + 2.4 })));
+    for (const [a, b] of ent) doorCasing(L.penAt((a + b) / 2, 3.2, 0), b - a, 2.4, 0.2, 0x2a1a14, { lining: 0.03, arch: 0.09 }); // encadrements des entrées de salle
+    // gradins en stadium (13 rangs : A … M) : le rang A, au plus près de l'écran, est au niveau du sol, chaque rang
+    // suivant 13 cm plus haut, le rang M devant le palier de la cabine de projection (pente vers le fond : chacun voit
+    // l'écran par-dessus le rang de devant). Couloirs latéraux de plain-pied (u < 1,85) des entrées jusqu'à
+    // l'avant-scène et à la porte de service ; escaliers de 1,9 m de part et d'autre des fauteuils (les marches sont les
+    // gradins eux-mêmes), garde-corps côté couloir. Fauteuils au pas de 58 cm, accoudoirs partagés : chaque rangée
+    // occupe toute sa marche, une boîte de collision par rangée.
+    const rows = 13, rowD = 0.62, v0 = 4.4, rise = 0.13, pitch = (W - 8.4) / 27, red = 0x8e1b2e;
+    const sA = 1.85, sB = W - 1.85, top = 3.3, rail = [[], []];
     for (let r = 0; r < rows; r++) {
       const v = v0 + (rows - 1 - r) * rowD; // rang A le plus proche de l'écran
-      const h = (rows - 1 - r) * 0.13;
-      if (h > 0) { L.solid(3.6, v - 0.1, W - 3.6, v + rowD - 0.1, 0, h); cinemaStep(L.penAt(W / 2, v - 0.1 + rowD / 2, L.faceFront), W - 7.2, rowD, h, 0x2a1a24); }
+      const h = r * rise;
+      const va = r === rows - 1 ? top : v - 0.1, vb = v + rowD - 0.1; // marche du rang (le rang M se prolonge en palier)
+      if (h > 0) { L.solid(sA, va, sB, vb, 0, h); cinemaStep(L.penAt(W / 2, (va + vb) / 2, L.faceIn), sB - sA, vb - va, h, 0x2a1a24); }
       for (let j = 0; j < 28; j++) cinemaSeat(L.penAt(4.2 + j * pitch, v + 0.28, L.faceIn, null, h), red);
       for (let j = 0; j <= 28; j++) cinemaArm(L.penAt(4.2 + (j - 0.5) * pitch, v + 0.28, L.faceIn, null, h), red);
+      L.solid(3.85, v - 0.12, W - 3.85, v + 0.56, h, h + 1.05); // rangée de fauteuils (dossiers inclinés compris)
+      if (h > 0.25) for (const [k, u] of [[0, sA + 0.05], [1, sB - 0.05]]) { // garde-corps (le bas des gradins reste ouvert sur le couloir)
+        L.solid(u - 0.05, va, u + 0.05, vb, h, h + 1.0);
+        rail[k].push([vb - 0.04, h]); if (r === rows - 1) rail[k].push([va + 0.06, h]);
+      }
       for (let k = 0; k < 10; k++) {
         const u = 4.2 + k * ((W - 8.4) / 9);
         if (r === 12 && k === 2) { // Rang M, siège 13 (le 3e de la rangée, numérotés à partir de 11)
@@ -800,17 +849,25 @@ const LAYOUTS = {
         }
       }
     }
-    // écran (l'image est posée par le projecteur) dans son cache de velours noir
-    const scrW = W - 4, scrH = 4.2;
-    L.c.screen = { x: L.c.x0 + W / 2, y: y + 2.6 + 0.4, z: L.c.zB - sg * 0.2, w: scrW, h: scrH, ry: L.faceFront };
-    L.solid(1.8, D - 0.1, W - 1.8, D, 0.4, 5.2);
-    const sp = L.penAt(W / 2, D + 0.098, L.faceFront), top = L.H - 0.02, black = 0x0b0b0e;
-    sp.box(FU, -W / 2 + 1.8, 0.4, 0, -scrW / 2, top, 0.06, black, 'xXyZ'); sp.box(FU, scrW / 2, 0.4, 0, W / 2 - 1.8, top, 0.06, black, 'xXyZ');
-    sp.box(FU, -scrW / 2, 0.4, 0, scrW / 2, 0.9, 0.06, black, 'yYZ');
-    sp.box(FU, -W / 2 + 1.6, 0, 0.0, W / 2 - 1.6, 0.4, 0.3, 0x1a1418, 'xXYZ');                                      // nez de scène
-    L.P.special.projector = { x: L.X(W / 2), y: y + 3.4, z: L.Z(3.6), ry: L.faceIn };
-    L.solid(W / 2 - 0.8, 3.3, W / 2 + 0.8, 4.0, 0, 3.0);
-    projBooth(L.penAt(W / 2, 3.65, L.faceIn), 1.6, 0.7, 3.0, 0x263238);
+    for (const k of [0, 1]) stairRail(L.penAt(k ? sB - 0.05 : sA + 0.05, 0, L.faceIn), rail[k], 0.95, 0x8a9096);
+    // écran (l'image est posée par le projecteur) : image 4/3, le format des films projetés, bordée par le cache de
+    // velours noir ; elle tient sous le plafond. Le cache et le nez de scène s'arrêtent avant la porte de service.
+    const sb = 0.9, scrH = 3.4, scrW = scrH * 4 / 3, m0 = 2.3;
+    L.c.screen = { x: L.c.x0 + W / 2, y: y + sb + scrH / 2, z: L.c.zB - sg * 0.2, w: scrW, h: scrH, ry: L.faceFront };
+    L.solid(m0, D - 0.1, W - m0, D, 0.4, H);
+    const sp = L.penAt(W / 2, D + 0.098, L.faceFront), mt = H - 0.02, black = 0x0b0b0e;
+    sp.box(FU, -W / 2 + m0, 0.4, 0, -scrW / 2, mt, 0.06, black, 'xXyZ'); sp.box(FU, scrW / 2, 0.4, 0, W / 2 - m0, mt, 0.06, black, 'xXyZ');
+    sp.box(FU, -scrW / 2, 0.4, 0, scrW / 2, sb, 0.06, black, 'yYZ'); sp.box(FU, -scrW / 2, sb + scrH, 0, scrW / 2, mt, 0.06, black, 'yZ');
+    sp.box(FU, -W / 2 + m0, 0, 0.0, W / 2 - m0, 0.4, 0.3, 0x1a1418, 'xXYZ');                                      // nez de scène
+    L.solid(m0, D - 0.2, W - m0, D + 0.1, 0, 0.4);
+    // velours du mur du fond au bout des couloirs (autour de la porte de service à gauche)
+    const vel = 'wp_velvet_5a0f16', vb0 = D + 0.18, vb1 = D + 0.2, dr = 1.6; // dr : axe de la porte de service (rearX)
+    for (const [a, b, h0] of [[0.15, dr - 0.62, 0], [dr - 0.62, dr + 0.62, 2.22], [dr + 0.62, m0, 0], [W - m0, W - 0.15, 0]]) L.mbox(vel, a, vb0, b, vb1, h0, H);
+    // cabine de projection posée sur le palier haut, derrière le rang M ; le projecteur sur son toit, face à l'écran
+    const bh = (rows - 1) * rise;
+    L.solid(W / 2 - 0.8, top, W / 2 + 0.8, top + 0.95, 0, bh + 2.0);
+    projBooth(L.penAt(W / 2, top + 0.475, L.faceIn, null, bh), 1.6, 0.95, 2.0, 0x263238);
+    L.P.special.projector = { x: L.X(W / 2), y: y + bh + 2.0, z: L.Z(top + 0.62), ry: L.faceIn };
   },
   salon(L, s) {
     const W = L.W, D = L.D;
@@ -823,8 +880,10 @@ const LAYOUTS = {
   },
   music(L, s) {
     const W = L.W, D = L.D;
-    L.wallFloor('L', 2.4); L.wallFloor('L', 5.2); L.wallFloor('L', 7.6);
-    L.floorSpot(W * 0.5, 6.6, L.faceFront);
+    L.wallFloor('L', 2.4); L.wallFloor('L', 5.2); // piano droit, orgue
+    L.solid(0.25, 7.05, 0.75, 8.15, 0, 0.78); keyboardStand(L.penAt(0.5, 7.6, Math.PI / 2), 1.0, 0.78); // clavier de synthèse sur son stand
+    L.counterSpot(0.5, 7.6, 0.78, Math.PI / 2);
+    L.floorSpot(W * 0.5, 6.6, L.faceFront, null, 0.12);                  // batterie, posée sur l'estrade
     L.solid(W * 0.5 - 1.2, 5.6, W * 0.5 + 1.2, 7.6, 0, 0.12); stage(L.penAt(W * 0.5, 6.6, L.faceFront), 2.4, 2.0, 0.12, 0x5d4037); // estrade de démonstration
     L.wallShelf('R', 1.6, D - 0.8, 4, 2.1, 0.45, 0x8d6e63, null, { metal: false, back: 0x5d4037, uprights: 0x4e342e });
     L.wallShelf('B', 3.0, W - 2.4, 4, 2.1, 0.4, 0x8d6e63, null, { metal: false, back: 0x5d4037, uprights: 0x4e342e });
@@ -834,9 +893,10 @@ const LAYOUTS = {
   pets(L, s) {
     const W = L.W, D = L.D;
     L.wallBlock('L', 1.4, D - 0.8, 0, 0.75, 0.63, 0x37474f, null, 'doors', { top: 0x263238, doors: 0.55 }); // meubles d'aquariums
-    L.P.wallFloor.push(...[2.2, 4.4, 6.6].map(a => ({ x: L.X(0.5), y: L.y + 0.75, z: L.Z(a), ry: Math.PI / 2, zone: L.id, wall: 'L', raised: true })));
+    // aquariums posés sur les meubles (dos contre le mur : le décalage de profondeur est ajouté au placement)
+    L.P.wallFloor.push(...[2.2, 4.4, 6.6].map(a => ({ x: L.X(0.19), y: L.y + 0.75, z: L.Z(a), ry: Math.PI / 2, zone: L.id, wall: 'L', raised: true })));
     L.wallBlock('R', 4.4, 6.6, 0, 0.75, 0.63, 0x37474f, null, 'doors', { top: 0x263238, doors: 0.55 });
-    L.P.wallFloor.push({ x: L.X(W - 0.55), y: L.y + 0.75, z: L.Z(5.5), ry: -Math.PI / 2, zone: L.id, wall: 'R', raised: true });
+    L.P.wallFloor.push({ x: L.X(W - 0.19), y: L.y + 0.75, z: L.Z(5.5), ry: -Math.PI / 2, zone: L.id, wall: 'R', raised: true });
     L.floorSpot(W - 1.4, 2.0, -Math.PI / 2); L.floorSpot(4, D - 1.2, L.faceFront);
     L.island(2.8, 8.6, 6.4, 4, 1.5, 0x80deea, 1.0);
     L.wallShelf('B', 5.6, W - 2.4, 4, 2.0, 0.45, 0xb2ebf2);
@@ -857,6 +917,7 @@ const LAYOUTS = {
     L.floorSpot(6, 6.9, L.faceFront);
     L.wallShelf('L', 2.0, D - 1.0, 5, 2.2, 0.35, 0x5d4037, null, { metal: false, back: 0x4e342e });
     L.solid(W - 1.2, 2.0, W - 0.3, 4.5, 0, 0.45); L.solid(W - 0.5, 2.0, W - 0.3, 4.5, 0.45, 0.95); // canapé de cuir
+    L.solid(W - 1.2, 2.0, W - 0.5, 2.2, 0.45, 0.69); L.solid(W - 1.2, 4.3, W - 0.5, 4.5, 0.45, 0.69); // accoudoirs
     sofa(L.penAt(W - 0.75, 3.25, L.ryOf(-1, 0)), { L: 2.5, D: 0.9, h: 0.45, color: 0x3e2723, mat: FU });
     L.P.special.safe = { x: L.X(W - 0.7), y: L.y, z: L.Z(D - 0.7), ry: -Math.PI / 2 };
     L.table(1.0, 1.0, 2.2, 1.8, 0.9, 0x5d4037);
@@ -905,26 +966,27 @@ function placeContents(world, dev, ctl, P, s, rng) {
   for (const [defId, count] of (s.fixed || [])) {
     const def = ITEMS[defId]; if (!def) { console.warn('fixe inconnu', defId); continue; }
     for (let i = 0; i < count; i++) {
-      let cat = PLACE[def.use] || PLACE[defId] || (def.s[1] > 1.2 ? 'wallFloor' : def.s[1] < 0.5 ? 'counter' : 'floor');
+      // l'identifiant prime sur l'usage (téléviseur cathodique : sur un comptoir, pas au mur ; four à pizza : au sol)
+      let cat = PLACE[defId] || PLACE[def.use] || (def.s[1] > 1.2 ? 'wallFloor' : def.s[1] < 0.5 ? 'counter' : 'floor');
       if (defId === 'register') cat = 'register';
       if (def.shape === 'arcade' || def.shape === 'claw' || defId === 'token_machine' || defId === 'basket_machine') cat = 'wallFloor';
       if (defId === 'mannequin' || defId === 'chair' || defId === 'kiddie_ride' || defId === 'salon_chair' || defId === 'drum_kit' || defId === 'air_hockey' || defId === 'tent' || defId === 'bike' || defId === 'basket_hoop' || defId === 'massage_chair' || defId === 'bench' || defId === 'parrot_cage' || defId === 'hamster_cage' || defId === 'gumball_machine' || defId === 'cotton_candy_machine' || defId === 'office_chair' || defId === 'dance_machine') cat = 'floor';
-      let spot = null;
-      if (defId === 'safe') spot = P.special.safe || (P.backDesk ? { x: P.backDesk.x + 1.2, y: ctl.y, z: P.backDesk.z, ry: Math.PI, zone: P.backDesk.zone } : null);
+      let spot = null, got = cat; // got : catégorie de l'emplacement réellement obtenu (repli : la hauteur en dépend)
+      if (defId === 'safe') spot = P.special.safe || P.backDesk?.safe || null;
       else if (defId === 'projector') spot = P.special.projector;
       else if (defId === 'toilet') spot = P.special.toilets?.shift();
-      else if (defId === 'conveyor') spot = P.counter.length ? { ...P.counter.shift() } : null;
-      else spot = take(cat) || take('floor') || take('wallFloor') || take('counter');
+      else if (defId === 'conveyor') { spot = P.counter.length ? { ...P.counter.shift() } : null; got = 'counter'; }
+      else for (const c of [cat, 'floor', 'wallFloor', 'counter']) { spot = take(c); if (spot) { got = c; break; } }
       if (!spot) { console.warn('pas de place pour', defId, 'dans', s.id); continue; }
       const h = def.s[1];
-      let yy = spot.y + (cat === 'wallHigh' ? 0 : h / 2);
+      let yy = spot.y + (got === 'wallHigh' ? 0 : h / 2);
       let x = spot.x, z = spot.z;
       // décaler les objets muraux selon leur profondeur
       if (spot.wall) {
         const off = (def.s[2] / 2) + 0.02;
         if (spot.wall === 'L') x += off; else if (spot.wall === 'R') x -= off; else z -= ctl.sg * off;
       }
-      if (cat === 'wallHigh' && defId === 'tv') yy = spot.y;
+      if (got === 'wallHigh' && defId === 'tv') yy = spot.y;
       const d = dev(defId, spot.zone || s.id, x, yy, z, spot.ry, { shop: s.id, index: i });
       if (d) { ctl.devices.push(d); if (defId === 'register') ctl.registers.push(d); }
     }
@@ -932,6 +994,20 @@ function placeContents(world, dev, ctl, P, s, rng) {
   // articles (produits) : planches puis sol
   const boards = P.boards;
   const floorSpots = P.floor;
+  // appareils posés sur une planche (podium de démonstration, bureau, établi) : les articles laissent leur place libre
+  // (intervalles le long de la planche, repris par le réassort)
+  for (const b of boards) b.blocked = [];
+  for (const d of ctl.devices) {
+    const p = d.group?.position, e = d.ext; if (!p || !e) continue;
+    for (const b of boards) {
+      if (Math.abs(p.y - e[1] - b.y) > 0.04) continue;
+      const q0 = b.ax === 'x' ? p.z - e[2] : p.x - e[0], q1 = b.ax === 'x' ? p.z + e[2] : p.x + e[0];
+      if (q1 <= b.c - b.depth / 2 || q0 >= b.c + b.depth / 2) continue;
+      const a0 = (b.ax === 'x' ? p.x - e[0] : p.z - e[2]) - 0.03, a1 = (b.ax === 'x' ? p.x + e[0] : p.z + e[2]) + 0.03;
+      if (a1 > b.a0 && a0 < b.a1) b.blocked.push([a0, a1]);
+    }
+  }
+  for (const b of boards) b.blocked.sort((m, n) => m[0] - n[0]);
   // les rayons du magasin d'abord, ceux de la réserve ensuite (un article trop grand pour les rayons ne doit pas
   // entraîner tous les suivants en réserve) ; on reste sur la même planche tant qu'elle a de la place (rayons cohérents)
   const shopBoards = boards.filter(b => !String(b.zone).endsWith('_back')), backBoards = boards.filter(b => String(b.zone).endsWith('_back'));
@@ -942,6 +1018,7 @@ function placeContents(world, dev, ctl, P, s, rng) {
       const k = (start + tries) % list.length, b = list[k];
       if (h > b.clear || dpt > b.depth + 0.15) continue;
       const len = b.a1 - b.a0;
+      for (const [x0, x1] of b.blocked) if (b.a0 + b.cur + w + 0.03 > x0 && b.a0 + b.cur < x1) b.cur = x1 - b.a0; // appareil : on passe derrière
       if (b.cur + w + 0.03 > len) continue;
       const a = b.a0 + b.cur + w / 2 + 0.015; b.cur += w + 0.03 + rng.range(0, 0.02);
       cursor.set(list, k);

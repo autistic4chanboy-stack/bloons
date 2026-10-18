@@ -232,12 +232,23 @@ class Stocker {
       while (u < f.len - 0.05) {
         const take = Math.min(left, f.len - u); const u1 = f.len - u - take < 0.4 ? f.len : u + take;
         const [cat, ps] = all[ci]; f.bands.push({ u0: u, u1, cat });
-        for (const sg of f.segs) if (sg.role !== 'cases') this.cells.push({ f, sg, u0: u, u1, ps, cat, occ: [] });
+        for (const sg of f.segs) if (sg.role !== 'cases') for (const [a, b] of this.freeParts(sg, u, u1)) this.cells.push({ f, sg, u0: a, u1: b, ps, cat, occ: [] });
         left -= (u1 - u); u = u1;
         if (left <= 0.05 && ci < all.length - 1) { ci++; left = weight(all[ci]) / W * L; }
         else if (left <= 0.05) left = 1e9;
       }
     }
+  }
+  // parties d'une case [u0, u1] (repère de la planche) laissées libres par les appareils posés dessus (b.blocked,
+  // relevé par placeContents : micro-ondes d'un podium, téléphone d'un bureau…)
+  freeParts(sg, u0, u1) {
+    let parts = [[u0, u1]];
+    for (const [x0, x1] of sg.b.blocked || []) {
+      const a = x0 - sg.a0, b = x1 - sg.a0, next = [];
+      for (const [p, q] of parts) { if (b <= p || a >= q) { next.push([p, q]); continue; } if (a - p > 0.12) next.push([p, a]); if (q - b > 0.12) next.push([b, q]); }
+      parts = next;
+    }
+    return parts;
   }
   // largeur de l'assortiment d'une famille (quantités listées plafonnées)
   weight([, ps]) { return ps.reduce((a, p) => a + Math.min(p.unique ? 0.5 : Math.min(2, Math.max(1, p.n)), p.cap / 4) * this.pitch(p), 0) + 0.05; }

@@ -849,17 +849,19 @@ export function partitionWall(p, L, T, h, c) {
   p.rbox(ME, -hx - 0.005, h - 0.02, -hz - 0.006, hx + 0.005, h, hz + 0.006, 0.006, 0xbfc3c7);
 }
 // Cabine d'essayage (repère : centre de l'entrée au sol, intérieur vers -z ; largeur w, profondeur d) : joues pleines,
-// fronton, tringle et rideau à plis tiré, miroir, patère, tabouret
-export function fittingRoom(p, w, d, c, curtainC, rnd) {
-  const hx = w / 2, wood = woodMat(c);
+// fronton, tringle et rideau à plis tiré, miroir, patère, tabouret. open : part du rideau repliée (l'entrée de la
+// cabine). Renvoie les emprises (repère de la cabine) du rideau tiré et du pouf, pour leurs boîtes de collision.
+export function fittingRoom(p, w, d, c, curtainC, rnd, open = 0.25 + rnd() * 0.3) {
+  const hx = w / 2, wood = woodMat(c), c0 = -hx + 0.07, c1 = hx - 0.07;
   for (const s of [-1, 1]) p.rbox(wood, s * hx - (s > 0 ? 0.06 : 0), 0, -d - 0.04, s * hx + (s < 0 ? 0.06 : 0), 2.2, 0, 0.008, c, 'xXYZ'); // joues (jusqu'au mur)
   p.rbox(wood, -hx, 2.0, -0.06, hx, 2.2, 0.0, 0.006, c, 'yzZ');                                                // fronton
   p.tube(ME, [-hx + 0.06, 1.97, -0.03], [hx - 0.06, 1.97, -0.03], 0.012, 8, CHROME);
-  p.push(0, 0, -0.03); curtain(p, -hx + 0.07, hx - 0.07, 0.12, 1.94, curtainC, 0.25 + rnd() * 0.3, 8); p.pop();
+  p.push(0, 0, -0.03); curtain(p, c0, c1, 0.12, 1.94, curtainC, open, 8); p.pop();
   p.box(FU, -0.28, 0.35, -d - 0.04, 0.28, 1.95, -d + 0.02, 0x2b2b2b, 'xXyYZ');                                   // miroir
   p.box('chrome', -0.25, 0.38, -d + 0.02, 0.25, 1.92, -d + 0.024, 0xffffff, 'Z');
   for (const s of [-1, 1]) { p.push(s * (hx - 0.06), 1.7, -d * 0.5, s > 0 ? -Math.PI / 2 : Math.PI / 2); p.sweep(ME, [[0, 0, 0], [0, 0, 0.04], [0, 0.03, 0.06]], 0.006, 5, CHROME); p.pop(); } // patères
   p.push(hx - 0.3, 0, -d + 0.35); pouf(p, 0.36, 0.36, 0.42, shade(curtainC, -0.3)); p.pop();
+  return { curtain: [c0, -0.11, c0 + (c1 - c0) * (1 - open), 0.05], pouf: [hx - 0.48, -d + 0.17, hx - 0.12, -d + 0.53] };
 }
 // Cabines de toilettes : séparation sur pieds (repère : centre de la séparation au sol, x le long de la profondeur)
 export function wcDivider(p, L, h, c) {
@@ -881,6 +883,26 @@ export function cinemaStep(p, L, D, h, c) {
   p.box(FA, -hx, h - 0.01, -hz, hx, h, hz - 0.03, shade(c, 0.15), 'Y');
   p.rbox(ME, -hx, h - 0.03, hz - 0.03, hx, h, hz + 0.004, 0.005, 0x9aa0a6, 'yYZ');                                 // nez de marche
   for (let x = -hx + 0.8; x < hx - 0.5; x += 1.6) p.box(FU, x, h - 0.06, hz, x + 0.05, h - 0.045, hz + 0.002, 0xffe9a8, 'Z'); // balisage
+}
+// Garde-corps de gradins (repère : x = 0 dans le plan du garde-corps, z le long ; pts = [[z, y]…] points d'appui sur
+// les nez de marche puis le palier, du bas vers le haut) : poteaux, main courante et lisse qui suivent la pente
+export function stairRail(p, pts, h, c = 0x9aa0a6) {
+  p.sweep(ME, pts.map(([z, y]) => [0, y + h, z]), 0.022, 8, c);
+  p.sweep(ME, pts.map(([z, y]) => [0, y + h * 0.5, z]), 0.012, 6, c);
+  for (const [z, y] of pts) { p.cyl(ME, 0, y, z, 0.02, h, 8, c, { bottom: false, top: false }); p.cyl(ME, 0, y, z, 0.04, 0.012, 10, c, { bottom: false }); }
+}
+// Stand de clavier (repère : centre au sol, x le long du clavier, musicien vers +z ; dessus des bras à h) : deux
+// montants sur pieds en T, bras porteurs à embouts caoutchouc, entretoise basse
+export function keyboardStand(p, w, h, c = 0x26292c) {
+  for (const s of [-1, 1]) {
+    const x = s * (w / 2 - 0.12);
+    p.tube(ME, [x, 0.022, -0.24], [x, 0.022, 0.24], 0.018, 8, c, true);
+    for (const z of [-0.24, 0.24]) p.cyl(FU, x, 0, z, 0.024, 0.012, 8, RUBBER);
+    p.tube(ME, [x, 0.03, 0], [x, h - 0.03, 0], 0.02, 8, c);
+    p.tube(ME, [x, h - 0.015, -0.17], [x, h - 0.015, 0.17], 0.015, 8, c, true);
+    for (const z of [-0.17, 0.17]) p.cyl(FU, x, h - 0.03, z, 0.02, 0.03, 8, RUBBER);
+  }
+  p.tube(ME, [-(w / 2 - 0.12), 0.26, 0], [w / 2 - 0.12, 0.26, 0], 0.016, 8, c);
 }
 // Cadre de cache d'écran (velours noir) autour d'une ouverture w × h, face vers +z
 export function screenMask(p, w, h, c = 0x0b0b0e) {
@@ -973,10 +995,12 @@ export function lollipop(p, h, c) {
   p.sweep(FU, pts.map(([x, y, z]) => [x, -y, z]), 0.022, 5, c);
   p.pop();
 }
-// Seau de fleuriste en zinc (repère : centre au sol) : seau à lèvre et oreilles, tiges, fleurs, feuillage
+// Seau de fleuriste en zinc (repère : centre au sol) : seau à lèvre et oreilles, tiges, fleurs, feuillage. Zinc
+// galvanisé mat (matériau standard teinté) : en métal poli, le seau renvoyait tout l'éclairage et paraissait blanc.
 export function flowerBucket(p, colors, rnd) {
-  p.lathe(ME, 0, 0, 0, [[0.16, 0], [0.16, 0.01], [0.2, 0.4], [0.212, 0.42], [0.2, 0.425], [0.19, 0.4], [0.16, 0.03], [0, 0.03]], 16, 0x9aa0a6);
-  p.cyl(FU, 0, 0.36, 0, 0.19, 0.01, 12, 0x2a3a2a, { bottom: false });
+  p.lathe(FU, 0, 0, 0, [[0.16, 0], [0.16, 0.01], [0.2, 0.4], [0.212, 0.42], [0.2, 0.425], [0.19, 0.4], [0.16, 0.03], [0, 0.03]], 16, 0x7d858c);
+  for (const y of [0.13, 0.28]) p.lathe(FU, 0, y, 0, [[0.16 + y * 0.1 - 0.002, 0], [0.164 + y * 0.1, 0.006], [0.164 + y * 0.1, 0.014], [0.16 + y * 0.1 - 0.002, 0.02]], 16, 0x6c747a); // cerclages
+  p.cyl(FU, 0, 0.36, 0, 0.19, 0.01, 12, 0x3b2f22, { bottom: false });                                         // eau trouble / mousse
   colors.forEach((c, k) => {
     const a = k * 1.3 + rnd() * 0.4, r = 0.05 + rnd() * 0.07, top = [Math.cos(a) * (r + 0.08), 0.62 + (k % 2) * 0.08 + rnd() * 0.06, Math.sin(a) * (r + 0.08)];
     p.tube(FU, [Math.cos(a) * r * 0.5, 0.36, Math.sin(a) * r * 0.5], top, 0.005, 3, 0x3f7a3a);
