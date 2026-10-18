@@ -309,6 +309,7 @@ input.code { text-transform: uppercase; letter-spacing: 0.3em; }
 .nb-osd .bat.low { color: #ff6b5b; animation: osdrec 1.2s steps(1) infinite; }
 #hud.hud-hidden .nb-osd { opacity: 0; }
 @media (max-width: 700px) { .nb-osd { font-size: 10px; right: 10px; } .nb-osd .sub { font-size: 8.5px; } }
+@media (max-height: 420px) { .nb-subs { bottom: 76px; } .nb-sub { padding: 4px 10px; font-size: 13.5px; } }
 
 /* ── Calques modaux ── */
 .nb-layers { position: absolute; inset: 0; pointer-events: none; }
@@ -379,7 +380,7 @@ input.code { text-transform: uppercase; letter-spacing: 0.3em; }
 .ps-keys .nb-keys { color: rgba(226, 232, 226, 0.65); text-shadow: 0 1px 2px #000; }
 .ps-opts { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 14px; }
 .ps-opts .nb-win { max-height: 100%; }
-#hud.nb-paused .nb-osd { opacity: 0.9; } #hud.nb-paused .nb-osd .rec { animation: none; opacity: 0.35; }
+#hud.nb-paused .nb-osd { opacity: 0.9; } #hud.nb-paused .nb-osd .rec { animation: none; opacity: 0.35; } #hud.nb-psopts .nb-osd { opacity: 0; }
 #hud.nb-paused .nb-toasts, #hud.nb-paused .nb-alerts, #hud.nb-paused .nb-clock, #hud.nb-paused .nb-objective, #hud.nb-paused .nb-prompt, #hud.nb-paused .nb-subs, #hud.nb-paused .nb-card { visibility: hidden; }
 @media (max-height: 420px) { .nb-pause { padding: 48px 16px 34px; } .ps-osd b { font-size: 19px; } .ps-osd span { margin-top: 4px; font-size: 10px; } .ps-keys { bottom: 8px; } .ps-opts { padding: 8px; } }
 /* fenêtres de console en jeu : inventaire, tableau électrique, régie */

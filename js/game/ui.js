@@ -247,7 +247,7 @@ export class UI {
       <p class="ps-keys">${keys([['↑ ↓', 'Choisir'], ['Entrée', 'Valider'], ['Échap', 'Reprendre']])}</p>
       <div class="ps-opts" hidden>${win({ title: 'Options', k: 'Hélios Sécurité · Réglages du poste', ref: 'Pupitre', cls: 'w-opts', body: optionsHTML(s, { game: true }), foot: keys([['↑ ↓', 'Choisir'], ['← →', 'Régler'], ['Échap', 'Retour']]) + '<button data-a="back">Retour</button>' })}</div>`;
     const menu = wrap.querySelector('.ps-menu'), opts = wrap.querySelector('.ps-opts'), pk = wrap.querySelector('.ps-keys');
-    const showOpts = (on) => { menu.hidden = pk.hidden = on; opts.hidden = !on; focusFirst(on ? opts : menu, on ? null : '[data-a=options]'); };
+    const showOpts = (on) => { menu.hidden = pk.hidden = on; opts.hidden = !on; this.root.classList.toggle('nb-psopts', on); focusFirst(on ? opts : menu, on ? null : '[data-a=options]'); }; // l'incrustation s'efface derrière la fenêtre
     wrap.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'resume') this.closeModal();
@@ -261,7 +261,7 @@ export class UI {
       if (k === 'questHud') { g.quests?.setHud(v); this.qKey = ''; } else try { Save.saveSettings({ [k]: v }); } catch (e) { /* stockage indisponible */ }
     });
     this.root.classList.add('nb-paused');
-    this.openModal('pause', wrap, { pause: true, cls: 'nb-pausemodal', nav: true, onEsc: () => opts.hidden ? this.closeModal() : showOpts(false), onClose: () => this.root.classList.remove('nb-paused') });
+    this.openModal('pause', wrap, { pause: true, cls: 'nb-pausemodal', nav: true, onEsc: () => opts.hidden ? this.closeModal() : showOpts(false), onClose: () => this.root.classList.remove('nb-paused', 'nb-psopts') });
   }
 
   // ── plan : la pancarte du centre en plein écran (mapview.js), repère du joueur en direct ou celui d'une borne ──

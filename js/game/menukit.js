@@ -83,8 +83,22 @@ export function navKey(root, e, horiz = false) {
   const k = e.key, text = t === 'text' || t === 'password' || t === 'textarea';
   if (k === 'Enter' && t === 'checkbox') { e.preventDefault(); a.click(); return true; }
   if (k === 'Enter' && a?.matches?.('label.btn')) { e.preventDefault(); a.click(); return true; }
+  // en jeu, les flèches et l'espace sont déjà « consommés » par les commandes (preventDefault) : on fait nous-mêmes
+  // ce que le navigateur aurait fait (curseur, liste, case, bouton, défilement), pareil sur l'écran titre
+  if (k === ' ' && e.defaultPrevented && (t === 'checkbox' || t === 'submit' || t === 'button')) { a.click(); return true; }
+  if ((k === 'ArrowRight' || k === 'ArrowLeft') && (t === 'range' || t === 'select-one')) {
+    e.preventDefault(); const up = k === 'ArrowRight';
+    if (t === 'range') { up ? a.stepUp() : a.stepDown(); a.dispatchEvent(new Event('input', { bubbles: true })); }
+    else { const j = Math.max(0, Math.min(a.options.length - 1, a.selectedIndex + (up ? 1 : -1))); if (j !== a.selectedIndex) { a.selectedIndex = j; a.dispatchEvent(new Event('change', { bubbles: true })); } }
+    return true;
+  }
   let d = 0;
-  if (horiz && (k === 'ArrowDown' || k === 'ArrowUp')) return false;
+  if (horiz && (k === 'ArrowDown' || k === 'ArrowUp')) { // documents : ↑ ↓ font défiler la feuille
+    let sc = inside ? a : root.firstElementChild;
+    while (sc && sc !== root.parentNode && !(sc.scrollHeight > sc.clientHeight + 2 && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+    if (!sc || sc === root.parentNode) return false;
+    e.preventDefault(); sc.scrollBy({ top: k === 'ArrowDown' ? 56 : -56 }); return true;
+  }
   if (k === 'ArrowDown') d = 1; else if (k === 'ArrowUp') d = -1;
   else if ((k === 'ArrowRight' || k === 'ArrowLeft') && !text && t !== 'range' && t !== 'select-one') d = k === 'ArrowRight' ? 1 : -1;
   if (!d) return false;
