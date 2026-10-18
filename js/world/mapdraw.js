@@ -240,14 +240,16 @@ export function drawPlan(ctx, model, L, box, o = {}) {
     if (f.t !== 'shop' && f.t !== 'wc' && !(f.t === 'staff' && f.shop)) continue;
     const sh = shops[f.shop], [px, py, pw, ph] = R(f.r), cx = px + pw / 2, cy = py + ph / 2;
     if (f.t === 'wc') continue; // pictogramme posé plus bas
-    if (!sh) { // locaux du personnel (direction, salle du personnel) : nom discret
-      const t = fit(ctx, f.name || '', pw - 6 * u, 11 * u, minPx * 0.9, 600); if (t.px < minPx * 0.85) continue;
-      ctx.fillStyle = '#7b848d'; ctx.fillText(t.text, cx, cy); continue;
+    if (!sh) { // locaux du personnel (direction, salle du personnel) : nom discret, sur deux lignes au besoin
+      const name = f.name || '', fs = Math.max(11 * u, minPx * 0.9); let lines = [name];
+      font(ctx, fs, 600); if (ctx.measureText(name).width > pw - 6 * u) { const sp = name.indexOf(' ', name.length / 2 - 2); lines = sp > 0 ? [name.slice(0, sp), name.slice(sp + 1)] : [name]; }
+      if (lines.some((l) => ctx.measureText(l).width > pw - 6 * u)) continue;
+      ctx.fillStyle = '#7b848d'; lines.forEach((l, i) => ctx.fillText(l, cx, cy + (i - (lines.length - 1) / 2) * fs * 1.15)); continue;
     }
     const shut = closed(sh.id), col = shut ? C.closed : (CAT[sh.cat]?.color || '#888'), light = lum(col) > 0.62;
     const nPx = clamp(Math.min(pw * 0.36, ph * 0.34), minPx + 1, 44 * u);
     font(ctx, nPx, 800); ctx.fillStyle = shut ? '#7d858c' : light ? C.ink : '#ffffff';
-    const nm = fit(ctx, sh.short, pw - 8 * u, nPx * 0.42, minPx, 700), showName = nm.px >= minPx && ph > nPx * 1.9 && !nm.text.endsWith('…');
+    const nm = fit(ctx, sh.short, pw - 8 * u, clamp(nPx * 0.5, minPx, 15 * u), minPx, 700), showName = ph > nPx + nm.px * 1.7 && !nm.text.endsWith('…');
     const ny = showName ? cy - nm.px * 0.75 : cy - (shut ? nPx * 0.2 : 0);
     font(ctx, nPx, 800); ctx.fillText(String(sh.num), cx, ny);
     if (showName) { font(ctx, nm.px, 700); ctx.fillText(nm.text, cx, ny + nPx * 0.5 + nm.px * 0.8); }
@@ -262,9 +264,10 @@ export function drawPlan(ctx, model, L, box, o = {}) {
     const big = l.k === 'area', px0 = Math.max((big ? 15 : 11) * u * (l.scale || 1), o.live ? 8 : 0), maxW = l.w ? l.w * s * (big ? 1.25 : 1.05) - 4 * u : 260 * u;
     const t = fit(ctx, big ? l.s.toUpperCase() : l.s, maxW, px0, minPx * (big ? 1 : 0.85), big ? 800 : 600);
     if (t.text.endsWith('…')) continue; // une étiquette qui ne tient pas est omise (jamais tronquée sur le plan)
-    ctx.fillStyle = l.k === 'staff' ? '#737c85' : big ? C.navy2 : C.ink;
-    if (big) { font(ctx, t.px, 800); spaced(ctx, t.text, X(l.x), Y(l.z), t.px * 0.08, 'center'); }
-    else { font(ctx, t.px, 600); ctx.fillText(t.text, X(l.x), Y(l.z)); }
+    if (big) { font(ctx, t.px, 800); ctx.fillStyle = C.navy2; spaced(ctx, t.text, X(l.x), Y(l.z), t.px * 0.08, 'center'); continue; }
+    font(ctx, t.px, 600); const tw = ctx.measureText(t.text).width; // pastille claire : lisible sur les hachures et les murs
+    ctx.fillStyle = 'rgba(248,246,241,0.86)'; rr(ctx, X(l.x) - tw / 2 - t.px * 0.35, Y(l.z) - t.px * 0.68, tw + t.px * 0.7, t.px * 1.36, t.px * 0.3); ctx.fill();
+    ctx.fillStyle = l.k === 'staff' ? '#6b747d' : C.ink; ctx.fillText(t.text, X(l.x), Y(l.z));
   }
   // ── pictogrammes ──
   const ps = o.live ? clamp(2.9 * s, 11, 26) : clamp(2.9 * s, 15 * u, 30 * u);
@@ -322,7 +325,7 @@ export function drawBoard(ctx, model, k, W, H, o = {}) {
     out.tabs.push({ k: lk, x, y, w: tabW, h: tabH });
   });
   // ── carte du plan ──
-  const fh = compact ? 15 : (live ? 26 : 38) * u, cardY = hh + (compact ? 6 : 16 * u), cardX = m, cardW = W - 2 * m, pad = compact ? 5 : 14 * u, titleH = compact ? 0 : 30 * u;
+  const fh = compact ? 15 : (live ? 30 : 38) * u, cardY = hh + (compact ? 6 : 16 * u), cardX = m, cardW = W - 2 * m, pad = compact ? 5 : 14 * u, titleH = compact ? 0 : 30 * u;
   const e = L.ext, aspect = (e.x1 - e.x0) / (e.z1 - e.z0), keysH = compact ? 34 : 0;
   const planW = cardW - 2 * pad, legendMin = compact ? 64 : (live ? 120 : 330) * u;
   const planH = Math.max(50, Math.min(planW / aspect, H - cardY - titleH - 2 * pad - keysH - legendMin - fh - (compact ? 10 : 16 * u)));
@@ -336,13 +339,15 @@ export function drawBoard(ctx, model, k, W, H, o = {}) {
   }
   const planBox = { x: cardX + pad, y: cardY + pad + titleH * 0.95, w: planW, h: planH };
   out.tf = drawPlan(ctx, model, L, planBox, { closed: o.closed, you: o.marker !== false && o.you && String(o.you.k) === String(k) ? o.you : null, u, live });
-  { // nord et échelle (en haut à droite de la carte ; sur le plan en petit écran)
-    const s = out.tf.s, q = compact ? 0.62 : u, nx = cardX + cardW - pad - 16 * q, ny = compact ? planBox.y + 14 : cardY + titleH / 2 + 2 * u;
-    if (compact) { ctx.fillStyle = 'rgba(253,252,248,0.85)'; rr(ctx, nx - 80, ny - 11, 92, 22, 6); ctx.fill(); }
-    ctx.fillStyle = C.navy; ctx.beginPath(); ctx.moveTo(nx, ny - 13 * q); ctx.lineTo(nx + 8 * q, ny + 9 * q); ctx.lineTo(nx, ny + 4 * q); ctx.lineTo(nx - 8 * q, ny + 9 * q); ctx.closePath(); ctx.fill();
+  { // nord et échelle : en haut à droite de la carte ; en petit écran, dans l'en-tête entre le titre et les onglets
+    // (ou, faute de place, sur le plan dans une pastille claire)
+    const s = out.tf.s, q = compact ? 0.62 : u, inHead = compact && tx0 - (tlx + tw) > 84;
+    const nx = inHead ? tx0 - 16 : cardX + cardW - pad - 16 * q, ny = inHead ? sy : compact ? planBox.y + 14 : cardY + titleH / 2 + 2 * u, ink = inHead ? C.cream : C.ink;
+    if (compact && !inHead) { ctx.fillStyle = 'rgba(253,252,248,0.85)'; rr(ctx, nx - 80, ny - 11, 92, 22, 6); ctx.fill(); }
+    ctx.fillStyle = inHead ? C.gold : C.navy; ctx.beginPath(); ctx.moveTo(nx, ny - 13 * q); ctx.lineTo(nx + 8 * q, ny + 9 * q); ctx.lineTo(nx, ny + 4 * q); ctx.lineTo(nx - 8 * q, ny + 9 * q); ctx.closePath(); ctx.fill();
     font(ctx, T(13), 800); ctx.textAlign = 'right'; ctx.fillText('N', nx - 11 * q, ny);
     const sm = s * 10 > 70 * q ? 10 : s * 20 > 70 * q ? 20 : 50, bw = sm * s, bx = nx - 30 * q - bw, by = ny + 2 * q;
-    ctx.fillStyle = C.ink; ctx.fillRect(bx, by, bw, 3 * q); ctx.fillRect(bx, by - 4 * q, 1.6 * q, 10 * q); ctx.fillRect(bx + bw - 1.6 * q, by - 4 * q, 1.6 * q, 10 * q);
+    ctx.fillStyle = ink; ctx.fillRect(bx, by, bw, 3 * q); ctx.fillRect(bx, by - 4 * q, 1.6 * q, 10 * q); ctx.fillRect(bx + bw - 1.6 * q, by - 4 * q, 1.6 * q, 10 * q);
     font(ctx, T(11), 600); ctx.textAlign = 'right'; ctx.fillText(sm + ' m', bx - 4 * q, by + 1);
   }
   if (o.levelClosed?.(k)) { // niveau entier fermé cette nuit
@@ -366,7 +371,7 @@ export function drawBoard(ctx, model, k, W, H, o = {}) {
   ctx.fillStyle = C.navy; ctx.fillRect(0, H - fh, W, fh);
   ctx.textAlign = 'center'; ctx.fillStyle = C.cream;
   const foot = o.hint || 'Horaires : du lundi au samedi, 9 h – 21 h · nocturne le vendredi jusqu\'à 22 h · Accueil au niveau 0, hall d\'entrée';
-  t = fit(ctx, foot, W - 2 * m, compact ? 9.5 : T(live ? 13 : 16), 7, 600); font(ctx, t.px, 600); ctx.fillText(t.text, W / 2, H - fh / 2 + 1);
+  t = fit(ctx, foot, W - 2 * m, compact ? 9.5 : live ? Math.max(11.5, 15 * u) : 16 * u, 7, 600); font(ctx, t.px, 600); ctx.fillText(t.text, W / 2, H - fh / 2 + 1);
   ctx.restore();
   return out;
 }
@@ -400,19 +405,18 @@ function drawDirectory(ctx, model, L, box, u, o, compact) {
   } else { // parking : tout le centre, niveau par niveau
     for (const f of [0, 1]) { list.push({ head: LEVEL_TITLES[f], color: C.navy2 }); for (const s of model.shops.filter((q) => q.floor === f)) list.push({ s }); }
   }
-  // colonnes : le moins possible, tant que l'interligne reste confortable
+  // colonnes : un titre n'est jamais seul en bas d'une colonne ; le moins de colonnes possible tant que l'interligne
+  // reste confortable, puis le nombre de lignes qui fait tout tenir
+  const pack = (rows) => { const cs = [[]]; for (const it of list) { let c = cs[cs.length - 1]; if (c.length >= rows || (it.head && c.length >= rows - 1)) cs.push(c = []); c.push(it); } return cs; };
   const minCol = compact ? 112 : 240 * u, maxCols = Math.max(1, Math.floor(box.w / minCol)), minLh = compact ? 13 : 26 * u;
-  let cols = 1, rows = list.length;
-  for (; cols <= maxCols; cols++) { rows = Math.ceil(list.length / cols); if (box.h / rows >= minLh) break; }
-  cols = Math.min(cols, maxCols); rows = Math.ceil(list.length / cols);
-  // un titre ne reste pas seul en bas de colonne : une ligne de plus si besoin
-  const lh = Math.min(box.h / (rows + 0.5), compact ? 18 : 34 * u), colW = box.w / cols, fs = Math.min(lh * (compact ? 0.72 : 0.64), compact ? 11.5 : 21 * u);
-  let i = 0;
-  for (let c = 0; c < cols && i < list.length; c++) {
+  let nc = 1, rows = list.length;
+  for (; nc <= maxCols; nc++) { rows = Math.ceil(list.length / nc); while (pack(rows).length > nc) rows++; if (box.h / rows >= minLh) break; }
+  nc = Math.min(nc, maxCols);
+  const columns = pack(rows), lh = Math.min(box.h / rows, compact ? 18 : 34 * u), colW = box.w / nc, fs = Math.min(lh * (compact ? 0.72 : 0.64), compact ? 11.5 : 21 * u);
+  for (let c = 0; c < columns.length; c++) {
     const x = box.x + c * colW;
-    for (let r = 0; r < rows + 1 && i < list.length; r++) {
-      const it = list[i]; if ((it.head && r >= rows - 1) || r >= rows + (list[i + 1] ? 0 : 1)) break;
-      const y = box.y + r * lh + lh / 2;
+    for (let r = 0; r < columns[c].length; r++) {
+      const it = columns[c][r], y = box.y + r * lh + lh / 2;
       if (it.head) {
         ctx.fillStyle = it.color; rr(ctx, x, y - lh * 0.3, Math.max(3, 5 * u), lh * 0.6, 2); ctx.fill();
         const t = fit(ctx, it.head.toUpperCase(), colW - 16 * u, fs * 0.9, 7, 800); font(ctx, t.px, 800); ctx.fillStyle = C.navy; ctx.textAlign = 'left';
@@ -426,7 +430,6 @@ function drawDirectory(ctx, model, L, box, u, o, compact) {
         font(ctx, t.px, 600); ctx.fillStyle = shut ? '#8b9399' : C.ink; ctx.textAlign = 'left'; ctx.fillText(t.text, x + cw + fs * 0.45, y + 1);
         if (shut) { const w = ctx.measureText(t.text).width; font(ctx, t.px * 0.8, 400, 'Georgia, serif'); if (x + cw + fs * 0.7 + w + ctx.measureText(' fermé').width < x + colW) { ctx.fillStyle = '#8b9399'; ctx.fillText(' fermé', x + cw + fs * 0.45 + w + 2, y + 1); } }
       }
-      i++;
     }
   }
 }

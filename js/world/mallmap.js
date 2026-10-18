@@ -27,7 +27,7 @@ const CAT_OF = {
 const catOf = (s) => CAT_OF[s.id] || (s.layout === 'food' ? 'resto' : s.layout === 'racks' ? 'mode' : 'services');
 const NOT_SHOP = new Set(['staff', 'office', 'toilets']);
 const PUB_AREAS = new Set(['gallery0', 'gallery1', 'entrance']);
-const SHORT = { secstore: 'Réserve', vestiaire: 'Vestiaire', trash: 'Poubelles', hvac: 'Ventilation', generator: 'Groupe électrogène', electrical: 'Local électrique', pa: 'Régie', boiler: 'Chaufferie' };
+const SHORT = { secstore: 'Réserve', vestiaire: 'Vestiaire', trash: 'Poubelles', hvac: 'Ventilation', generator: 'Groupe', electrical: 'Électricité', pa: 'Régie', boiler: 'Chaufferie' };
 
 // ───────── modèle ─────────
 export function buildPlanModel(world) {
@@ -49,7 +49,8 @@ export function buildPlanModel(world) {
 
 function buildLevel(world, g, model, k, Y, doors, vz) {
   const L = { k, y: Y, fills: [], walls: [], glass: [], treads: [], pictos: [], labels: [], esc: [], voids: [], kiosks: [], mainDoors: [] };
-  const zs = world.zones.filter((z) => z.min[1] <= Y + 1 && z.max[1] >= Y + 1.6 && !['vent', 'void', 'roof'].includes(z.type) && z.id !== 'b13' && (!z.outdoor || k === 0));
+  // zones du niveau ; celles qui en traversent plusieurs (escaliers, atrium) figurent à chaque niveau qu'elles desservent
+  const zs = world.zones.filter((z) => z.min[1] <= Y + 1 && z.max[1] >= Y + 1.6 && !['vent', 'void', 'roof'].includes(z.type) && z.id !== 'b13' && (!z.outdoor || k === 0) && (z.floor === k || z.type === 'stairs' || z.id === 'atrium' || z.outdoor));
   const shopOf = (z) => world.shops?.[z.shop]?.shop;
   const kindOf = (z) => {
     if (z.shop) { const s = shopOf(z); if (NOT_SHOP.has(s?.layout)) return s.layout === 'toilets' && !z.id.endsWith('_back') ? 'wc' : 'staff'; return z.id.endsWith('_back') ? 'back' : 'shop'; }
@@ -87,14 +88,14 @@ function buildLevel(world, g, model, k, Y, doors, vz) {
   // intérieures des boutiques sont omises, comme sur un vrai plan de centre)
   const inner = []; for (const c of Object.values(world.shops || {})) for (const z of [c.zone, c.back]) if (z) inner.push([z.min[0] + 0.45, z.min[2] + 0.45, z.max[0] - 0.45, z.max[2] - 0.45]);
   const inside = (x, z, r) => x > r[0] && x < r[2] && z > r[1] && z < r[3];
-  const ext = L.ext;
+  const near = L.fills.map((f) => [f.r[0] - 0.7, f.r[1] - 0.7, f.r[2] + 0.7, f.r[3] + 0.7]); // murs des zones de ce niveau seulement
   for (const b of world.physics.boxes) {
     if (!b.enabled) continue;
     const wall = b.layer === LAYER.WALL, glass = b.layer === LAYER.GLASS;
     if (!(wall || glass) || (wall && b.data)) continue;
     if (b.min[1] > Y + (glass ? 0.5 : 0.7) || b.max[1] < Y + (glass ? 0.9 : 1.8)) continue;
     const w = b.max[0] - b.min[0], d = b.max[2] - b.min[2], cx = (b.min[0] + b.max[0]) / 2, cz = (b.min[2] + b.max[2]) / 2;
-    if ((w > 9 && d > 9) || b.max[0] < ext.x0 || b.min[0] > ext.x1 || b.max[2] < ext.z0 || b.min[2] > ext.z1) continue;
+    if ((w > 9 && d > 9) || !near.some((r) => inside(cx, cz, r))) continue;
     if (wall && inner.some((r) => inside(cx, cz, r))) continue;
     (wall ? L.walls : L.glass).push([b.min[0], b.min[2], b.max[0], b.max[2]]);
   }
@@ -118,7 +119,7 @@ function buildLevel(world, g, model, k, Y, doors, vz) {
   for (const z of stairZones) { const [x, zz] = zc(z); P('stairs', x, zz); if (k >= 0 && kindOf(z) === 'stairs' && L.fills.find((f) => f.zone === z.id)?.pub) P('park', x + 2.8, z.max[2] - 2.2); }
   for (const f of L.fills) {
     if (f.t === 'wc') { P('wc', (f.r[0] + f.r[2]) / 2, (f.r[1] + f.r[3]) / 2, true); L.labels.push({ s: 'Toilettes', x: (f.r[0] + f.r[2]) / 2, z: (f.r[1] + f.r[3]) / 2 - 3.2, k: 'small', w: f.r[2] - f.r[0] }); }
-    if (f.t === 'sec') { const x = (f.r[0] + f.r[2]) / 2, z = (f.r[1] + f.r[3]) / 2; P('sec', x, z + 1.6, true); L.labels.push({ s: 'Poste de sécurité', x, z: z - 2.6, k: 'small', w: f.r[2] - f.r[0] }); }
+    if (f.t === 'sec') { const x = (f.r[0] + f.r[2]) / 2, z = (f.r[1] + f.r[3]) / 2; P('sec', x, z + 1.6, true); L.labels.push({ s: 'Sécurité', x, z: z - 2.6, k: 'small', w: f.r[2] - f.r[0] }); }
   }
   for (const d of doors) {
     const o = d.o; if (Math.abs((o.y ?? 0) - Y) > 0.6) continue;
@@ -146,8 +147,8 @@ function buildLevel(world, g, model, k, Y, doors, vz) {
     // on entre par l'allée centrale (vers l'ouest), on ressort par les allées latérales (vers l'est)
     const zs1 = (zA + 5.5 - 11.5) / 2, zn1 = (zB - 5.5 + 11.5) / 2, xm = (gz.min[0] + gz.max[0]) / 2;
     L.arrows = []; for (let x = x0 + 8; x < x1 - 8; x += 24) { if (Math.abs(x - xm) > 12) L.arrows.push([x + 3, 0, x - 3, 0]); L.arrows.push([x - 3, zs1, x + 3, zs1]); L.arrows.push([x - 3, zn1, x + 3, zn1]); }
-    L.labels.push({ s: 'Parking', x: xm + 1.5, z: 0, k: 'area', scale: 1.4, w: 22 });
-    P('park', xm - 10, 0, true);
+    L.labels.push({ s: 'Parking', x: xm + 2, z: 3.2, k: 'area', scale: 1.4, w: 22 });
+    P('park', xm - 13, 3.2, true);
   }
   if (rz && k === -1) { L.arrows ||= []; L.arrows.push([rz.min[0] + 4, (rz.min[2] + rz.max[2]) / 2, rz.max[0] - 6, (rz.min[2] + rz.max[2]) / 2]); L.labels.push({ s: 'Sortie véhicules', x: (rz.min[0] + rz.max[0]) / 2 + 4, z: rz.max[2] + 1.6, k: 'small', w: 30 }); }
   // ── étiquettes des zones ──
@@ -177,8 +178,9 @@ function canvasTexture(c, mips = true) {
   freeAfterUpload(t); ENV.renderer?.initTexture(t); // envoyée tout de suite : le canvas est libéré pendant le chargement
   return t;
 }
-export function boardCanvas(model, k, W = TEX_W, H = TEX_H, o = {}) {
-  const c = document.createElement('canvas'); c.width = W; c.height = H;
+// pancarte d'un niveau dans un canvas (réutilisé d'un niveau à l'autre quand la texture précédente est déjà envoyée)
+export function boardCanvas(model, k, W = TEX_W, H = TEX_H, o = {}, c = null) {
+  if (!c) { c = document.createElement('canvas'); c.width = W; c.height = H; }
   const info = drawBoard(c.getContext('2d'), model, k, W, H, o); return { canvas: c, info };
 }
 // calque commun : repère (pointe vers le haut), pastille « VOUS ÊTES ICI », plaque « i · Plan du centre »
@@ -227,12 +229,21 @@ export function buildMapSigns(world, A) {
   const model = world.mallPlan = buildPlanModel(world);
   if (!defs.length) return model;
   const tex = {}, info = {}, mats = new Map(), g = world.game;
-  const levelTex = (k) => { if (!tex[k]) { const b = boardCanvas(model, k); tex[k] = canvasTexture(b.canvas); info[k] = b.info; } return tex[k]; };
+  // un seul canvas de dessin : chaque texture part au GPU aussitôt dessinée (sans moteur de rendu : un canvas chacune)
+  let work = null;
+  const levelTex = (k) => {
+    if (tex[k]) return tex[k];
+    const b = boardCanvas(model, k, TEX_W, TEX_H, {}, ENV.renderer ? work : null); tex[k] = canvasTexture(b.canvas); info[k] = b.info;
+    if (ENV.renderer) work = b.canvas;
+    return tex[k];
+  };
   let ovTex = null;
   // un matériau par (zone, texture) : le rétroéclairage suit le circuit de la zone
   const matFor = (zone, key, map, alpha) => {
     const mk = zone + '|' + key; if (mats.has(mk)) return mats.get(mk);
-    const m = patchZone(new THREE.MeshStandardMaterial({ map, emissiveMap: map, emissive: 0xffffff, roughness: alpha ? 0.45 : 0.32, metalness: 0, envMap: ENV.map, envMapIntensity: 0.5, alphaTest: alpha ? 0.5 : 0 }), g.mats.zoneUniform(zone));
+    // panneau translucide rétroéclairé : renvoie peu la lumière ambiante (sinon blanc écrasé dans une zone éclairée)
+    const m = patchZone(new THREE.MeshStandardMaterial({ map, emissiveMap: map, emissive: 0xffffff, roughness: alpha ? 0.45 : 0.36, metalness: 0, envMap: ENV.map, envMapIntensity: 0.3, alphaTest: alpha ? 0.5 : 0 }), g.mats.zoneUniform(zone));
+    m.color.setScalar(0.55);
     m.userData.mapZone = world.zone(zone); m.userData.boost = alpha ? 1.3 : 1; mats.set(mk, m); return m;
   };
   for (const d of defs) {
@@ -249,7 +260,7 @@ function backlight(mesh, world) {
   mesh.onBeforeRender = () => {
     const m = mesh.material, z = m.userData.mapZone, P = world.game.power; if (!z || !P) return;
     const on = P.zoneOn(z), lit = (z._level || 0) > 0.2;
-    m.emissive.setScalar(on ? (lit ? 0.62 : 0.3) * m.userData.boost : 0.004);
+    m.emissive.setScalar(on ? (lit ? 0.22 : 0.2) * m.userData.boost : 0.004);
   };
 }
 // position d'un point du plan (monde) sur un panneau : coordonnées locales du panneau (largeur pw, hauteur ph)
