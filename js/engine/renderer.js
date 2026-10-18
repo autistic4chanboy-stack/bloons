@@ -375,7 +375,7 @@ void main() {
   c = toSRGB(clamp(c * brightness, 0.0, 1.0));
   float n = crtH2(floor(uv * resolution) + fract(t * 13.0) * 431.0);
   c += (n - 0.5) * noiseAmt * (0.7 + 0.6 * (1.0 - l));
-  if (offline > 0.5) c = vec3(n * 0.7);
+  if (offline > 0.5) c = vec3(n * 0.6);
   c *= mix(0.86, 1.0, 1.0 - smoothstep(0.32, 0.95, length(cc * vec2(1.0, 0.94)))) * mask;
 #ifdef CCTV_LIVE
   if (analog > 0.5) c = crtLive(c, uv, gl_FragCoord.xy, t, seed, lines, vis);

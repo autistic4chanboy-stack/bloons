@@ -30,7 +30,7 @@ function crtScreen(mat, seed) {
     sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform float crtT, crtSeed;\n' + CRT_LIVE + '\nvoid main() {').replace('#include <map_fragment>', `
       vec4 crtS = texture2D(map, vMapUv + vec2(crtJitter(vMapUv.y, crtT, crtSeed, 0.992), 0.0));
       vec3 crtC = crtLive(crtS.rgb, vMapUv, vMapUv * vec2(${(MON_W * 0.7).toFixed(1)}, ${(MON_H * 0.7).toFixed(1)}), crtT, crtSeed, 150.0, crtScanVis(vMapUv.y, 150.0));
-      crtC = clamp(crtC + (1.0 - crtS.a) * (crtH2(floor(vMapUv * vec2(128.0, 96.0)) + fract(crtT * 11.0) * 577.0) - 0.5) * 0.45, 0.0, 1.0);
+      crtC = clamp(crtC + (1.0 - crtS.a) * (crtH2(floor(vMapUv * vec2(${MON_W}.0, ${MON_H}.0)) + fract(crtT * 11.0) * 577.0) - 0.5) * 0.24, 0.0, 1.0);
       diffuseColor.rgb *= crtC * crtC * (crtC * 0.3 + 0.7); // ≈ décodage sRGB`);
   };
   mat.customProgramCacheKey = () => 'crt_screen';
