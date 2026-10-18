@@ -214,12 +214,14 @@ export function buildDecor(world, A, dev, rng) {
   ];
   // toile recto-verso (une seule géométrie : un appel de rendu), barres lestées haute et basse, suspentes inox
   const bgeo = twoSided(new THREE.PlaneGeometry(1.6, 3.2), 0.004);
-  [-56, -36, -10, 10, 36, 56].forEach((x, i) => {
+  // (sous les tirants des fermes de la verrière, tous les 4 m : x = ±10 n'avait pas de ferme, les suspentes y
+  // s'arrêtaient dans le vide ; elles montent jusqu'au tirant, dessous à 11,13)
+  [-56, -36, -12, 12, 36, 56].forEach((x, i) => {
     const b = banners[i % banners.length]; const zn = galZone(x, 1);
     const bm = new THREE.MeshStandardMaterial({ map: bannerTex(b[0], b[1], b[2], b[3]), roughness: 0.9 });
     const m = new THREE.Mesh(bgeo, bm); m.position.set(x, 8.5, 0); add(zn, m);
     for (const y of [10.12, 6.88]) A.tube(zn, 'steel_dark', V(x, y, -0.84), V(x, y, 0.84), 0.016, 0xffffff, { segs: 10 });
-    for (const sz of [-1, 1]) { A.tube(zn, 'aluminium', V(x, 10.135, sz * 0.78), V(x, 11.1, sz * 0.78), 0.0025, 0xffffff, { segs: 4, open: true }); A.lathe(zn, 'aluminium', [[0, 0], [0.012, 0], [0.012, 0.03], [0, 0.03]], 8, x, 10.13, sz * 0.78); }
+    for (const sz of [-1, 1]) { A.tube(zn, 'aluminium', V(x, 10.135, sz * 0.78), V(x, 11.13, sz * 0.78), 0.0025, 0xffffff, { segs: 4, open: true }); A.lathe(zn, 'aluminium', [[0, 0], [0.012, 0], [0.012, 0.03], [0, 0.03]], 8, x, 10.13, sz * 0.78); }
   });
   // ── totems publicitaires lumineux (double face) : caisson inox arrondi sur socle de granit, cadres d'affiche
   //    noirs sous verre, bandeau lumineux en tête ──
@@ -228,7 +230,7 @@ export function buildDecor(world, A, dev, rng) {
     const c = Math.cos(ry), s = Math.sin(ry), P = (lx, ly, lz) => [x + lx * c + lz * s, y + ly, z - lx * s + lz * c];
     A.rbox(zone, 'aluminium', ...P(0, 1.1, 0), 1.25, 2.0, 0.32, 0.04, 0xffffff, { ry, n: 2 });
     A.rbox(zone, 'granite', ...P(0, 0.05, 0), 1.31, 0.1, 0.38, 0.012, 0xffffff, { ry });
-    A.rbox(zone, 'furniture', ...P(0, 2.07, 0), 1.18, 0.05, 0.26, 0.015, 0xf3f1ea, { ry });
+    A.rbox(zone, 'furniture', ...P(0, 2.125, 0), 1.18, 0.05, 0.26, 0.015, 0xf3f1ea, { ry }); // bandeau posé sur le caisson (il était enfermé dedans)
     for (const sz of [-1, 1]) {
       for (const [lx, ly, w, h] of [[0, 1.89, 1.1, 0.045], [0, 0.42, 1.1, 0.045], [-0.528, 1.155, 0.044, 1.47], [0.528, 1.155, 0.044, 1.47]]) A.rbox(zone, 'furniture', ...P(lx, ly, sz * 0.162), w, h, 0.012, 0.004, 0x151515, { ry });
     }
@@ -307,7 +309,7 @@ export function buildDecor(world, A, dev, rng) {
     }
     for (const [px, pz] of [[-1.7, -1.4], [1.7, -1.4], [-1.7, 1.6], [1.7, 1.6]]) {
       world.physics.add(new Box(cx + px - 0.04, 0, pz - 0.04, cx + px + 0.04, 2.7, pz + 0.04, LAYER.FURN));
-      A.tube(zn, 'steel_dark', V(cx + px, 0.012, pz), V(cx + px, 2.7, pz), 0.04, 0xffffff, { segs: 12, open: true });
+      A.tube(zn, 'steel_dark', V(cx + px, 0.012, pz), V(cx + px, 2.81, pz), 0.04, 0xffffff, { segs: 12, open: true }); // jusque sous l'auvent (il flottait 11 cm au-dessus)
       A.lathe(zn, 'steel_dark', [[0, 0], [0.09, 0], [0.09, 0.012], [0.05, 0.016], [0, 0.016]], 12, cx + px, 0, pz);
     }
     A.rbox(zn, 'furniture', cx, 2.85, 0.1, 3.72, 0.08, 3.32, 0.02, color);                                                   // auvent

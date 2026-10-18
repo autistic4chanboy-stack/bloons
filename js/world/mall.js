@@ -156,10 +156,10 @@ export function buildMall(world) {
       A.panel(zn1, x, 9.0, 0, 3.2, 0.22, true); // (profilé, sans cadre)
       A.rbox(zn1, 'aluminium', x, 9.02, 0, 3.3, 0.11, 0.28, 0.025, 0xffffff, { n: 2 });
       for (const sx of [-1, 1]) A.box(zn1, 'furniture', x + sx * 1.651 - 0.004, 8.968, -0.12, x + sx * 1.651 + 0.004, 9.072, 0.12, { collide: false, color: 0x2a2c2e, flat: true });
-      for (const sx of [-1, 1]) {
-        A.tube(zn1, 'steel', V3(x + sx * 1.19, 9.075, 0), V3(x + sx * 1.19, 11.1, 0), 0.0022, 0xffffff, { segs: 4, open: true });
+      for (const sx of [-1, 1]) { // câbles jusqu'à la panne faîtière de la verrière (dessous à 13,72 ; ils s'arrêtaient dans le vide à 11,1)
+        A.tube(zn1, 'steel', V3(x + sx * 1.19, 9.075, 0), V3(x + sx * 1.19, 13.72, 0), 0.0022, 0xffffff, { segs: 4, open: true });
         A.lathe(zn1, 'aluminium', [[0.012, 0], [0.012, 0.045], [0.004, 0.06]], 8, x + sx * 1.19, 9.075, 0);
-        A.lathe(zn1, 'aluminium', [[0, -0.02], [0.04, -0.02], [0.04, 0], [0, 0]], 10, x + sx * 1.19, 11.1, 0);
+        A.lathe(zn1, 'aluminium', [[0, -0.02], [0.04, -0.02], [0.04, 0], [0, 0]], 10, x + sx * 1.19, 13.72, 0);
       }
     }
   }
@@ -189,7 +189,7 @@ export function buildMall(world) {
   for (const [x, z] of [[-28.5, 5.2], [28.5, -5.2]]) dev('trash_can', x < 0 ? 'gallery0_w' : 'gallery0_e', x, 0.4, z, 0, { contents: ['banana_peel', 'newspaper'] });
   for (const [x, z, ry] of [[-31, -4.7, 0], [31, 4.7, Math.PI], [-52, 4.7, Math.PI], [52, -4.7, 0], [-38, 4.7, Math.PI], [38, -4.7, 0]]) dev('mall_bench', x < 0 ? 'gallery1_w' : 'gallery1_e', x, 5.225, z, ry);
   dev('massage_chair', 'gallery1_e', 57, 5.6, -7.2, 0); // contre le mur des toilettes, hors de la voie et de la porte
-  dev('water_fountain', 'gallery0_w', -64.5, 0.6, 6.5, Math.PI / 2);
+  dev('water_fountain', 'gallery0_w', -65.66, 0.6, 6.5, Math.PI / 2); // contre le mur ouest (il était planté à 1,35 m du mur)
   // mur ouest (parement à x = -65,85) : façades tournées vers la galerie, dos contre le mur
   dev('fire_alarm', 'gallery0_w', -65.825, 1.4, -6.5, Math.PI / 2);
   dev('fire_alarm', 'gallery1_w', -65.825, 6.4, -6.5, Math.PI / 2);
