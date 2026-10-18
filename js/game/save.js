@@ -1,10 +1,13 @@
 // Sauvegardes dans le navigateur (localStorage) : réglages, 3 emplacements d'histoire, mode infini, découvertes.
+// Un emplacement d'histoire garde aussi le bilan des objectifs de chaque nuit terminée (stats.quests[n]) et les choix
+// des mini-quêtes (drapeaux q_*) ; une nuit recommencée repart avec ses objectifs à zéro.
 // Toutes les lectures/écritures sont protégées (navigation privée, stockage bloqué…).
 const KEY = 'nuitblanche.v1';
 
 export const DEFAULT_SETTINGS = {
   volume: 0.9, musicVolume: 0.8, sensitivity: 1, fov: 72, renderScale: 1, quality: 'medium', autoScale: true, shadows: true, bloom: true, volumetric: true, bodycam: true,
   screamers: true, subtitles: true, voices: true, invertY: false, showClock: true, playerName: 'Gardien', costume: 'guard', serverUrl: '',
+  questHud: true, // suivi des objectifs à l'écran (touche H)
 };
 
 function blank() { return { settings: { ...DEFAULT_SETTINGS }, slots: [null, null, null], infinite: { best: 0, runs: 0 }, discovered: {}, highscores: {}, endings: {}, lastSlot: 0 }; }

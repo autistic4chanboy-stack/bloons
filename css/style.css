@@ -218,3 +218,54 @@ code { font-family: var(--mono); background: #0b0f16; padding: 0 4px; border-rad
   .phone-ui { padding: 10px; } .phone-ui .pad { gap: 5px; } .phone-ui .pad button { padding: 7px 0; font-size: 17px; }
   .phone-ui .disp { font-size: 20px; min-height: 30px; } .phone-ui .contacts { max-height: 110px; }
 }
+
+/* ── Objectifs de la nuit (mini-quêtes, js/game/quests.js) : suivi discret en haut à gauche, annonces, journal (J) ── */
+.nb-quests { position: absolute; left: 16px; top: 14px; width: min(300px, 46vw); display: flex; flex-direction: column; gap: 5px; font-family: var(--mono); font-size: 12px; color: #e9edf2; text-shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.7); transition: opacity .2s; }
+.nb-quests.net { top: 34px; }
+#hud.hud-hidden .q-list, #hud.cctv-on .nb-quests, #hud.q-modal .nb-quests { opacity: 0; }
+.q-list { display: flex; flex-direction: column; gap: 4px; } .q-list.off { display: none; }
+.q-toast { display: none; padding: 5px 9px; background: rgba(8, 10, 16, 0.74); border-left: 3px solid var(--accent); border-radius: 2px; font-family: var(--sans); font-size: 13px; line-height: 1.3; }
+.q-toast.on { display: block; animation: qin .35s ease-out; } @keyframes qin { from { opacity: 0; transform: translateX(-10px); } }
+.q-toast b { color: var(--accent); font-weight: 600; }
+.q-toast.done { border-color: var(--ok); } .q-toast.done b { color: var(--ok); }
+.q-toast.fail { border-color: var(--red); } .q-toast.fail b { color: #ff8a9a; }
+.q-row { padding: 3px 8px 4px; border-left: 2px solid rgba(255, 179, 0, 0.75); background-image: linear-gradient(90deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0)); }
+.q-row.opt { border-left-color: rgba(79, 209, 255, 0.6); }
+.q-row.fresh { animation: qfresh 1.2s ease-out 2; } @keyframes qfresh { 0% { background-color: rgba(255, 179, 0, 0.3); } 100% { background-color: transparent; } }
+.q-t { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.q-tt { color: #ffe3a0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-row.opt .q-tt { color: #bfe9ff; font-weight: normal; }
+.q-p { flex: none; color: #fff; opacity: 0.9; }
+.q-s { display: flex; align-items: center; gap: 6px; margin-top: 1px; font-size: 11px; color: rgba(225, 232, 240, 0.72); white-space: nowrap; overflow: hidden; }
+.q-a { display: inline-block; flex: none; width: 10px; text-align: center; font-size: 9px; color: var(--accent); transition: transform .12s linear; }
+.q-row.opt .q-a { color: var(--cyan); }
+.q-d { flex: none; color: #fff; opacity: 0.85; }
+.q-sub { overflow: hidden; text-overflow: ellipsis; }
+.q-more { padding-left: 10px; font-size: 10px; color: var(--dim); }
+@media (max-width: 700px), (max-height: 420px) { .nb-quests { left: 10px; top: 10px; width: min(250px, 44vw); font-size: 11px; } .nb-quests.net { top: 28px; } .q-s { font-size: 10px; } .q-toast { font-size: 12px; } }
+/* journal de garde : cahier de consignes */
+.nb-journal { width: min(600px, 100%); max-height: 88vh; overflow-y: auto; background: #efe7d2; color: #2a2116; padding: 20px 26px 14px; border-radius: 3px; box-shadow: 0 10px 40px #000; font-family: Georgia, serif; font-size: 14px; line-height: 1.45; }
+.nb-journal h2 { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; margin: 0; padding-bottom: 6px; border-bottom: 1px solid #b9a98a; font-weight: normal; }
+.nb-journal h2 small { font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: #7d6c50; }
+.nb-journal .jr-sum { margin: 6px 0 8px; font-family: var(--mono); font-size: 12px; color: #5d4e36; }
+.jr-q { margin: 0 0 8px; padding-top: 6px; border-top: 1px dashed rgba(120, 100, 70, 0.35); }
+.jr-q h3 { margin: 0 0 3px; font-size: 15px; color: #3a2a12; } .jr-q h3 em { font-weight: normal; font-size: 12px; color: #7d6c50; }
+.jr-q.over h3 { color: #6b5a40; }
+.jr-q ul { list-style: none; margin: 0; padding: 0 0 0 4px; }
+.jr-q li { position: relative; padding: 1px 0 1px 20px; }
+.jr-q li::before { position: absolute; left: 2px; top: 1px; width: 14px; text-align: center; font-family: var(--mono); }
+.jr-q li.active { color: #1c140a; font-weight: bold; } .jr-q li.active::before { content: '▸'; color: #b26a00; }
+.jr-q li.done { color: #4c5a40; } .jr-q li.done::before { content: '✓'; color: #2f7d3a; }
+.jr-q li.failed { color: #8a3a40; text-decoration: line-through; text-decoration-color: rgba(160, 30, 50, 0.5); } .jr-q li.failed::before { content: '✗'; color: #b3263a; }
+.jr-q li.hidden { color: #8a7a60; font-style: italic; } .jr-q li.hidden::before { content: '…'; color: #8a7a60; }
+.jr-q li p { margin: 1px 0 3px; font-size: 13px; font-weight: normal; color: #4d3f2a; }
+.jr-q li p.jr-pts { font-family: var(--mono); font-size: 11.5px; color: #6b5a40; } .jr-pts span { white-space: nowrap; } .jr-pts .got { color: #2f7d3a; }
+.jr-p { margin-left: 8px; font-family: var(--mono); font-size: 12px; font-weight: normal; color: #9a5a00; }
+.jr-c { margin-left: 6px; font-style: italic; font-weight: normal; color: #5d4e36; }
+.jr-tag { display: inline-block; margin-left: 4px; padding: 0 5px; border: 1px solid rgba(90, 70, 40, 0.35); border-radius: 3px; font-family: var(--mono); font-size: 10px; font-weight: normal; font-style: normal; color: #6b5a40; vertical-align: 2px; }
+.jr-tag.ok { color: #2f7d3a; border-color: rgba(47, 125, 58, 0.5); } .jr-tag.ko { color: #b3263a; border-color: rgba(179, 38, 58, 0.45); }
+.jr-rw { margin: 2px 0 0 24px; font-size: 12px; font-style: italic; color: #6b5a40; }
+.jr-empty { font-style: italic; color: #6b5a40; }
+.nb-journal .btns { margin-top: 10px; } .nb-journal button { font-family: var(--sans); font-size: 13px; padding: 0.4em 0.9em; }
+.nb-journal .hint { margin: 4px 0 0; font-size: 11px; color: #7d6c50; }
+@media (max-height: 420px) { .nb-journal { padding: 10px 14px 8px; font-size: 12.5px; max-height: 94vh; } .nb-journal h2 { font-size: 17px; } .jr-q h3 { font-size: 13.5px; } .jr-q li p { font-size: 12px; } }

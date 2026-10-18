@@ -770,3 +770,19 @@ html:not(.spoilers-on) .sp-block:not(.revealed):hover::after { color: #fff; bord
 @media (forced-colors: active) {
   .sp > .sp-c { filter: none !important; }
 }
+
+/* ───────────────────────── Objectifs de nuit (mini-quêtes) ───────────────────────── */
+.q-quest { margin: 16px 0 0; padding: 14px 0 0; border-top: 1px dashed var(--line); }
+.q-quest:first-of-type { border-top: 0; padding-top: 0; }
+.q-quest h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 2px; font-size: 1.15rem; }
+.q-quest > p { margin: 0 0 8px; }
+.q-steps { list-style: none; padding: 0; margin: 0; counter-reset: qs; }
+.q-steps > li { display: grid; grid-template-columns: 6.2em 1fr; gap: 12px; margin: 0 0 10px; }
+.q-steps > li > div > p { margin: 3px 0 0; color: var(--text-2); }
+.q-kind { font: 400 1.05rem var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--green); padding-top: 1px; }
+.q-when { font: 400 1rem var(--font-mono); color: var(--amber); white-space: nowrap; }
+.q-route { display: block; margin-top: 2px; font-size: 0.88rem; color: var(--cyan-2); }
+.q-rw { margin: 4px 0 0; font-size: 0.9rem; color: var(--amber); }
+.q-rw i { color: var(--text-2); }
+.q-night .sp-block { margin-top: 16px; }
+@media (max-width: 560px) { .q-steps > li { grid-template-columns: 1fr; gap: 2px; } }

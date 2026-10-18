@@ -1,6 +1,8 @@
 // Mode histoire : 10 nuits. Chaque nuit débloque magasins, zones, caméras et fonctionnalités.
 // scripted : événements à heure fixe (format 'HH:MM'), mêmes primitives « fx » que les événements aléatoires
 //            (voir js/data/events.js). cond (optionnel) : condition évaluée par le moteur.
+//            on (optionnel) : déclencheur d'une mini-quête (js/data/quests.js) ; l'événement part dès que la quête le lance
+//            (le gardien atteint l'étape), au plus tard à son heure (il compte alors comme lancé pour les quêtes).
 // random : {rate: événements aléatoires par heure de jeu, cats: catégories autorisées}
 // entities : présences actives cette nuit (avec niveau d'agressivité 0..1).
 
@@ -38,8 +40,8 @@ export const NIGHTS = [
     random: { rate: 1.2, cats: ['subtle'] },
     scripted: [
       { at: '22:35', fx: 'sound', sound: 'squeak', where: 'shop:jouets' },
-      { at: '23:20', fx: 'knock', where: 'shop:jouets', n: 1, item: 'ball' },
-      { at: '00:30', fx: 'device', kind: 'music_box', where: 'shop:jouets', dur: 40 },
+      { at: '23:20', fx: 'knock', where: 'shop:jouets', n: 1, item: 'ball', on: 'n1_bruit' },
+      { at: '00:30', fx: 'device', kind: 'music_box', where: 'shop:jouets', dur: 40, on: 'n1_boite' },
       { at: '01:40', fx: 'device', kind: 'kiddie', where: 'shop:jouets', dur: 12 },
       { at: '02:30', fx: 'cat', where: 'shop:jouets', act: 'knock' },
       { at: '03:00', fx: 'phone', caller: 'gerard_n1' },
@@ -52,10 +54,10 @@ export const NIGHTS = [
     entities: { cat: 0.4, shadow: 0.15 },
     random: { rate: 1.8, cats: ['subtle', 'items', 'shadow'] },
     scripted: [
-      { at: '22:50', fx: 'knock', where: 'shop:hyper', n: 6 },
-      { at: '23:40', fx: 'shadow', where: 'shop:hyper', dur: 3, cam: true },
+      { at: '22:50', fx: 'knock', where: 'shop:hyper', n: 6, on: 'n2_hyper' },
+      { at: '23:40', fx: 'shadow', where: 'shop:hyper', dur: 3, cam: true, on: 'n2_ombre' },
       { at: '00:45', fx: 'cart_roll', where: 'gallery0' },
-      { at: '01:30', fx: 'sound', sound: 'fridge_open', where: 'shop:hyper' },
+      { at: '01:30', fx: 'sound', sound: 'fridge_open', where: 'shop:hyper', on: 'n2_frigo' },
       { at: '02:15', fx: 'knock', where: 'shop:hyper', n: 10 },
       { at: '03:00', fx: 'pa', chime: true, line: '' },
       { at: '03:33', fx: 'shadow', where: 'shop:jouets', dur: 2, cam: true },
@@ -67,8 +69,8 @@ export const NIGHTS = [
     entities: { cat: 0.4, shadow: 0.2, bobby: 0.35 },
     random: { rate: 2.2, cats: ['subtle', 'items', 'shadow', 'devices'] },
     scripted: [
-      { at: '22:30', fx: 'tv_message', where: 'shop:electro', text: 'BONSOIR' },
-      { at: '23:00', fx: 'entity', type: 'bobby', action: 'activate' },
+      { at: '22:30', fx: 'tv_message', where: 'shop:electro', text: 'BONSOIR', on: 'n3_tv' },
+      { at: '23:00', fx: 'entity', type: 'bobby', action: 'activate', on: 'n3_bobby' },
       { at: '01:00', fx: 'device', kind: 'tv', where: 'shop:electro', dur: 30 },
       { at: '02:40', fx: 'phone', caller: 'breath' },
       { at: '04:00', fx: 'sound', sound: 'knock_triple', where: 'security_door' },
@@ -81,7 +83,7 @@ export const NIGHTS = [
     scripted: [
       { at: '22:45', fx: 'device', kind: 'console', where: 'shop:pixel', dur: 60 },
       { at: '00:00', fx: 'device', kind: 'arcade', where: 'shop:pixel', dur: 20 },
-      { at: '02:00', fx: 'device', kind: 'vcr', where: 'shop:videoclub', tape: 'no_label', dur: 90 },
+      { at: '02:00', fx: 'device', kind: 'vcr', where: 'shop:videoclub', tape: 'no_label', dur: 90, on: 'n4_vhs' },
       { at: '03:20', fx: 'device', kind: 'turntable', where: 'shop:videoclub', genre: 'creepy_vinyl', dur: 60 },
     ],
     news: ['Pixel Planet et le Rétro Vidéo Club ajoutés.', 'Un crochet de serrurier traînerait dans la réserve du vidéo-club…'] },
@@ -91,8 +93,8 @@ export const NIGHTS = [
     entities: { cat: 0.5, shadow: 0.3, bobby: 0.5, mannequin: 0.45 },
     random: { rate: 2.8, cats: ['subtle', 'items', 'shadow', 'devices', 'phone', 'mannequin'] },
     scripted: [
-      { at: '22:20', fx: 'entity', type: 'mannequin', action: 'activate', count: 1 },
-      { at: '01:00', fx: 'device', kind: 'piano', where: 'shop:instruments', dur: 25 },
+      { at: '22:20', fx: 'entity', type: 'mannequin', action: 'activate', count: 1, on: 'n5_mq' },
+      { at: '01:00', fx: 'device', kind: 'piano', where: 'shop:instruments', dur: 25, on: 'n5_piano' },
       { at: '02:30', fx: 'mannequin_pose', where: 'shop:mode' },
       { at: '03:33', fx: 'entity', type: 'mannequin', action: 'activate', count: 2 },
     ],
@@ -112,7 +114,7 @@ export const NIGHTS = [
     entities: { cat: 0.5, shadow: 0.35, bobby: 0.5, mannequin: 0.45 },
     random: { rate: 2.6, cats: ['subtle', 'items', 'shadow', 'devices', 'phone', 'mannequin', 'power', 'basement'] },
     scripted: [
-      { at: '00:20', fx: 'sparks', where: 'shop:electro', cond: 'electro_powered' },
+      { at: '00:20', fx: 'sparks', where: 'shop:electro', cond: 'electro_powered', on: 'n7_sparks' },
       { at: '00:50', fx: 'sparks', where: 'shop:electro', cond: 'electro_powered' },
       { at: '01:15', fx: 'fire', where: 'shop:electro', cause: 'wiring', cond: 'electro_powered' },
       { at: '03:00', fx: 'pipe' },
@@ -124,10 +126,10 @@ export const NIGHTS = [
     entities: { cat: 0.6, shadow: 0.35, bobby: 0.5, mannequin: 0.5, crawler: 0.55 },
     random: { rate: 3, cats: ['subtle', 'items', 'shadow', 'devices', 'phone', 'mannequin', 'power', 'vents', 'food'] },
     scripted: [
-      { at: '23:00', fx: 'device', kind: 'projector', where: 'shop:cinema', dur: 120 },
+      { at: '23:00', fx: 'device', kind: 'projector', where: 'shop:cinema', dur: 120, on: 'n8_proj' },
       { at: '23:30', fx: 'entity', type: 'crawler', action: 'activate' },
       { at: '02:00', fx: 'device', kind: 'conveyor', where: 'shop:sushi', dur: 90 },
-      { at: '03:10', fx: 'sound', sound: 'vent_bang', where: 'vents' },
+      { at: '03:10', fx: 'sound', sound: 'vent_bang', where: 'vents', on: 'n8_bang' },
     ],
     news: ['Conduits d\'aération sous caméra. Trappe blindée au-dessus du poste.', 'Restauration, cinéma, arcade, animalerie, coiffeur, photo, déco ajoutés.'] },
   { n: 9, title: 'Neuvième nuit', subtitle: 'L\'obscurité', start: '21:30',

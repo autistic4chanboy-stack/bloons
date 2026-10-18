@@ -5,6 +5,7 @@ import { W, html, icon, pad2, nightMinutes, minutesToHHMM } from './lib.js';
 import * as G from './pages/guide.js';
 import * as M from './pages/world.js';
 import * as X from './pages/extras.js';
+import * as Q from './pages/quests.js';
 import { buildSearchIndex, initSearch } from './search.js';
 import { NIGHT_REAL_MINUTES } from './content.js';
 
@@ -16,15 +17,17 @@ const DATA_MODULES = {
   phone: '../js/data/phone.js',
   lore: '../js/data/lore.js',
   costumes: '../js/data/costumes.js',
+  quests: '../js/data/quests.js',
 };
 const SCREENS_MODULE = '../js/screens/screens.js';
 
-// Ordre = numérotation des « chaînes » (CH 01…17) affichée dans la navigation.
+// Ordre = numérotation des « chaînes » (CH 01…18) affichée dans la navigation.
 export const ROUTES = [
   { id: '', title: 'Accueil', group: 'Démarrer', page: G.home },
   { id: 'controles', title: 'Contrôles', group: 'Démarrer', page: G.controls, blurb: 'Clavier, souris, AZERTY ou QWERTY.' },
   { id: 'poste', title: 'Poste de sécurité', group: 'Jouer', page: G.security, blurb: 'Caméras, porte blindée, alarmes, électricité.' },
   { id: 'histoire', title: 'Mode histoire', group: 'Jouer', page: G.story, blurb: 'Les dix nuits, une par une.' },
+  { id: 'objectifs', title: 'Objectifs de nuit', group: 'Jouer', page: Q.quests, blurb: 'Rondes, bornes à pointer et mini-quêtes de chaque nuit.' },
   { id: 'infini', title: 'Mode infini', group: 'Jouer', page: G.infinite, blurb: 'Tenir le plus de nuits possible.' },
   { id: 'presences', title: 'Présences', group: 'Encyclopédie', page: X.entities, blurb: 'Ce qui rôde la nuit, et comment y survivre.' },
   { id: 'magasins', title: 'Magasins & plan', group: 'Encyclopédie', page: M.shops, blurb: 'Le plan des deux niveaux et chaque boutique.' },

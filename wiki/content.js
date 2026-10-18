@@ -36,6 +36,8 @@ export const CONTROLS = [
     { keys: ['←', '→', 'Molette'], or: true, action: 'Sur le plan : changer de niveau (parking −1, niveau 0, niveau 1) ; Échap, E ou un clic referment' },
     { keys: ['N'], action: 'Regarder l\'heure' },
     { keys: ['T'], action: 'Chat textuel (multijoueur)' },
+    { keys: ['J'], action: 'Journal de garde : les [[page:objectifs|objectifs de la nuit]]' },
+    { keys: ['H'], action: 'Masquer / afficher le suivi des objectifs' },
     { keys: ['Échap'], action: 'Pause' },
   ] },
   { group: 'Au bureau de sécurité', rows: [

@@ -362,6 +362,7 @@ export class PropSystem {
     if (d.use === 'sit' || d.use === 'chair_spin') return 'S\'asseoir';
     if (d.use === 'candle') return pr.data.lit ? 'Souffler' : (p.hasItem('lighter') || p.hasItem('matches') ? 'Allumer' : null);
     if (d.use === 'radio' || d.use === 'lamp' || d.use === 'nightlight' || d.use === 'disco' || d.use === 'loopdevice') return pr.data.on ? 'Éteindre' : 'Allumer';
+    if (d.use === 'music_box') return pr.data.on ? 'Arrêter la mélodie' : 'Remonter';
     if (d.use === 'place_sensor' && pr.data.armed) return 'Désarmer';
     if (d.use === 'rc_car' && pr.state.where === 'world' && p.heldDef?.id === 'portable_cam' && !pr.data.camMounted) return 'Fixer la caméra sur la voiture';
     if (d.use === 'rc_car' && pr.state.where === 'world') return 'Piloter (télécommande)' + (pr.data.camMounted ? ' — caméra embarquée' : '');
@@ -388,7 +389,7 @@ export class PropSystem {
       return;
     }
     if (d.use === 'candle') { const p = g.playerById(actor); if (pr.data.lit || p?.hasItem('lighter') || p?.hasItem('matches')) pr.set({ data: { ...pr.data, lit: !pr.data.lit } }); return; }
-    if (['radio', 'lamp', 'nightlight', 'disco', 'loopdevice'].includes(d.use)) { pr.set({ data: { ...pr.data, on: !pr.data.on } }); return; }
+    if (['radio', 'lamp', 'nightlight', 'disco', 'loopdevice', 'music_box'].includes(d.use)) { pr.set({ data: { ...pr.data, on: !pr.data.on } }); return; }
     if (d.use === 'place_sensor') { pr.set({ data: { ...pr.data, armed: false } }); return; }
   }
 

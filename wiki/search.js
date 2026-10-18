@@ -8,6 +8,7 @@ import { isSpoilerEvent } from './pages/world.js';
 const TYPES = {
   page: 'Pages', item: 'Objets', shop: 'Magasins', zone: 'Zones', entity: 'Présences', event: 'Événements',
   phone: 'Numéros', lore: 'Lore', costume: 'Costumes & lampes', ending: 'Fins', screen: 'Écrans', control: 'Contrôles', egg: 'Easter eggs',
+  quest: 'Objectifs',
 };
 const STAFF = new Set(['employee', 'pizza', 'self', 'gerard', 'director']);
 let INDEX = [];
@@ -53,6 +54,12 @@ export function buildSearchIndex(routes) {
     for (const [n, t] of Object.entries(D.GERARD_NOTES || {})) add('lore', `Note de Gérard — nuit ${n}`, 'Lore', '#/lore?at=notes', t);
     EASTER_EGGS.forEach((e) => add('egg', e.title, e.hint, '#/easter-eggs', strip(e.text(D))));
   }
+  // objectifs de nuit : consignes de Gérard toujours, le reste seulement avec les spoilers
+  for (const [n, list] of Object.entries(D.QUESTS || {})) for (const q of list) {
+    if (!q.giver && !spOn) continue;
+    add('quest', q.title, `Nuit ${n}${q.optional ? ' · facultatif' : ''}`, '#/objectifs?at=q-' + q.id, q.steps.map((s) => `${s.title} ${s.desc || ''}`).join(' '));
+  }
+  if (D.CHECKPOINTS) add('quest', 'Bornes de ronde', 'Pointer (E) · ' + Object.keys(D.CHECKPOINTS).length + ' bornes', '#/objectifs?at=obj-bornes', 'pointer pointage ronde badge ' + Object.values(D.CHECKPOINTS).map((c) => c.name).join(' '));
   for (const [k, c] of Object.entries(D.COSTUMES || {})) add('costume', c.name, 'Costume', '#/costumes?at=costume-' + k, c.desc, visible(c.color));
   for (const [k, l] of Object.entries(D.FLASHLIGHTS || {})) if (k !== 'none') add('costume', l.name, 'Lampe', '#/costumes?at=lampe-' + k, '', l.color);
   for (const e of [...(D.ENDINGS || []), ...(D.EPILOGUES || [])]) add('ending', e.name, e.early ? 'Fin anticipée' : 'Fin', '#/fins?at=fin-' + e.id, spOn ? e.desc : '');
