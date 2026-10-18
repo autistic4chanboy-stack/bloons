@@ -1049,11 +1049,11 @@ function buildStairsW(world, A, door) {
   A.wallZ(zn, 'block', 13, 22, -76, -4.5, 0, 0.2, [{ a: 17.25, b: 18.25, y0: -4.5, y1: -2.4 }]);
   A.wallZ(zn, 'block', 13, 22, -76, 10.5, 13.5, 0.2, [{ a: 17.25, b: 18.25, y0: 10.5, y1: 12.6 }]);
   A.box(zn, 'block', -76.1, 10.0, 13, -75.9, 10.5, 22, { collide: false, faces: 'X' }); // bande au droit de la dalle du toit (zone du toit masquée depuis la cage : on voyait le ciel)
-  // même chose au droit de la dalle de l'étage (entre les murs du RDC et de l'étage, x = -76 et -66) et de la rive de la
-  // dalle du parking (en retrait de 15 cm sous le mur du magasin voisin) : on voyait au travers de ces fentes
+  // même chose au droit de la dalle de l'étage côté ouest (entre les murs des couloirs du RDC et de l'étage) ; côté est,
+  // parement de parpaing sur toute la hauteur : on y voyait l'enduit blanc des magasins voisins, une fente au droit de la
+  // dalle de l'étage (avec l'intérieur du magasin au travers) et la rive en retrait de la dalle du parking
   A.box(zn, 'block', -76.1, 4.6, 13, -75.9, 5.0, 22, { collide: false, faces: 'X' });
-  A.box(zn, 'block', -66.15, 4.6, 13, -65.85, 5.0, 22, { collide: false, faces: 'x' });
-  A.box(zn, 'block', -66.15, -0.6, 13, -66.0, 0, 22, { collide: false, faces: 'x' });
+  A.box(zn, 'block', -66.17, -4.5, 13, -66.15, 10, 22, { collide: false, faces: 'x' });
   // toit de la cage
   A.box(zn, 'concrete', -76.2, 13.5, 12.8, -65.8, 13.9, 22.2);
   door('stW_B', { panic: true, zone: zn, x: -76, y: -4.5, z: 17.75, axis: 'z', width: 1, mat: 'metal', name: 'Escalier ouest — sous-sol', gate: 'basement', window: true });
@@ -1086,11 +1086,13 @@ function buildStairsE(world, A, door) {
   A.wallX(zn, 'block', 66, 80, 22, -4.5, 0, 0.2);
   A.wallX(zn, 'block', 66, 80, 22, 0, 10, 0.2, [{ a: 76.4, b: 77.6, y0: 0, y1: 2.2 }, { a: 76.4, b: 77.6, y0: 5, y1: 7.2 }]);
   A.wallX(zn, 'block', 66, 80, 8, -4.5, 0, 0.3);
-  // bandes au droit de la dalle de l'étage (fentes entre les murs du RDC et de l'étage, côtés ouest et sud) et de la rive
-  // de la dalle du parking (retrait de 30 cm entre le mur du parking et celui du magasin voisin)
-  A.box(zn, 'block', 65.85, 4.6, 8, 66.15, 5.0, 22, { collide: false, faces: 'X' });
-  A.box(zn, 'block', 66, 4.6, 7.85, 80, 5.0, 8.15, { collide: false, faces: 'Z' });
-  A.box(zn, 'block', 66.0, -0.6, 8, 66.3, 0, 22, { collide: false, faces: 'XY' });
+  // parements de parpaing : côté ouest (mur du parking en bas, enduit du magasin voisin au-dessus avec une fente au droit
+  // de la dalle de l'étage et la rive en retrait de la dalle du parking : un seul nu à x = 66,32, découpé autour de
+  // l'huisserie de la porte du parking) et côté sud (enduit du hall et de la mezzanine, fente au droit de la dalle),
+  // découpé autour des huisseries des deux portes
+  for (const [z0, z1, y0] of [[8, 8.535, -4.5], [9.965, 22, -4.5], [8.535, 9.965, -2.235]]) A.box(zn, 'block', 66.3, y0, z0, 66.32, -0.6, z1, { collide: false, faces: 'X' });
+  A.box(zn, 'block', 66.15, -0.6, 8, 66.32, 10, 22, { faces: 'X' });
+  for (const [x0, x1, y0, y1] of [[66.32, 76.935, 0, 10], [78.265, 80, 0, 10], [76.935, 78.265, 2.265, 5], [76.935, 78.265, 7.265, 10]]) A.box(zn, 'block', x0, y0, 8.15, x1, y1, 8.17, { collide: false, faces: 'Z' });
   A.ceiling(zn, 'concrete', 66, 8, 80, 22, 10, 0.4);
   door('stE_svc0', { panic: true, zone: zn, x: 77, y: 0, z: 22, axis: 'x', width: 1.2, mat: 'metal', name: 'Escalier est → couloir de service', gate: 'service', swing: 1 });
   door('stE_svc1', { panic: true, zone: zn, x: 77, y: 5, z: 22, axis: 'x', width: 1.2, mat: 'metal', name: 'Escalier est → couloir de service (étage)', gate: 'service', swing: 1 });
@@ -1460,6 +1462,10 @@ function buildRoof(world, A, door, dev, rng) {
   for (let x = -75; x <= 75; x += 25) for (const z of [-25.5, 25.5]) A.tube(zn, 'furniture_metal', V3(x, y + 1.14, z), V3(x, y + 1.9, z), 0.008, 0xb08d57, { segs: 5 });
   world.points.antenna = new THREE.Vector3(61, y + 9.2, -20);
   dev('extinguisher_box', zn, -80.225, y + 0.5, 15, Math.PI / 2); // contre l'acrotère (face à x = -80,35)
+  // potence de la caméra du toit (cam_roof, à côté de la cage d'escalier : rien au-dessus pour la suspendre) : bras
+  // horizontal du haut du support de la caméra jusqu'au mur sud de la cage, platine murale
+  A.furn(zn, -75.535, 13.385, 12.56, -75.505, 13.415, 12.9, 0x8a8f93, { metal: true, collide: false });
+  A.furn(zn, -75.58, 13.34, 12.885, -75.46, 13.46, 12.9, 0x6d7276, { metal: true, collide: false });
   world.points.roof = new THREE.Vector3(-70, y, 0);
 }
 
