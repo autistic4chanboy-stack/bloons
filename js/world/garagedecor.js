@@ -173,7 +173,7 @@ export function buildGarageDecor(world, A, dev, rng) {
   // panneaux muraux
   const fUV = uvRect(SIGNS.fumer[0], SIGNS.fumer[1], 512, 128), nUV = uvRect(SIGNS.niveau[0], SIGNS.niveau[1], 512, 128);
   for (const x of [-36, 12, 48]) { Q.wall(x, yb + 1.9, -23.99, 0, 1, 1.4, 0.35, fUV); Q.wall(x - 12, yb + 1.9, 23.99, 0, -1, 1.4, 0.35, fUV); }
-  Q.wall(65.99, yb + 2.6, 11.4, -1, 0, 1.6, 0.4, nUV); Q.wall(-65.99, yb + 2.6, 4.4, 1, 0, 1.6, 0.4, nUV);
+  Q.wall(65.99, yb + 2.6, 11.4, -1, 0, 1.6, 0.4, nUV); Q.wall(-65.835, yb + 2.6, 4.4, 1, 0, 1.6, 0.4, nUV); // ouest : devant le parement de béton (x = -65,84)
   // ── avaloirs : grilles de fonte dans l'allée centrale ──
   for (const x of [-48, -24, 0, 24, 48]) for (const z of [-3, 3]) {
     A.furn(zn, x - 0.3, yb, z - 0.2, x + 0.3, yb + 0.006, z + 0.2, 0x2a2b2c, { metal: true, collide: false });

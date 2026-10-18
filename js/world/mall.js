@@ -236,17 +236,17 @@ export function buildMall(world) {
   A.ceiling('secstore', 'ceiling', -76, -22, -66, -5, 4.6, 0.05, { collide: false });
   A.ceiling('vestiaire', 'ceiling', -76, 5, -66, 13, 4.6, 0.05, { collide: false });
   A.ceiling('westwing0', 'concrete', -80, -25, -76, 25, 4.6, 0.05, { collide: false });
-  // murs habillés du poste : boiseries
-  A.box('security', 'woodpanel', -75.88, 0, -5, -75.86, 3.2, 5, { collide: false });
-  A.box('security', 'woodpanel', -66.14, 0, -5, -66.12, 3.2, -0.75, { collide: false });
-  A.box('security', 'woodpanel', -66.14, 0, 0.75, -66.12, 3.2, 5, { collide: false });
+  // murs habillés du poste : boiseries découpées autour des huisseries des portes (arrière : z 2,5 … 3,5, h 2,1 ;
+  // blindée : z ±0,75, h 2,5 ; chambranles de 6,5 cm) ; à l'est, contre la face du mur de la galerie (x = -66,15)
+  for (const [z0, z1, y0, y1] of [[-5, 2.435, 0, 3.2], [3.565, 5, 0, 3.2], [2.435, 3.565, 2.165, 3.2]]) A.box('security', 'woodpanel', -75.88, y0, z0, -75.86, y1, z1, { collide: false });
+  for (const [z0, z1, y0, y1] of [[-5, -0.815, 0, 3.2], [0.815, 5, 0, 3.2], [-0.815, 0.815, 2.565, 3.2]]) A.box('security', 'woodpanel', -66.17, y0, z0, -66.15, y1, z1, { collide: false });
   LP(A, 'security', -70, 3.2, -2.5, 1.2, 0.6); LP(A, 'security', -70, 3.2, 2.5, 1.2, 0.6, false);
   LP(A, 'secstore', -71, 4.6, -13, 1.2, 0.3); LP(A, 'vestiaire', -71, 4.6, 9, 1.2, 0.3);
   for (let z = -21; z <= 21; z += 7) LP(A, 'westwing0', -78, 4.6, z, 0.3, 1.2, z % 14 === 0);
 
   // Portes du bloc ouest
   door('sec_front', { zone: 'security', x: -66, y: 0, z: 0, axis: 'z', width: 1.5, height: 2.5, mat: 'metal', armored: true, name: 'Porte blindée du poste', color: 0x50606a, hinge: 'a', swing: -1, label: 'SÉCURITÉ' });
-  door('sec_back', { zone: 'security', x: -76, y: 0, z: 3, axis: 'z', width: 1, mat: 'metal', lock: 'keys', locked: true, name: 'Porte arrière du poste', swing: 1 });
+  door('sec_back', { zone: 'security', x: -76, y: 0, z: 3, axis: 'z', width: 1, mat: 'metal', lock: 'keys', locked: true, name: 'Porte arrière du poste', swing: -1, hinge: 'b' }); // charnière côté nord : le vantail ouvert ne rentre plus dans la console des écrans
   door('sec_store', { zone: 'secstore', x: -73, y: 0, z: -5, axis: 'x', width: 1, mat: 'wood', name: 'Réserve de sécurité', swing: 1 });
   door('sec_vest', { zone: 'vestiaire', x: -73, y: 0, z: 5, axis: 'x', width: 1, mat: 'wood', name: 'Vestiaire', swing: -1 });
   door('store_ww', { zone: 'secstore', x: -76, y: 0, z: -13, axis: 'z', width: 1, mat: 'metal', lock: 'keys', locked: true, name: 'Réserve (couloir)', swing: 1 });
@@ -254,13 +254,14 @@ export function buildMall(world) {
 
   buildSecurityRoom(world, A, dev);
   // Réserve de sécurité : étagères + équipement
-  for (const z of [-20.5, -16, -11.5]) shelfUnit(A, 'secstore', -75.4, z, 'z', 3.5, 0x6d7b84, 4);
-  dev('extinguisher_box', 'secstore', -66.4, 1.0, -18, Math.PI / 2 * -1);
+  // (la porte du couloir, z ∈ [-13,5, -12,5], et le débattement de son vantail restent dégagés)
+  for (const z of [-21.5, -17.5, -12.2]) shelfUnit(A, 'secstore', -75.4, z, 'z', 3.5, 0x6d7b84, 4);
+  dev('extinguisher_box', 'secstore', -66.275, 1.0, -18, Math.PI / 2 * -1);
   // Vestiaire : casiers, banc, lavabo, miroir, douche
   for (let i = 0; i < 6; i++) { const lk = new Locker(world, world.newId('locker'), { zone: 'vestiaire', x: -75.6 + 0.0, y: 0, z: 6 + i * 0.45, ry: Math.PI / 2, name: i === 0 ? 'GÉRARD' : i === 1 ? 'VOUS' : null, contents: i === 0 ? ['gerard_note', 'battery'] : i === 1 ? ['flashlight_spare'] : rng.chance(0.5) ? [rng.pick(['coffee_pack', 'candy_bar', 'magazine', 'battery', 'coin'])] : [], locked: i === 0 }); world.add(lk); }
   dev('mall_bench', 'vestiaire', -72, 0.225, 9, Math.PI / 2);
-  dev('sink', 'vestiaire', -66.6, 0, 11.5, -Math.PI / 2);
-  dev('mirror_wall', 'vestiaire', -66.2, 1.6, 11.5, -Math.PI / 2);
+  dev('sink', 'vestiaire', -66.4, 0.45, 11.5, -Math.PI / 2); // centre de l'appareil : dos de la vasque contre le mur (x = -66,15)
+  dev('mirror_wall', 'vestiaire', -66.16, 1.6, 11.5, -Math.PI / 2);
   // faïence à hauteur d'homme, cabine de douche d'angle (receveur, paroi et porte vitrées, colonne de douche,
   // mitigeur, bonde), siphons de sol, porte-manteaux
   A.box('vestiaire', 'toilet_tiles', -75.9, 0, 12.88, -66.1, 1.6, 12.9, { collide: false });
@@ -282,6 +283,7 @@ export function buildMall(world) {
 
   // Aile ouest (couloir) : mur extérieur x = -80 avec porte de l'entrepôt
   A.wallZ('westwing0', 'block_dark', -25, 25, -80.2, 0, 4.6, 0.4, [{ a: -14, b: -11.4, y0: 0, y1: 3 }]);
+  A.floor('westwing0', 'concrete_floor', -80.4, -14, -80, -11.4, 0, 0.6, { faces: 'Y' }); // seuil de la double porte (le sol s'arrêtait de part et d'autre du mur : fente de 40 cm)
   door('wh_a', { zone: 'warehouse', x: -80.2, y: 0, z: -13.35, axis: 'z', width: 1.3, height: 2.9, mat: 'metal', name: 'Entrepôt', gate: 'warehouse', hinge: 'a', swing: -1, window: true });
   door('wh_b', { zone: 'warehouse', x: -80.2, y: 0, z: -12.05, axis: 'z', width: 1.3, height: 2.9, mat: 'metal', name: 'Entrepôt', gate: 'warehouse', hinge: 'b', swing: -1, window: true });
   // robinets d'incendie armés (aile ouest, RDC et étage) : coffret rouge vitré, dévidoir et tuyau enroulé, vanne
@@ -406,7 +408,7 @@ export function buildMall(world) {
   LP(A, 'trash', 73, 4.6, -15, 1.2, 0.3);
   door('trash_svc', { panic: true, zone: 'trash', x: 72.6, y: 0, z: -22, axis: 'x', width: 1.2, mat: 'metal', name: 'Local poubelles (service)', swing: 1, gate: 'service' });
   // bennes : cuve tôlée à rebord, deux couvercles plastique, poches de levage, roulettes
-  for (const [x, z] of [[68.5, -20.5], [71.5, -20.5], [78.5, -14]]) {
+  for (const [x, z] of [[68.5, -20.5], [70.9, -20.5], [78.5, -14]]) { // (la porte de service, x ∈ [72, 73,2], reste dégagée)
     world.physics.add(new Box(x - 1.1, 0, z - 0.7, x + 1.1, 1.3, z + 0.7, LAYER.FURN));
     A.rbox('trash', 'furniture_metal', x, 0.68, z, 2.1, 1.08, 1.3, 0.03, 0x2e5e3a);
     A.rbox('trash', 'furniture_metal', x, 1.22, z, 2.2, 0.05, 1.4, 0.015, 0x264d30);
@@ -743,7 +745,7 @@ function buildSecurityRoom(world, A, dev) {
   dev('wall_clock', zn, -66.2, 2.5, 3, -Math.PI / 2);
   dev('fan', zn, -72.9, 1.08, -2.4, Math.PI / 2 * 1.3);
   dev('desk_phone', zn, -73.2, 0.83, 2.1, Math.PI / 2, { security: true });
-  dev('pc_tower', zn, -74.2, 0.24, -2.2, Math.PI / 2, { os: 'security', monitor: true });
+  dev('pc_tower', zn, -74.2, 0.305, -2.2, Math.PI / 2, { os: 'security', monitor: true }); // posée sur la tablette basse de la niche (y 0,08)
   dev('lamp', zn, -74.2, 0.955, 2.55, Math.PI / 2, { autoOn: true, security: true });
   dev('office_chair', zn, -71.7, 0.55, 0, Math.PI / 2);
   // armoire à clés murale : caisson tôlé, porte à hublot (crochets visibles), serrure
@@ -761,10 +763,10 @@ function buildSecurityRoom(world, A, dev) {
   A.rbox(zn, 'furniture', -66.6, 1.3, -3.66, 0.42, 0.6, 0.14, 0.05, 0x1f2a44, { n: 2, rx: 0.06 });
   A.rbox(zn, 'furniture', -66.6, 1.62, -3.69, 0.3, 0.08, 0.1, 0.03, 0x1b2438, { n: 1 });
   // plinthes de bois, cadres des plafonniers
-  for (const [x0, z0, x1, z1] of [[-75.86, -4.9, -75.84, 2.5], [-75.86, 3.5, -75.84, 4.9], [-66.16, -4.9, -66.14, -0.75], [-66.16, 0.75, -66.14, 4.9], [-75.86, -4.9, -73.5, -4.88], [-72.5, -4.9, -66.14, -4.88], [-75.86, 4.88, -73.5, 4.9], [-72.5, 4.88, -66.14, 4.9]]) F(x0, 0, z0, x1, 0.1, z1, 0x3a2a1c);
-  // poster Bobby + calendrier
-  posterAt(world, zn, -66.14, 1.9, -2.8, -Math.PI / 2, 1);
-  posterAt(world, zn, -66.14, 1.8, -1.6, -Math.PI / 2, 8);
+  for (const [x0, z0, x1, z1] of [[-75.86, -4.9, -75.84, 2.435], [-75.86, 3.565, -75.84, 4.9], [-66.19, -4.9, -66.17, -0.815], [-66.19, 0.815, -66.17, 4.9], [-75.86, -4.9, -73.565, -4.88], [-72.435, -4.9, -66.17, -4.88], [-75.86, 4.88, -73.565, 4.9], [-72.435, 4.88, -66.17, 4.9]]) F(x0, 0, z0, x1, 0.1, z1, 0x3a2a1c);
+  // poster Bobby + calendrier (sur la boiserie est)
+  posterAt(world, zn, -66.175, 1.9, -2.8, -Math.PI / 2, 1);
+  posterAt(world, zn, -66.175, 1.8, -1.6, -Math.PI / 2, 8);
   // tiroir du bureau (équipement de la nuit)
   world.securityDrawer = new Container(world, world.newId('drawer'), { zone: zn, name: 'Tiroir du bureau', contents: [], box: [-72.5, 0.45, -1.5, -72.3, 0.7, -0.5] });
   world.add(world.securityDrawer);
@@ -782,7 +784,7 @@ function buildSecurityRoom(world, A, dev) {
 // jaune). Collision inchangée.
 function planterSmall(A, zn, x, z) {
   const y = A.world.zone(zn).min[1];
-  A.world.physics.add(new Box(x - 0.25, y, z - 0.25, x + 0.25, y + 0.45, z + 0.25, LAYER.FURN));
+  A.world.physics.add(new Box(x - 0.25, y, z - 0.25, x + 0.25, y + 1.1, z + 0.25, LAYER.FURN)); // pot et feuillage (on ne traverse plus les feuilles)
   A.lathe(zn, 'furniture', [[0, 0], [0.165, 0], [0.165, 0.012], [0.2, 0.36], [0.2, 0.36], [0.236, 0.372], [0.242, 0.45], [0.242, 0.45], [0.214, 0.45], [0.206, 0.4]], 18, x, y, z, 0xa1543a);
   A.lathe(zn, 'furniture', [[0.206, 0.4], [0, 0.41]], 18, x, y, z, 0x2a1d15);
   const lv = { pos: [], nor: [], col: [], idx: [] }, C0 = new THREE.Color(0x2c5a28), C1 = new THREE.Color(0x9c9a3c);
@@ -838,7 +840,7 @@ function buildAdmin(world, A, door, dev, rng) {
   for (const [x0, x1, zs] of [[-70, -66, [7, -7, -12]], [-76, -72, [7, -7, -14]]]) for (const zw of zs) A.wallX('adm_couloir', wall, x0, x1, zw, y, yc, 0.12);
   // bras du couloir en croix : cloisons z = ±1 (accueil ouvert sur le hall par une baie vitrée)
   A.wallX('adm_couloir', wall, -76, -72, 1, y, yc, 0.12); A.wallX('adm_couloir', wall, -76, -72, -1, y, yc, 0.12); A.wallX('adm_couloir', wall, -70, -66, -1, y, yc, 0.12);
-  A.wallX('adm_couloir', wall, -70, -66, 1, y, yc, 0.12, [{ a: -68.8, b: -67.2, y0: y, y1: y + 2.2 }]);
+  A.wallX('adm_couloir', wall, -70, -66, 1, y, yc, 0.12, [{ a: -68.7, b: -67.3, y0: y, y1: y + 2.1 }]); // baie aux cotes de la porte vitrée sans cadre (1,4 × 2,1)
   // portes (badges en façade : nom du service)
   const labels = { adm_reunion: 'RÉUNION', adm_compta: 'COMPTA', adm_coffre: 'COFFRES', adm_archives: 'ARCHIVES', adm_info: 'INFORMATIQUE', adm_repro: 'REPRO', adm_rh: 'RH', adm_market: 'MARKETING', adm_infirm: 'INFIRMERIE' };
   for (const [id, name, b] of ADMIN_ROOMS) {
@@ -852,7 +854,7 @@ function buildAdmin(world, A, door, dev, rng) {
   }
   door('arch_g', { zone: 'adm_couloir', x: -66, y, z: 0, axis: 'z', width: 1.2, mat: 'wood', lock: 'keys', locked: true, name: 'Administration', label: 'ADMINISTRATION', swing: 1, window: true });
   door('arch_w', { zone: 'adm_couloir', x: -76, y, z: 0, axis: 'z', width: 1.2, mat: 'wood', name: 'Administration (couloir de service)', swing: -1 });
-  door('adm_acc', { zone: 'adm_accueil', x: -68, y, z: 1, axis: 'x', width: 1.4, mat: 'glass', name: 'Accueil de l\'administration', swing: 1 });
+  door('adm_acc', { zone: 'adm_accueil', x: -68, y, z: 1, axis: 'x', width: 1.4, mat: 'glass', name: 'Accueil de l\'administration', swing: 1, hinge: 'b' }); // s'ouvre vers l'accueil (elle barrait le couloir)
   const wh = (zn, x, yy, z, ry, title, lines) => { // tableau blanc lisible
     const c = document.createElement('canvas'); c.width = 512; c.height = 320; const x2 = c.getContext('2d');
     x2.fillStyle = '#f4f6f6'; x2.fillRect(0, 0, 512, 320); x2.strokeStyle = '#9aa'; x2.lineWidth = 8; x2.strokeRect(4, 4, 504, 312);
@@ -902,8 +904,8 @@ function buildAdmin(world, A, door, dev, rng) {
   A.furn('adm_accueil', -69.55, y, 2.35, -68.95, y + 0.08, 5.65, 0x2a2420, { collide: false }); A.furn('adm_accueil', -69.6, y + 0.08, 2.3, -68.9, y + 1.05, 5.7, 0xe8e0d0, { collide: false });
   for (const z of [3.15, 4.0, 4.85]) A.furn('adm_accueil', -69.605, y + 0.12, z - 0.003, -69.6, y + 1.0, z + 0.003, 0xb8b0a0, { collide: false });
   A.rbox('adm_accueil', 'furniture', -69.25, y + 1.075, 4.0, 0.9, 0.05, 3.6, 0.012, 0x5d4037, { n: 2 });
-  A.rbox('adm_accueil', 'furniture', -68.75, y + 0.74, 4.0, 0.36, 0.03, 3.3, 0.008, 0x6d5040);
-  dev('desk_phone', 'adm_accueil', -69.2, y + 1.18, 3.0, Math.PI / 2); dev('pc_tower', 'adm_accueil', -69.2, y + 1.326, 4.8, Math.PI / 2, { os: 'shop', monitor: 'right' });
+  A.rbox('adm_accueil', 'furniture', -68.75, y + 0.74, 4.0, 0.36, 0.03, 3.3, 0.008, 0x6d5040); world.physics.add(new Box(-68.93, y, 2.35, -68.57, y + 0.76, 5.65, LAYER.FURN)); // plan de travail (collision)
+  dev('desk_phone', 'adm_accueil', -69.2, y + 1.15, 3.0, Math.PI / 2); dev('pc_tower', 'adm_accueil', -69.2, y + 1.326, 4.8, Math.PI / 2, { os: 'shop', monitor: 'right' });
   dev('office_chair', 'adm_accueil', -68.2, y + 0.55, 4.0, -Math.PI / 2);
   for (const z of [2.2, 3.4]) dev('chair', 'adm_accueil', -66.6, y + 0.45, z, -Math.PI / 2);
   planterSmall(A, 'adm_accueil', -66.5, 6.4); dev('water_fountain', 'adm_accueil', -66.5, y + 0.6, 5.2, -Math.PI / 2);
@@ -914,9 +916,10 @@ function buildAdmin(world, A, door, dev, rng) {
   world.physics.add(new Box(-69.0, y, 8.3, -67.0, y + 0.74, 11.8, LAYER.FURN)); // table : plateau aux chants arrondis, deux fûts sur patins
   A.rbox('adm_reunion', 'furniture', -68, y + 0.72, 10.05, 2.0, 0.04, 3.5, 0.016, 0x4e3a2a, { n: 2 });
   for (const zc of [9.0, 11.1]) { A.rbox('adm_reunion', 'furniture_metal', -68, y + 0.36, zc, 0.22, 0.66, 0.5, 0.02, 0x3c4146); A.rbox('adm_reunion', 'furniture_metal', -68, y + 0.02, zc, 1.1, 0.04, 0.6, 0.012, 0x3c4146); }
-  for (const z of [8.8, 9.9, 11.0]) { dev('office_chair', 'adm_reunion', -69.4, y + 0.55, z, Math.PI / 2); dev('office_chair', 'adm_reunion', -66.6, y + 0.55, z, -Math.PI / 2); }
-  wh('adm_reunion', -68, y + 1.6, 12.87, Math.PI, 'Réunion du lundi', ['- Sécurité : nouveau gardien de nuit (essai)', '- Bobby : costume à faire nettoyer ?!', '- NE PAS rouvrir le sous-sol B (ordre de M. D.)', '- Budget Noël : guirlandes atrium', '- Plaintes : bruits la nuit (galerie étage)']);
-  dev('crt_tv', 'adm_reunion', -66.5, y + 1.2, 12.3, -Math.PI * 0.75, { channel: 'channel:news' });
+  for (const z of [8.8, 9.9, 11.0]) dev('office_chair', 'adm_reunion', -66.6, y + 0.55, z, -Math.PI / 2);
+  for (const z of [8.6, 11.4]) dev('office_chair', 'adm_reunion', -69.4, y + 0.55, z, Math.PI / 2); // côté porte : de part et d'autre de l'entrée (z 9,5 … 10,5)
+  wh('adm_reunion', -68, y + 1.6, 12.896, Math.PI, 'Réunion du lundi', ['- Sécurité : nouveau gardien de nuit (essai)', '- Bobby : costume à faire nettoyer ?!', '- NE PAS rouvrir le sous-sol B (ordre de M. D.)', '- Budget Noël : guirlandes atrium', '- Plaintes : bruits la nuit (galerie étage)']);
+  dev('crt_tv', 'adm_reunion', -66.5, y + 1.15, 12.3, -Math.PI * 0.75, { channel: 'channel:news' }); // sur le meuble télé (dessus à y + 0,9)
   world.physics.add(new Box(-66.9, y, 11.9, -66.1, y + 0.9, 12.7, LAYER.FURN)); // meuble télé : caisson, deux portes, poignées
   A.rbox('adm_reunion', 'furniture', -66.5, y + 0.45, 12.3, 0.8, 0.9, 0.8, 0.01, 0x5d4037);
   for (const [z0, z1, h] of [[11.91, 12.29, 12.24], [12.31, 12.69, 12.36]]) { A.furn('adm_reunion', -66.92, y + 0.08, z0, -66.9, y + 0.86, z1, 0x6a4a3f, { collide: false }); A.furn('adm_reunion', -66.94, y + 0.55, h - 0.008, -66.92, y + 0.7, h + 0.008, 0x9c9fa2, { metal: true, collide: false }); }
@@ -924,7 +927,7 @@ function buildAdmin(world, A, door, dev, rng) {
   desk('adm_compta', -69.7, -6.4, -68.3, -4.9); desk('adm_compta', -67.7, -6.4, -66.3, -4.9);
   dev('pc_tower', 'adm_compta', -69.0, y + 0.986, -6.1, 0, { os: 'shop', monitor: 'right' }); dev('pc_tower', 'adm_compta', -67.0, y + 0.986, -6.1, 0, { os: 'shop', monitor: 'right' });
   dev('office_chair', 'adm_compta', -69.0, y + 0.55, -4.3, Math.PI); dev('office_chair', 'adm_compta', -67.0, y + 0.55, -4.3, Math.PI);
-  dev('desk_phone', 'adm_compta', -68.5, y + 0.83, -5.2, 0);
+  dev('desk_phone', 'adm_compta', -68.5, y + 0.81, -5.2, 0);
   cabinet('adm_compta', -66.45, -2.0, -Math.PI / 2, 'Classeur — factures', ['notebook']); cabinet('adm_compta', -66.45, -2.6, -Math.PI / 2, 'Classeur — paies', []);
   // post-it oublié sur le bureau, à côté d'un sous-main et d'un stylo
   A.furn('adm_compta', -67.45, y + 0.76, -5.75, -66.85, y + 0.765, -5.3, 0x2c3a46, { collide: false });
@@ -933,8 +936,8 @@ function buildAdmin(world, A, door, dev, rng) {
   A.furn('adm_compta', -67.3, y + 0.765, -5.2, -67.16, y + 0.775, -5.19, 0x1a3a8a, { collide: false });
   world.add(new Readable(world, world.newId('read'), { zone: 'adm_compta', name: 'Post-it sur le bureau', title: 'Post-it', text: 'Coffres : 0412\n(ne PAS laisser traîner — Martine)', box: [-66.82, y + 0.74, -5.42, -66.56, y + 0.82, -5.2] }));
   // ── salle des coffres ──
-  dev('safe', 'adm_coffre', -66.7, y + 0.55, -10.6, -Math.PI / 2, { shop: 'adm', code: '2711', contents: ['cash', 'cash', 'cash', 'cash_drawer_money'] });
-  dev('safe', 'adm_coffre', -66.7, y + 0.55, -8.6, -Math.PI / 2, { shop: 'adm', code: '1987', contents: ['cash', 'old_newspaper', 'photo_album'] });
+  dev('safe', 'adm_coffre', -66.45, y + 0.35, -10.6, -Math.PI / 2, { shop: 'adm', code: '2711', contents: ['cash', 'cash', 'cash', 'cash_drawer_money'] });
+  dev('safe', 'adm_coffre', -66.45, y + 0.35, -8.6, -Math.PI / 2, { shop: 'adm', code: '1987', contents: ['cash', 'old_newspaper', 'photo_album'] });
   desk('adm_coffre', -69.6, -11.6, -68.4, -10.2, 0x4a4f55);
   world.physics.add(new Box(-69.4, y + 0.76, -11.3, -68.8, y + 0.98, -10.8, LAYER.FURN)); // compteuse de billets : trémie, afficheur, bac
   A.rbox('adm_coffre', 'furniture', -69.1, y + 0.83, -11.05, 0.6, 0.14, 0.5, 0.025, 0x2b2f33, { n: 2 });
@@ -946,9 +949,11 @@ function buildAdmin(world, A, door, dev, rng) {
   A.furn('adm_coffre', -69.49, y + 0.765, -10.384, -69.19, y + 0.795, -10.376, 0xe8e0c8, { collide: false });
   world.add(new Readable(world, world.newId('read'), { zone: 'adm_coffre', name: 'Registre des fonds', title: 'Registre des fonds', text: 'Coffre n°1 : recettes de la semaine (code changé le 27/11).\nCoffre n°2 : « effets personnels — dossier 1987 ». Ne pas ouvrir sans M. Desmarais.', box: [-69.55, y + 0.74, -10.68, -69.12, y + 0.84, -10.32] }));
   // ── archives (cartons historiques, étagères, vieille télé) ──
-  for (let i = 0; i < 3; i++) shelfUnit(A, 'adm_archives', -69.8, -21.6 + i * 3.3, 'z', 2.6, 0x8d8d8d, 4, 2.3, 0.45, y);
+  // étagères le long de la cloison du couloir (de part et d'autre de la porte, z ∈ [-17.5, -16.5], et du débattement du
+  // vantail) et dans l'angle du mur sud ; cartons alignés contre le mur est
+  for (const [sx, sz, ax, len] of [[-69.8, -21.85, 'z', 2.6], [-69.8, -16.1, 'z', 2.6], [-69.3, -21.9, 'x', 1.7]]) shelfUnit(A, 'adm_archives', sx, sz, ax, len, 0x8d8d8d, 4, 2.3, 0.45, y);
   for (let i = 0; i < 10; i++) {
-    const bx = -67.2 + (i % 2) * 0.75, bz = -21.6 + Math.floor(i / 2) * 1.4;
+    const bx = -67.45 + (i % 2) * 0.68, bz = -21.6 + Math.floor(i / 2) * 1.4;
     const c = new Container(world, world.newId('box'), { zone: 'adm_archives', name: 'Carton d\'archives ' + (1987 + i * 4), contents: i === 3 ? ['lore_page'] : i === 7 ? ['old_newspaper'] : rng.chance(0.6) ? [rng.pick(['photo_frame', 'notebook', 'magazine'])] : [], box: [bx, y, bz, bx + 0.6, y + 0.45, bz + 0.45] });
     world.add(c); A.furn('adm_archives', bx, y, bz, bx + 0.6, y + 0.45, bz + 0.45, 0xa1887f, { collide: true });
     A.furn('adm_archives', bx - 0.006, y + 0.41, bz - 0.006, bx + 0.606, y + 0.46, bz + 0.456, 0xae9584, { collide: false }); // couvercle
@@ -978,31 +983,31 @@ function buildAdmin(world, A, door, dev, rng) {
   dev('pc_tower', 'adm_info', -73.0, y + 0.986, 2.0, -Math.PI / 2, { os: 'security', monitor: 'right' }); desk('adm_info', -73.4, 1.4, -72.4, 2.8, 0x37474f, 'x-');
   dev('office_chair', 'adm_info', -73.8, y + 0.55, 2.1, Math.PI / 2);
   // ── reprographie ──
-  dev('printer', 'adm_repro', -75.4, y + 0.95, 9.0, Math.PI / 2);
+  dev('printer', 'adm_repro', -75.4, y + 1.005, 9.0, Math.PI / 2); // posée sur le plateau (y + 0,88)
   world.physics.add(new Box(-75.9, y, 8.3, -74.9, y + 0.88, 9.7, LAYER.FURN)); // table d'imprimante : plateau, piètement tubulaire, tablette à ramettes
   A.rbox('adm_repro', 'furniture_metal', -75.4, y + 0.86, 9.0, 1.0, 0.04, 1.4, 0.008, 0xd0d0d0);
   for (const [lx, lz] of [[-75.86, 8.34], [-74.94, 8.34], [-75.86, 9.66], [-74.94, 9.66]]) A.tube('adm_repro', 'furniture_metal', V3(lx, y, lz), V3(lx, y + 0.84, lz), 0.02, 0x7d8387, { segs: 8 });
   A.furn('adm_repro', -75.86, y + 0.2, 8.34, -74.94, y + 0.22, 9.66, 0xbfc5c8, { metal: true, collide: false });
   for (let k = 0; k < 3; k++) A.furn('adm_repro', -75.7, y + 0.22 + k * 0.055, 8.5 + k * 0.02, -75.4, y + 0.27 + k * 0.055, 8.71 + k * 0.02, 0xf4f4f0, { collide: false });
-  world.physics.add(new Box(-75.9, y, 10.4, -75.1, y + 1.05, 11.4, LAYER.FURN)); // photocopieuse : caisson, cassettes, vitre d'exposition et capot, pupitre, bac de sortie
+  world.physics.add(new Box(-75.9, y, 10.4, -75.1, y + 1.05, 11.4, LAYER.FURN)); world.physics.add(new Box(-75.76, y + 0.6, 11.4, -75.24, y + 0.72, 11.58, LAYER.FURN)); // photocopieuse : caisson, cassettes, vitre d'exposition et capot, pupitre, bac de sortie
   A.rbox('adm_repro', 'furniture', -75.5, y + 0.5, 10.9, 0.8, 1.0, 1.0, 0.03, 0xc5cacd, { n: 2 });
   for (let k = 0; k < 3; k++) { A.furn('adm_repro', -75.1, y + 0.1 + k * 0.17, 10.45, -75.09, y + 0.25 + k * 0.17, 11.35, 0xb2b8bc, { collide: false }); A.furn('adm_repro', -75.09, y + 0.2 + k * 0.17, 10.75, -75.075, y + 0.22 + k * 0.17, 11.05, 0x55595c, { collide: false }); }
   A.rbox('adm_repro', 'furniture', -75.5, y + 1.025, 10.9, 0.78, 0.05, 0.98, 0.015, 0x4a4f53);
   A.rbox('adm_repro', 'furniture', -75.18, y + 0.98, 11.2, 0.18, 0.06, 0.32, 0.01, 0x2a2e31, { rz: -0.35 });
   A.furn('adm_repro', -75.15, y + 0.97, 11.1, -75.13, y + 0.99, 11.14, 0x43a047, { collide: false });
   A.rbox('adm_repro', 'furniture', -75.5, y + 0.7, 11.47, 0.5, 0.02, 0.18, 0.006, 0xd8dcdf);
-  cabinet('adm_repro', -72.6, 12.2, -Math.PI / 2, 'Armoire à fournitures', ['notebook', 'battery', 'duct_tape']);
+  cabinet('adm_repro', -72.37, 12.2, -Math.PI / 2, 'Armoire à fournitures', ['notebook', 'battery', 'duct_tape']);
   shelfUnit(A, 'adm_repro', -75.9, 7.4, 'x', 2.8, 0x9e9e9e, 4, 2.0, 0.4, y);
   // ── ressources humaines ──
   desk('adm_rh', -75.6, -5.8, -74.0, -4.4, 0x6b4f3a, 'x+'); dev('pc_tower', 'adm_rh', -75.0, y + 0.986, -5.5, Math.PI / 2, { os: 'shop', monitor: 'left' }); dev('office_chair', 'adm_rh', -73.6, y + 0.55, -5.1, -Math.PI / 2);
-  cabinet('adm_rh', -75.55, -2.0, Math.PI / 2, 'Dossiers du personnel', ['notebook']); cabinet('adm_rh', -75.55, -2.6, Math.PI / 2, 'Dossiers du personnel (anciens)', ['old_newspaper']);
-  wh('adm_rh', -73.0, y + 1.6, -6.87, 0, 'Planning des gardiens', ['Lun–Dim : nuit (22 h – 6 h)', 'Gérard D. → départ en retraite', 'Remplaçant : à l\'essai (10 nuits)', 'Rappel : rondes toutes les heures !', '« Ne jamais descendre après 3 h 33 » ???']);
+  cabinet('adm_rh', -75.59, -2.0, Math.PI / 2, 'Dossiers du personnel', ['notebook']); cabinet('adm_rh', -75.59, -2.6, Math.PI / 2, 'Dossiers du personnel (anciens)', ['old_newspaper']);
+  wh('adm_rh', -73.0, y + 1.6, -6.936, 0, 'Planning des gardiens', ['Lun–Dim : nuit (22 h – 6 h)', 'Gérard D. → départ en retraite', 'Remplaçant : à l\'essai (10 nuits)', 'Rappel : rondes toutes les heures !', '« Ne jamais descendre après 3 h 33 » ???']);
   // ── marketing ──
   desk('adm_market', -75.6, -12.8, -74.0, -11.2, 0x6b4f3a, 'x+'); dev('pc_tower', 'adm_market', -75.0, y + 0.986, -12.4, Math.PI / 2, { os: 'shop', monitor: 'left' }); dev('office_chair', 'adm_market', -73.6, y + 0.55, -12.0, -Math.PI / 2);
   for (const [z, i] of [[-8.0, 0], [-9.0, 6], [-10.0, 7]]) posterAt(world, 'adm_market', -75.87, y + 1.7, z, Math.PI / 2, i);
   A.furn('adm_market', -73.2, y, -8.2, -72.6, y + 1.8, -7.6, 0xffb300); // présentoir en carton « Bobby »
   // ── infirmerie ──
-  world.physics.add(new Box(-75.7, y, -21.2, -74.7, y + 0.62, -19.2, LAYER.FURN)); // lit de repos : cadre tubulaire, sommier, matelas, oreiller, couverture pliée
+  world.physics.add(new Box(-75.7, y, -21.2, -74.7, y + 0.62, -19.2, LAYER.FURN)); world.physics.add(new Box(-75.7, y, -21.2, -74.7, y + 0.78, -21.12, LAYER.FURN)); // lit de repos (tête de lit : collision jusqu'au tube haut) : cadre tubulaire, sommier, matelas, oreiller, couverture pliée
   for (const [lx, lz] of [[-75.66, -21.16], [-74.74, -21.16], [-75.66, -19.24], [-74.74, -19.24]]) A.tube('adm_infirm', 'furniture_metal', V3(lx, y, lz), V3(lx, y + 0.5, lz), 0.018, 0xd8dadc, { segs: 8 });
   for (const lx of [-75.66, -74.74]) A.tube('adm_infirm', 'furniture_metal', V3(lx, y + 0.42, -21.16), V3(lx, y + 0.42, -19.24), 0.016, 0xd8dadc, { segs: 8 });
   A.tube('adm_infirm', 'furniture_metal', V3(-75.66, y + 0.75, -21.16), V3(-74.74, y + 0.75, -21.16), 0.016, 0xd8dadc, { segs: 8 });
@@ -1012,11 +1017,11 @@ function buildAdmin(world, A, door, dev, rng) {
   A.rbox('adm_infirm', 'furniture', -75.2, y + 0.66, -20.95, 0.6, 0.1, 0.32, 0.04, 0xfafafa, { n: 2 });
   A.rbox('adm_infirm', 'furniture', -75.2, y + 0.645, -19.6, 0.94, 0.05, 0.6, 0.02, 0x80cbc4, { n: 1 });
   world.add(new Seat(world, world.newId('seat'), { zone: 'adm_infirm', x: -75.2, y, z: -20.2, ry: Math.PI / 2, name: 'Lit de repos' }));
-  cabinet('adm_infirm', -72.6, -15.0, -Math.PI / 2, 'Armoire à pharmacie', ['first_aid', 'first_aid'], 1.8);
-  dev('sink', 'adm_infirm', -72.4, y, -17.2, -Math.PI / 2);
+  cabinet('adm_infirm', -72.37, -15.0, -Math.PI / 2, 'Armoire à pharmacie', ['first_aid', 'first_aid'], 1.8);
+  dev('sink', 'adm_infirm', -72.31, y + 0.45, -16.5, -Math.PI / 2); // contre la cloison du couloir, à l'écart de l'huisserie de la porte
   // caméras
-  world.cameras.push({ id: 'cam_admin', name: 'Administration — couloir', area: 'gallery1', zone: 'adm_couloir', pos: new THREE.Vector3(-71.6, 8.3, 12.4), yaw: 0, pitch: -0.3, fov: 70 });
-  world.cameras.push({ id: 'cam_coffre', name: 'Salle des coffres', area: 'gallery1', zone: 'adm_coffre', pos: new THREE.Vector3(-69.6, 8.3, -7.4), yaw: -0.65, pitch: -0.55, fov: 75 });
+  world.cameras.push({ id: 'cam_admin', name: 'Administration — couloir', area: 'gallery1', zone: 'adm_couloir', pos: new THREE.Vector3(-71.6, 8.4, 12.4), yaw: 0, pitch: -0.3, fov: 70 }); // (bras de fixation contre le faux plafond)
+  world.cameras.push({ id: 'cam_coffre', name: 'Salle des coffres', area: 'gallery1', zone: 'adm_coffre', pos: new THREE.Vector3(-69.6, 8.39, -7.4), yaw: -0.65, pitch: -0.55, fov: 75 });
 }
 
 // Habillage d'une volée posée par A.stairs (mêmes paramètres) : nez de marche en aluminium à bande antidérapante,
@@ -1036,6 +1041,8 @@ function stairDetail(A, zn, x, z, dir, width, run, rise, y0, steps, rails = []) 
   for (const [w, ws] of rails) {
     const yL = y0 + sr + 0.9, yH = y0 + rise + 0.9, path = roundPath([P(-0.3, yL, w), P(0, yL, w), P(run - sd, yH, w), P(run - sd + 0.3, yH, w)], 0.2, 4);
     A.sweep(zn, 'steel', path, circleShape(0.021, 10), 0xffffff, { caps: true });
+    // prolongements horizontaux aux deux bouts (au-delà du noyau ou du mur qui porte la rampe) : collision
+    for (const [u0, u1, yy] of [[-0.3, 0, yL], [run - sd, run - sd + 0.3, yH]]) { const a = P(u0, yy, w - 0.025), b = P(u1, yy, w + 0.025); A.world.physics.add(new Box(Math.min(a.x, b.x), yy - 0.03, Math.min(a.z, b.z), Math.max(a.x, b.x), yy + 0.03, Math.max(a.z, b.z), LAYER.FURN)); }
     const n = Math.max(2, Math.round(run / 1.4));
     for (let k = 0; k <= n; k++) {
       const u = (run - sd) * k / n, yr = yL + (yH - yL) * k / n, a = P(u, yr - 0.02, w), b = P(u, yr - 0.07, w + ws * 0.065);
@@ -1051,16 +1058,17 @@ function buildStairsW(world, A, door) {
   const levels = [-4.5, 0, 5, 10.5];
   for (let li = 0; li < levels.length; li++) {
     const y = levels[li];
-    A.floor(zn, 'concrete_floor', -76, 13, -73.5, 22, y, 0.3);
+    A.floor(zn, 'concrete_floor', -76, 13, -73.5, 22, y, 0.3, { faces: 'xXzZYy' }); // (sous-face visible depuis les volées du dessous)
     if (li < levels.length - 1) {
       const h = levels[li + 1] - y; const half = h / 2; const steps = Math.round(half / 0.25);
       A.stairs(zn, 'concrete', -73.5, 13.2, 'x+', 2.4, 5.5, half, y, steps);
-      A.floor(zn, 'concrete_floor', -68, 13, -66, 22, y + half, 0.3);
+      A.floor(zn, 'concrete_floor', -68, 13, -66, 22, y + half, 0.3, { faces: 'xXzZYy' });
       A.stairs(zn, 'concrete', -68, 19.4, 'x-', 2.4, 5.5, half, y + half, steps);
       stairDetail(A, zn, -73.5, 13.2, 'x+', 2.4, 5.5, half, y, steps, [[-0.035, -1], [2.435, 1]]);
       stairDetail(A, zn, -68, 19.4, 'x-', 2.4, 5.5, half, y + half, steps, [[-0.035, -1], [2.435, 1]]);
-      LP(A, zn, -67, y + half + 2.6, 17.5, 0.3, 1.0, li % 2 === 0);
-      LP(A, zn, -75, y + 3.2, 17.5, 0.3, 1.0, false);
+      // appliques contre les murs (elles flottaient au milieu de la cage)
+      LP(A, zn, -66.3, y + half + 2.6, 17.5, 0.3, 1.0, li % 2 === 0);
+      LP(A, zn, -75.75, y + 3.2, 17.5, 0.3, 1.0, false);
     }
   }
   // noyau central plein
@@ -1070,6 +1078,11 @@ function buildStairsW(world, A, door) {
   A.wallZ(zn, 'block', 13, 22, -76, -4.5, 0, 0.2, [{ a: 17.25, b: 18.25, y0: -4.5, y1: -2.4 }]);
   A.wallZ(zn, 'block', 13, 22, -76, 10.5, 13.5, 0.2, [{ a: 17.25, b: 18.25, y0: 10.5, y1: 12.6 }]);
   A.box(zn, 'block', -76.1, 10.0, 13, -75.9, 10.5, 22, { collide: false, faces: 'X' }); // bande au droit de la dalle du toit (zone du toit masquée depuis la cage : on voyait le ciel)
+  // même chose au droit de la dalle de l'étage côté ouest (entre les murs des couloirs du RDC et de l'étage) ; côté est,
+  // parement de parpaing sur toute la hauteur : on y voyait l'enduit blanc des magasins voisins, une fente au droit de la
+  // dalle de l'étage (avec l'intérieur du magasin au travers) et la rive en retrait de la dalle du parking
+  A.box(zn, 'block', -76.1, 4.6, 13, -75.9, 5.0, 22, { collide: false, faces: 'X' });
+  A.box(zn, 'block', -66.17, -4.5, 13, -66.15, 10, 22, { collide: false, faces: 'x' });
   // toit de la cage
   A.box(zn, 'concrete', -76.2, 13.5, 12.8, -65.8, 13.9, 22.2);
   door('stW_B', { panic: true, zone: zn, x: -76, y: -4.5, z: 17.75, axis: 'z', width: 1, mat: 'metal', name: 'Escalier ouest — sous-sol', gate: 'basement', window: true });
@@ -1083,25 +1096,34 @@ function buildStairsE(world, A, door) {
   const levels = [-4.5, 0, 5];
   for (let li = 0; li < levels.length; li++) {
     const y = levels[li];
-    A.floor(zn, 'concrete_floor', 66, 8, 80, 10.5, y, 0.3);
-    A.floor(zn, 'concrete_floor', 74, 10.5, 80, 22, y, 0.3);
-    LP(A, zn, 77, y + 3.6, 15, 0.3, 1.2, true);
+    A.floor(zn, 'concrete_floor', 66, 8, 80, 10.5, y, 0.3, { faces: 'xXzZYy' });
+    A.floor(zn, 'concrete_floor', 74, 10.5, 80, 22, y, 0.3, { faces: 'xXzZYy' });
+    LP(A, zn, 79.85, y + 3.6, 15, 0.3, 1.2, true); // applique contre le mur est
     if (li < levels.length - 1) {
       const h = levels[li + 1] - y; const half = h / 2; const steps = Math.round(half / 0.25);
       A.stairs(zn, 'concrete', 66.6, 10.5, 'z+', 2.4, 9, half, y, steps);
-      A.floor(zn, 'concrete_floor', 66, 19.5, 73.4, 22, y + half, 0.3);
+      A.floor(zn, 'concrete_floor', 66, 19.5, 73.4, 22, y + half, 0.3, { faces: 'xXzZYy' });
       A.stairs(zn, 'concrete', 71.0, 19.5, 'z-', 2.4, 9, half, y + half, steps);
       stairDetail(A, zn, 66.6, 10.5, 'z+', 2.4, 9, half, y, steps, [[2.435, 1]]);
       stairDetail(A, zn, 71.0, 19.5, 'z-', 2.4, 9, half, y + half, steps, [[-0.035, -1], [2.535, 1]]);
-      LP(A, zn, 69.5, y + half + 2.6, 20.8, 1.0, 0.3, false);
+      LP(A, zn, 69.5, y + half + 2.6, 21.75, 1.0, 0.3, false); // applique contre le mur nord
     }
   }
   A.box(zn, 'block', 69.1, -4.5, 10.5, 70.9, 10, 19.5);
   A.wallZ(zn, 'block', 10.5, 22, 73.7, -4.5, 10, 0.2);
   A.wallZ(zn, 'block_dark', 8, 22, 80.2, -4.5, 10, 0.4);
   A.wallX(zn, 'block', 66, 80, 22, -4.5, 0, 0.2);
-  A.wallX(zn, 'block', 66, 80, 22, 0, 10, 0.2, [{ a: 76.4, b: 77.6, y0: 0, y1: 2.2 }, { a: 76.4, b: 77.6, y0: 5, y1: 7.2 }]);
+  // un mur par niveau : deux ouvertures superposées dans le même mur, cutOpenings rebouchait la première (les portes vers
+  // les couloirs de service nord étaient murées, au RDC comme à l'étage)
+  A.wallX(zn, 'block', 66, 80, 22, 0, 5, 0.2, [{ a: 76.4, b: 77.6, y0: 0, y1: 2.2 }]); A.wallX(zn, 'block', 66, 80, 22, 5, 10, 0.2, [{ a: 76.4, b: 77.6, y0: 5, y1: 7.2 }]);
   A.wallX(zn, 'block', 66, 80, 8, -4.5, 0, 0.3);
+  // parements de parpaing : côté ouest (mur du parking en bas, enduit du magasin voisin au-dessus avec une fente au droit
+  // de la dalle de l'étage et la rive en retrait de la dalle du parking : un seul nu à x = 66,32, découpé autour de
+  // l'huisserie de la porte du parking) et côté sud (enduit du hall et de la mezzanine, fente au droit de la dalle),
+  // découpé autour des huisseries des deux portes
+  for (const [z0, z1, y0] of [[8, 8.535, -4.5], [9.965, 22, -4.5], [8.535, 9.965, -2.235]]) A.box(zn, 'block', 66.3, y0, z0, 66.32, -0.6, z1, { collide: false, faces: 'X' });
+  A.box(zn, 'block', 66.15, -0.6, 8, 66.32, 10, 22, { faces: 'X' });
+  for (const [x0, x1, y0, y1] of [[66.32, 76.935, 0, 10], [78.265, 80, 0, 10], [76.935, 78.265, 2.265, 5], [76.935, 78.265, 7.265, 10]]) A.box(zn, 'block', x0, y0, 8.15, x1, y1, 8.17, { collide: false, faces: 'Z' });
   A.ceiling(zn, 'concrete', 66, 8, 80, 22, 10, 0.4);
   door('stE_svc0', { panic: true, zone: zn, x: 77, y: 0, z: 22, axis: 'x', width: 1.2, mat: 'metal', name: 'Escalier est → couloir de service', gate: 'service', swing: 1 });
   door('stE_svc1', { panic: true, zone: zn, x: 77, y: 5, z: 22, axis: 'x', width: 1.2, mat: 'metal', name: 'Escalier est → couloir de service (étage)', gate: 'service', swing: 1 });
@@ -1177,13 +1199,15 @@ function buildBasement(world, A, door, dev, rng) {
   world.physics.add(new Box(-75.6, yb, -1.5, -75, yb + 1.9, 1.5, LAYER.FURN)); // baies 19 pouces : amplis, voyants, grilles
   A.rbox('pa', 'furniture_metal', -75.3, yb + 0.95, 0, 0.6, 1.9, 3.0, 0.015, 0x37474f);
   for (let k = 0; k < 9; k++) { const yy = yb + 0.25 + k * 0.17; A.furn('pa', -75.0, yy, -1.35, -74.985, yy + 0.13, 1.35, k % 3 ? 0x2a2f33 : 0x4a5056, { metal: true, collide: false }); for (let j = 0; j < 6; j++) A.furn('pa', -74.985, yy + 0.05, -1.2 + j * 0.45, -74.98, yy + 0.07, -1.18 + j * 0.45, j % 2 ? 0x00e676 : 0xffb300, { collide: false }); }
-  dev('boiler', 'boiler', -72, yb + 1.1, 9.5, 0);
-  dev('water_heater', 'boiler', -68.5, yb + 0.75, 11.5, 0);
+  // chaudière et cumulus adossés au mur nord (conduit de fumée et raccords vers le mur, sous les départs du plafond ;
+  // la descente de gaz tombe contre la chaudière) : le passage entre les deux portes (z ≈ 9,5) reste libre
+  dev('boiler', 'boiler', -72.6, yb + 1.1, 12.3, Math.PI);
+  dev('water_heater', 'boiler', -68.5, yb + 0.75, 12.6, Math.PI);
   dev('wrench', 'boiler', -74.6, yb + 0.02, 7.2, 0.5, { prop: true });
   world.points.generator = new THREE.Vector3(-71, yb, -19);
   world.points.breakers = new THREE.Vector3(-71, yb, -11.3);
   world.points.paRoom = new THREE.Vector3(-71, yb, 3);
-  world.points.boiler = new THREE.Vector3(-72, yb, 9.5);
+  world.points.boiler = new THREE.Vector3(-72.6, yb, 11.2);
   basementDetail(world, A, yb, yc);
 }
 
@@ -1214,12 +1238,12 @@ function basementDetail(world, A, yb, yc) {
   };
   // ── groupe électrogène : prise d'air au sud, rejet à l'est (vers le parking), échelle à câbles vers le TGBT ──
   louvre('generator', true, -71, -24.0, 1, yb + 2.6, 1.2, 0.9);
-  louvre('generator', false, -19, -66.3, -1, yb + 2.9, 1.0, 0.7);
-  tray('generator', true, -75.9, -66.3, -14.6, yc - 0.32);
+  louvre('generator', false, -19, -66.15, -1, yb + 2.9, 1.0, 0.7);
+  tray('generator', true, -75.9, -66.15, -14.6, yc - 0.32);
   tray('generator', false, -14.45, -11.9, -70.6, yc - 0.32);
   M('generator', -70.8, yc - 0.42, -12.18, -70.4, yc - 0.18, -11.82, 0xb0453a); // calfeutrement coupe-feu de la traversée
   // nourrice de fioul sur bac de rétention (angle sud-est), jauge, bouchon, évent, ligne d'alimentation au sol
-  world.physics.add(new Box(-69.0, yb, -23.95, -66.9, yb + 1.35, -23.05, LAYER.FURN));
+  world.physics.add(new Box(-69.28, yb, -23.95, -66.9, yb + 1.35, -23.05, LAYER.FURN)); // (avec la remontée de la ligne d'alimentation, x = -69,25)
   M('generator', -69.0, yb, -23.95, -66.9, yb + 0.22, -23.05, 0x3a4046);
   M('generator', -68.96, yb + 0.22, -23.91, -66.94, yb + 0.225, -23.09, 0x23272b);
   for (const lx of [-68.75, -67.15]) for (const lz of [-23.75, -23.25]) M('generator', lx - 0.03, yb + 0.22, lz - 0.03, lx + 0.03, yb + 0.32, lz + 0.03, 0x4a5056);
@@ -1254,7 +1278,7 @@ function basementDetail(world, A, yb, yc) {
   for (let y = yb + 2.1; y < yc - 0.05; y += 0.3) M('electrical', -71.15, y, -11.9, -70.85, y + 0.012, -11.84, galv);
   for (let k = 0; k < 3; k++) A.tube('electrical', 'furniture', V3(-71.07 + k * 0.07, yb + 2.0, -11.86), V3(-71.07 + k * 0.07, yc - 0.3, -11.86), 0.014, [0x1a1a1a, 0x3a3a3a, 0x7a3a2a][k], { segs: 6, open: true });
   // ── régie : panneaux acoustiques (mur est), goulotte des baies vers le plafond ──
-  for (let i = 0; i < 6; i++) for (let j = 0; j < 2; j++) A.rbox('pa', 'furniture', -66.32, yb + 1.25 + j * 0.62, 0.55 + i * 0.62, 0.04, 0.6, 0.6, 0.012, (i + j) % 2 ? 0x2b2b2e : 0x333338, { n: 1 });
+  for (let i = 0; i < 6; i++) for (let j = 0; j < 2; j++) A.rbox('pa', 'furniture', -66.17, yb + 1.25 + j * 0.62, 0.55 + i * 0.62, 0.04, 0.6, 0.6, 0.012, (i + j) % 2 ? 0x2b2b2e : 0x333338, { n: 1 });
   M('pa', -75.5, yb + 1.9, -0.25, -75.2, yc, -0.05, galv);
   // ── chaufferie : départ et retour calorifugés au plafond (bagues alu, suspentes), gaz jaune au mur nord, vase
   //    d'expansion rouge sur console, siphon de sol ──
@@ -1282,8 +1306,11 @@ function buildGarage(world, A, door, dev, rng) {
   A.slabWithHoles(zn, 'concrete', -66, -24, 66, 24, yc + 0.6, 0.6, [ELEV_HOLE], { faces: 'xXzZy' }); // plafond (trémie de l'ascenseur)
   A.wallX(zn, 'concrete_dark', -66, 66, -24.2, yb, yc, 0.4);
   A.wallX(zn, 'concrete_dark', -66, 66, 24.2, yb, yc, 0.4);
-  A.wallZ(zn, 'concrete_dark', -24, 6, -66.15, yb, yc, 0.3);
-  A.wallZ(zn, 'concrete_dark', 13, 24, -66.15, yb, yc, 0.3);
+  // mur ouest : de z -24 à 13, le mur de parpaing des locaux techniques (x -66,15 … -65,85, porte de la chaufferie) sert
+  // d'appui, avec un parement de béton côté parking découpé autour de l'huisserie (les deux murs se chevauchaient et
+  // chacun montrait son matériau du mauvais côté) ; au nord, mur dans le même alignement (cage de l'escalier ouest)
+  A.wallZ(zn, 'concrete_dark', 13, 24, -66, yb, yc, 0.3);
+  for (const [z0, z1, y0] of [[-24, 8.935, yb], [10.265, 24, yb], [8.935, 10.265, yb + 2.165]]) A.box(zn, 'concrete_dark', -65.85, y0, z0, -65.84, yc, z1, { collide: false, faces: 'XzZ' });
   A.wallZ(zn, 'concrete_dark', -24, 24, 66.15, yb, yc, 0.3, [{ a: -7, b: -2, y0: yb, y1: yb + 3.4 }, { a: 8.6, b: 9.9, y0: yb, y1: yb + 2.2 }]);
   // piliers aux arêtes chanfreinées, soubassement peint, cornières de protection en caoutchouc (bandes réfléchissantes),
   // chapiteaux ; poutres de rive est-ouest sur les files de piliers (hors trémie de l'ascenseur)
@@ -1319,7 +1346,13 @@ function buildGarage(world, A, door, dev, rng) {
   gate.name = 'Rideau de la rampe du parking';
   gate.applyVisual(); world.add(gate);
   // rampe vers l'extérieur
-  A.stairs('ramp', 'asphalt', 66, -7, 'x+', 5, 32, 4.5, yb, 32, { solid: true, base: yb - 0.4 });
+  // collisions : 32 marches de 1 m (14 cm de contremarche), inchangées ; sous la façade (x 66 … 80), la chaussée visible
+  // est une pente lisse posée sur la ligne des marches (on voyait un escalier) ; au-delà, marches visibles inchangées
+  const RS = 4.5 / 32;
+  A.stairs('ramp', 'asphalt', 66, -7, 'x+', 5, 14, 14 * RS, yb, 14, { solid: true, base: yb - 0.4, visible: false });
+  A.stairs('ramp', 'asphalt', 80, -7, 'x+', 5, 18, 18 * RS, yb + 14 * RS, 18, { solid: true, base: yb - 0.4 });
+  { const k = 14.5 * RS / 14, c = Math.cos(Math.atan(k)), s = Math.sin(Math.atan(k)), t = 0.3; // dalle de 30 cm d'épaisseur sous la pente
+    A.beam('ramp', 'asphalt', V3(66 + s * t / 2, yb - c * t / 2, -4.5), V3(80 + s * t / 2, yb + 14 * k - c * t / 2, -4.5), 5.0, t); }
   // murs de la trémie : sous le hall ils s'arrêtent à la dalle (ils traversaient le sol du hall d'entrée sur 1 m,
   // au travers du distributeur et du DAB) ; dehors, ils forment le parapet de 1 m au-dessus du trottoir
   for (const zw of [-7.2, -1.8]) { A.wallX('ramp', 'concrete_dark', 66, 80.3, zw, yb, -0.6, 0.4); A.wallX('ramp', 'concrete_dark', 80.3, 98, zw, yb, 1, 0.4); }
@@ -1338,19 +1371,21 @@ function buildGarage(world, A, door, dev, rng) {
   A.furn(zn, 63.32, yb + 0.72, -7.47, 63.68, yb + 0.95, -7.465, 0x1a1a1a, { collide: false });
   A.lathe(zn, 'furniture_metal', [[0, 0], [0.07, 0], [0.07, 0.12], [0, 0.12]], 12, 63.5, yb + 1.0, -7.62, 0x3a3a3a, { rx: Math.PI / 2 });
   { const a = Math.PI / 3, p0 = V3(63.5, yb + 1.0, -7.5), d = V3(0, Math.sin(a), Math.cos(a));
-    for (let k = 0; k < 8; k++) A.beam(zn, 'furniture', p0.clone().addScaledVector(d, k * 0.4), p0.clone().addScaledVector(d, (k + 1) * 0.4), 0.06, 0.09, k % 2 ? 0xf2f2f2 : 0xd32f2f); }
-  // caisse automatique (façade vers l'allée) : socle, caisson laqué, auvent incliné, écran, clavier, fentes, bandeau
-  world.physics.add(new Box(60, yb, 2, 61, yb + 1.6, 2.6, LAYER.FURN));
-  A.furn(zn, 60.05, yb, 2.05, 60.95, yb + 0.1, 2.55, 0x1a1a1a, { collide: false });
-  A.rbox(zn, 'furniture_metal', 60.5, yb + 0.8, 2.3, 1.0, 1.4, 0.6, 0.03, 0x37474f, { n: 2 });
-  A.rbox(zn, 'furniture_metal', 60.5, yb + 1.56, 2.24, 1.06, 0.06, 0.74, 0.02, 0x263238, { rx: 0.18 });
-  A.furn(zn, 60.15, yb + 0.2, 1.995, 60.85, yb + 1.45, 2.0, 0x4f6470, { metal: true, collide: false });
-  A.furn(zn, 60.25, yb + 1.12, 1.99, 60.75, yb + 1.38, 1.995, 0x0c1418, { collide: false });
-  for (let k = 0; k < 12; k++) A.furn(zn, 60.28 + (k % 3) * 0.06, yb + 0.86 + Math.floor(k / 3) * 0.05, 1.985, 60.32 + (k % 3) * 0.06, yb + 0.9 + Math.floor(k / 3) * 0.05, 1.995, 0xd0d4d6, { collide: false });
-  for (const [yy, w, c] of [[1.0, 0.12, 0x111111], [0.86, 0.1, 0x111111], [0.6, 0.2, 0x111111]]) A.furn(zn, 60.6, yb + yy, 1.985, 60.6 + w, yb + yy + 0.015, 1.995, c, { collide: false });
-  A.furn(zn, 60.15, yb + 1.42, 1.99, 60.85, yb + 1.45, 1.995, 0x1e88e5, { collide: false });
-  dev('extinguisher_box', zn, -65.95, yb + 1, 0, Math.PI / 2);
-  dev('fire_alarm', zn, -65.95, yb + 1.4, 2, Math.PI / 2);
+    for (let k = 0; k < 8; k++) A.beam(zn, 'furniture', p0.clone().addScaledVector(d, k * 0.4), p0.clone().addScaledVector(d, (k + 1) * 0.4), 0.06, 0.09, k % 2 ? 0xf2f2f2 : 0xd32f2f);
+    world.physics.add(new Box(63.46, yb + 1.0, -7.5, 63.54, yb + 2.0, -6.92, LAYER.FURN)); } // bas de la lisse (à hauteur de tête)
+  // caisse automatique (façade vers l'allée) : socle, caisson laqué, auvent incliné, écran, clavier, fentes, bandeau ;
+  // à 0,8 m de l'allée transversale x = 60 (elle était posée sur son bord)
+  world.physics.add(new Box(60.8, yb, 2, 61.8, yb + 1.6, 2.6, LAYER.FURN)); world.physics.add(new Box(60.77, yb + 1.45, 1.86, 61.83, yb + 1.66, 2.62, LAYER.FURN)); // auvent incliné
+  A.furn(zn, 60.85, yb, 2.05, 61.75, yb + 0.1, 2.55, 0x1a1a1a, { collide: false });
+  A.rbox(zn, 'furniture_metal', 61.3, yb + 0.8, 2.3, 1.0, 1.4, 0.6, 0.03, 0x37474f, { n: 2 });
+  A.rbox(zn, 'furniture_metal', 61.3, yb + 1.56, 2.24, 1.06, 0.06, 0.74, 0.02, 0x263238, { rx: 0.18 });
+  A.furn(zn, 60.95, yb + 0.2, 1.995, 61.65, yb + 1.45, 2.0, 0x4f6470, { metal: true, collide: false });
+  A.furn(zn, 61.05, yb + 1.12, 1.99, 61.55, yb + 1.38, 1.995, 0x0c1418, { collide: false });
+  for (let k = 0; k < 12; k++) A.furn(zn, 61.08 + (k % 3) * 0.06, yb + 0.86 + Math.floor(k / 3) * 0.05, 1.985, 61.12 + (k % 3) * 0.06, yb + 0.9 + Math.floor(k / 3) * 0.05, 1.995, 0xd0d4d6, { collide: false });
+  for (const [yy, w, c] of [[1.0, 0.12, 0x111111], [0.86, 0.1, 0x111111], [0.6, 0.2, 0x111111]]) A.furn(zn, 61.4, yb + yy, 1.985, 61.4 + w, yb + yy + 0.015, 1.995, c, { collide: false });
+  A.furn(zn, 60.95, yb + 1.42, 1.99, 61.65, yb + 1.45, 1.995, 0x1e88e5, { collide: false });
+  dev('extinguisher_box', zn, -65.715, yb + 1, 0, Math.PI / 2); // contre le parement (x = -65,84)
+  dev('fire_alarm', zn, -65.815, yb + 1.4, 2, Math.PI / 2);
   buildGarageDecor(world, A, dev, rng.fork('garagedecor'));
   world.points.garageCenter = new THREE.Vector3(0, yb, 0);
 }
@@ -1403,7 +1438,7 @@ function buildWarehouse(world, A, dev, rng) {
   A.furn(zn, -84.5, 0, 3.3, -83.5, 0.15, 4.4, 0x8d6e63, { collide: false });
   world.points.catBed = new THREE.Vector3(-84, 0.05, 3.8);
   world.points.warehouse = new THREE.Vector3(-96, 0, -8);
-  dev('extinguisher_box', zn, -80.6, 1.0, -18, -Math.PI / 2);
+  dev('extinguisher_box', zn, -80.525, 1.0, -18, -Math.PI / 2);
 }
 
 // ───────────────────────── TOIT ─────────────────────────
@@ -1440,7 +1475,7 @@ function buildRoof(world, A, door, dev, rng) {
       for (let k = 0; k < 5; k++) { const a = k * Math.PI * 0.4; A.rbox(zn, 'furniture_metal', x + fx + Math.cos(a) * 0.18, y + 1.64, z + Math.sin(a) * 0.18, 0.3, 0.008, 0.1, 0.003, 0x52595e, { ry: -a, rx: 0.3 }); }
       A.lathe(zn, 'furniture_metal', [[0, 0], [0.07, 0], [0.07, 0.08], [0, 0.09]], 10, x + fx, y + 1.58, z, 0x222629);
     }
-    F(1.2, 0.4, 1.0, 1.45, 0.85, 1.14, 0x9aa5ab); F(1.3, 0.12, 1.07, 1.34, 0.4, 1.11, 0x3a3a3a, false);
+    F(1.2, 0.4, 1.0, 1.45, 0.85, 1.14, 0x9aa5ab); F(1.3, 0.12, 1.07, 1.34, 0.4, 1.11, 0x3a3a3a, false); world.physics.add(new Box(x + 1.2, y, z + 1.0, x + 1.45, y + 0.85, z + 1.14, LAYER.FURN)); // coffret électrique
     // gaines : départ latéral, coude, chute dans une costière ; brides tous les mètres
     for (const [dz, w] of [[-0.45, 0.6], [0.45, 0.5]]) {
       F(-2.4, 1.0 - w / 2 + 0.1, dz - 0.22, -1.5, 1.0 + w / 2 - 0.1, dz + 0.22, 0xa8b2b8); F(-2.85, -0.05, dz - 0.22, -2.4, 1.0 + w / 2 - 0.1, dz + 0.22, 0xa8b2b8);
@@ -1460,11 +1495,15 @@ function buildRoof(world, A, door, dev, rng) {
   A.lathe(zn, 'furniture', [[0, 0], [0.04, 0], [0.04, 0.08], [0.03, 0.1], [0, 0.1]], 8, 61, y + 9, -20, 0xd32f2f);
   // couvertines des acrotères, chapeaux de ventilation, crapaudines, paratonnerres
   for (const [x0, z0, x1, z1] of [[-80.7, -25.7, 80.7, -25.3], [-80.7, 25.3, 80.7, 25.7], [-80.7, -25.3, -80.3, 25.3], [80.3, -25.3, 80.7, 25.3]]) A.box(zn, 'aluminium', x0, y + 1.1, z0, x1, y + 1.14, z1, { collide: false });
-  for (const [x, z] of [[-60, 10], [-22, -10], [18, 9], [33, 21], [-64, -20], [70, -16]]) { A.tube(zn, 'furniture_metal', V3(x, y, z), V3(x, y + 0.7, z), 0.06, 0x8f969b, { segs: 10, open: true }); A.lathe(zn, 'furniture_metal', [[0.02, 0.62], [0.16, 0.7], [0.16, 0.74], [0, 0.82]], 12, x, y, z, 0x8f969b); }
+  for (const [x, z] of [[-60, 10], [-22, -10], [18, 9], [33, 21], [-64, -20], [70, -16]]) { A.tube(zn, 'furniture_metal', V3(x, y, z), V3(x, y + 0.7, z), 0.06, 0x8f969b, { segs: 10, open: true }); A.lathe(zn, 'furniture_metal', [[0.02, 0.62], [0.16, 0.7], [0.16, 0.74], [0, 0.82]], 12, x, y, z, 0x8f969b); world.physics.add(new Box(x - 0.16, y, z - 0.16, x + 0.16, y + 0.82, z + 0.16, LAYER.FURN)); }
   for (const [x, z] of [[-40, -21], [0, 21], [40, 21], [-20, 21], [20, -21], [60, -21]]) A.lathe(zn, 'furniture', [[0, 0.09], [0.12, 0.06], [0.16, 0.02], [0.2, 0.0]], 10, x, y, z, 0x2a2a2a);
   for (let x = -75; x <= 75; x += 25) for (const z of [-25.5, 25.5]) A.tube(zn, 'furniture_metal', V3(x, y + 1.14, z), V3(x, y + 1.9, z), 0.008, 0xb08d57, { segs: 5 });
   world.points.antenna = new THREE.Vector3(61, y + 9.2, -20);
-  dev('extinguisher_box', zn, -79.9, y + 0.5, 15, Math.PI / 2);
+  dev('extinguisher_box', zn, -80.225, y + 0.36, 15, Math.PI / 2); // posée sur la dalle, contre l'acrotère (face à x = -80,35)
+  // potence de la caméra du toit (cam_roof, à côté de la cage d'escalier : rien au-dessus pour la suspendre) : bras
+  // horizontal du haut du support de la caméra jusqu'au mur sud de la cage, platine murale
+  A.furn(zn, -75.535, 13.385, 12.56, -75.505, 13.415, 12.9, 0x8a8f93, { metal: true, collide: false });
+  A.furn(zn, -75.58, 13.34, 12.885, -75.46, 13.46, 12.9, 0x6d7276, { metal: true, collide: false });
   world.points.roof = new THREE.Vector3(-70, y, 0);
 }
 
@@ -1695,18 +1734,19 @@ function defineAreaCameras(world) {
   C('cam_entrance', 'Hall d\'entrée', 'entrance', 'entrance', [67, 4.2, -7.4], Math.PI * 0.75 + 0.2, -0.35, 80);
   C('cam_g1w', 'Galerie étage ouest', 'gallery1', 'gallery1_w', [-65.3, 9.6, 7.2], -Math.PI / 2 + 0.25, -0.3, 75);
   C('cam_g1e', 'Galerie étage est', 'gallery1', 'gallery1_e', [65.3, 9.6, -7.2], Math.PI / 2 + 0.25, -0.3, 75);
-  C('cam_svc_s', 'Couloir de service sud', 'service', 'service_s0', [-75.5, 4.2, -22.4], -Math.PI / 2, -0.25, 60);
-  C('cam_svc_n', 'Couloir de service nord', 'service', 'service_n0', [79.5, 4.2, 22.4], Math.PI / 2, -0.25, 60);
-  C('cam_garage1', 'Parking — ouest', 'garage', 'garage', [-65.5, -1, -23.5], -Math.PI * 0.75, -0.3, 80);
-  C('cam_garage2', 'Parking — est', 'garage', 'garage', [65.5, -1, 23.5], Math.PI * 0.25, -0.3, 80);
-  C('cam_ramp', 'Rideau de la rampe', 'garage', 'garage', [60, -1, -12], Math.PI * 0.62, -0.25, 70);
-  C('cam_basement', 'Couloir technique', 'basement', 'westwingB', [-79.4, -1.0, 21.5], 0, -0.3, 70);
-  C('cam_gen', 'Groupe électrogène', 'basement', 'generator', [-66.6, -1.0, -12.6], -Math.PI * 0.25, -0.45, 75);
+  // (hauteurs : le bras de fixation de la caméra touche le plafond, ou le dessous de la poutre pour la rampe)
+  C('cam_svc_s', 'Couloir de service sud', 'service', 'service_s0', [-75.5, 4.4, -22.4], -Math.PI / 2, -0.25, 60);
+  C('cam_svc_n', 'Couloir de service nord', 'service', 'service_n0', [79.5, 4.4, 22.4], Math.PI / 2, -0.25, 60);
+  C('cam_garage1', 'Parking — ouest', 'garage', 'garage', [-65.4, -0.8, -23.5], -Math.PI * 0.75, -0.3, 80);
+  C('cam_garage2', 'Parking — est', 'garage', 'garage', [65.5, -0.8, 23.5], Math.PI * 0.25, -0.3, 80);
+  C('cam_ramp', 'Rideau de la rampe', 'garage', 'garage', [60, -1.25, -12], Math.PI * 0.62, -0.25, 70);
+  C('cam_basement', 'Couloir technique', 'basement', 'westwingB', [-79.4, -0.8, 21.5], 0, -0.3, 70);
+  C('cam_gen', 'Groupe électrogène', 'basement', 'generator', [-66.6, -0.81, -12.6], -Math.PI * 0.25, -0.45, 75);
   C('cam_vent_s', 'Conduit sud', 'vents', 'vent_s', [-77.5, 4.25, -23.5], -Math.PI / 2, -0.05, 60);
   C('cam_vent_w', 'Conduit ouest', 'vents', 'vent_w', [-78.5, 4.25, -23], Math.PI, -0.05, 60);
   C('cam_roof', 'Toit', 'roof', 'roof', [-75.5, 13.2, 12.6], -Math.PI * 0.8, -0.35, 80);
-  C('cam_warehouse', 'Entrepôt', 'warehouse', 'warehouse', [-80.8, 7.4, 4.6], -Math.PI * 0.25, -0.4, 80);
-  C('cam_dock', 'Quai de chargement', 'warehouse', 'warehouse', [-111.6, 7.4, -24.6], Math.PI * 0.75 + 0.4, -0.4, 75);
+  C('cam_warehouse', 'Entrepôt', 'warehouse', 'warehouse', [-80.8, 7.8, 4.6], -Math.PI * 0.25, -0.4, 80);
+  C('cam_dock', 'Quai de chargement', 'warehouse', 'warehouse', [-111.6, 7.8, -24.6], Math.PI * 0.75 + 0.4, -0.4, 75);
 }
 
 // ───────────────────────── GRAPHE DE NAVIGATION ─────────────────────────
@@ -1731,45 +1771,69 @@ function buildNav(world, doors) {
     for (const sz of [-1, 1]) { const id = `esc${k}0${sz < 0 ? 's' : 'n'}`; N(id, s * 12.7, 0, sz * 3.6, 'atrium'); L(`esc${k}0`, id); L(id, `g0${sz < 0 ? 's' : 'n'}${s * 15}`); }
     L(`esc${k}1`, `g1s${s * 27}`); L(`esc${k}1`, `g1n${s * 27}`);
   }
-  // poste de sécurité
-  N('sec_out', -64.2, 0, 0, 'gallery0_w'); N('sec_in', -67.6, 0, 0, 'security', ['security']); N('sec_desk', -70.8, 0, -0.6, 'security', ['security', 'desk']); N('sec_rear', -75, 0, 3, 'security');
+  // poste de sécurité : le bureau se contourne par le nord (porte arrière, vestiaire) et par le sud (réserve) ; chaque
+  // porte est franchie dans l'axe de son ouverture
+  N('sec_out', -64.2, 0, 0, 'gallery0_w'); N('sec_in', -67.6, 0, 0, 'security', ['security']); N('sec_desk', -70.8, 0, -0.6, 'security', ['security', 'desk']); N('sec_rear', -75.2, 0, 3.25, 'security');
+  N('sec_n', -71.3, 0, 3.4, 'security'); N('sec_nw', -73, 0, 3.7, 'security'); N('sec_s', -71.3, 0, -3.4, 'security'); N('sec_sw', -73, 0, -3.7, 'security');
   L('sec_out', 'g0n-63'); L('sec_out', 'g0s-63');
-  L('sec_out', 'sec_in', { door: doors.sec_front.id }); L('sec_in', 'sec_desk'); L('sec_desk', 'sec_rear');
-  N('vest', -71, 0, 9, 'vestiaire'); N('store', -71, 0, -13, 'secstore'); L('sec_desk', 'vest', { door: doors.sec_vest.id }); L('sec_desk', 'store', { door: doors.sec_store.id });
-  // aile ouest
-  for (let z = -23; z <= 23; z += 4) { N(`ww0_${z}`, -78, 0, z, 'westwing0'); N(`ww1_${z}`, -78, 5, z, 'westwing1'); if (z > -23) { L(`ww0_${z - 4}`, `ww0_${z}`); L(`ww1_${z - 4}`, `ww1_${z}`); } }
-  L('sec_rear', 'ww0_1', { door: doors.sec_back.id }); L('store', 'ww0_-11', { door: doors.store_ww.id });
+  L('sec_out', 'sec_in', { door: doors.sec_front.id }); L('sec_in', 'sec_desk'); L('sec_desk', 'sec_n'); L('sec_n', 'sec_nw'); L('sec_nw', 'sec_rear'); L('sec_desk', 'sec_s'); L('sec_s', 'sec_sw');
+  N('vest', -70.6, 0, 8.6, 'vestiaire'); N('vest_d', -73, 0, 6.2, 'vestiaire'); N('store', -71, 0, -13, 'secstore'); N('store_d', -73, 0, -6.2, 'secstore');
+  L('sec_nw', 'vest_d', { door: doors.sec_vest.id }); L('vest_d', 'vest'); L('sec_sw', 'store_d', { door: doors.sec_store.id }); L('store_d', 'store');
+  // aile ouest : nœuds tous les 4 m environ, plus un nœud dans l'axe de chaque porte (réserve, poste, escalier, entrepôt,
+  // administration)
+  const wwStops = [[-23, -19, -15, -13, -7, -3, 3, 5, 9, 13, 17.75, 21], [-23, -19, -15, -11, -7, -3, 0, 5, 9, 13, 17.75, 21]];
+  wwStops.forEach((zs, f) => zs.forEach((z, i) => { N(`ww${f}_${z}`, -78, f * 5, z, `westwing${f}`); if (i) L(`ww${f}_${zs[i - 1]}`, `ww${f}_${z}`); }));
+  L('sec_rear', 'ww0_3', { door: doors.sec_back.id }); L('store', 'ww0_-13', { door: doors.store_ww.id });
   // couloirs de service
   for (const [f, y] of [[0, 0], [1, 5]]) for (const side of ['s', 'n']) {
     const zc = side === 's' ? -23.5 : 23.5;
     for (let x = -75; x <= 78; x += 6) { N(`sv${f}${side}${x}`, x, y, zc, `service_${side}${f}`); if (x > -75) L(`sv${f}${side}${x - 6}`, `sv${f}${side}${x}`); }
     L(`sv${f}${side}-75`, `ww${f}_${side === 's' ? -23 : 21}`);
   }
-  // escalier ouest
+  // escalier ouest : volées le long des faces nord et sud du noyau plein, paliers intermédiaires à l'est (x -68 … -66) ;
+  // on traverse le palier intermédiaire au lieu du noyau
   const sw = [[-4.5, 'B'], [0, '0'], [5, '1'], [10.5, 'R']];
   for (const [y, k] of sw) N(`stW${k}`, -74.8, y, 17.75, 'stairsW');
-  const swMid = (a, b, y0, y1) => { const h = (y1 - y0) / 2; N(`stW${a}a`, -73, y0, 14.4, 'stairsW'); N(`stW${a}b`, -68.5, y0 + h, 14.4, 'stairsW'); N(`stW${a}c`, -68.5, y0 + h, 20.6, 'stairsW'); N(`stW${a}d`, -73.3, y1, 20.6, 'stairsW'); nav.chain([`stW${a}`, `stW${a}a`, `stW${a}b`, `stW${a}c`, `stW${a}d`, `stW${b}`]); };
+  // nœuds au milieu du premier et du dernier giron de chaque volée : la hauteur interpolée suit la ligne des marches, à
+  // une demi-contremarche près (les présences ne s'enfoncent plus dans les volées)
+  const swMid = (a, b, y0, y1) => {
+    const h = (y1 - y0) / 2, n = Math.round(h / 0.25), sd = 5.5 / n, sr = h / n;
+    N(`stW${a}l`, -74.3, y0, 15.0, 'stairsW'); // sur le palier, à l'écart du bout de la main courante (côté noyau)
+    N(`stW${a}a`, -73.5 + sd / 2, y0 + sr, 14.4, 'stairsW'); N(`stW${a}a2`, -68 - sd / 2, y0 + h, 14.4, 'stairsW');
+    N(`stW${a}b`, -67.3, y0 + h, 14.4, 'stairsW'); N(`stW${a}c`, -67.3, y0 + h, 20.6, 'stairsW');
+    N(`stW${a}d`, -68 - sd / 2, y0 + h + sr, 20.6, 'stairsW'); N(`stW${a}d2`, -73.5 + sd / 2, y1, 20.6, 'stairsW');
+    nav.chain([`stW${a}`, `stW${a}l`, `stW${a}a`, `stW${a}a2`, `stW${a}b`, `stW${a}c`, `stW${a}d`, `stW${a}d2`, `stW${b}`]);
+  };
   swMid('B', '0', -4.5, 0); swMid('0', '1', 0, 5); swMid('1', 'R', 5, 10.5);
-  L('stW0', 'ww0_17', { door: doors.stW_0.id }); L('stW1', 'ww1_17', { door: doors.stW_1.id });
-  // sous-sol
-  for (let z = -23; z <= 21; z += 4) { N(`wwB_${z}`, -78, -4.5, z, 'westwingB'); if (z > -23) L(`wwB_${z - 4}`, `wwB_${z}`); }
-  L('stWB', 'wwB_17', { door: doors.stW_B.id });
-  N('genr', -71, -4.5, -17, 'generator'); N('elecr', -71, -4.5, -7, 'electrical'); N('par', -71, -4.5, 2, 'pa'); N('boilr', -71, -4.5, 9.5, 'boiler');
-  L('genr', 'wwB_-19', { door: doors.gen.id }); L('elecr', 'wwB_-7', { door: doors.elec.id }); L('par', 'wwB_1', { door: doors.pa.id }); L('boilr', 'wwB_9', { door: doors.boiler.id });
+  L('stW0', 'ww0_17.75', { door: doors.stW_0.id }); L('stW1', 'ww1_17.75', { door: doors.stW_1.id });
+  // sous-sol : couloir technique, un nœud dans l'axe de chaque porte
+  [-23, -18, -15, -11, -7, -3, 2, 5, 9.5, 13, 17.75, 21].forEach((z, i, zs) => { N(`wwB_${z}`, -78, -4.5, z, 'westwingB'); if (i) L(`wwB_${zs[i - 1]}`, `wwB_${z}`); });
+  L('stWB', 'wwB_17.75', { door: doors.stW_B.id });
+  N('genr', -71, -4.5, -17.5, 'generator'); N('elecr', -71, -4.5, -7, 'electrical'); N('par', -71, -4.5, 2, 'pa'); N('boilr', -71, -4.5, 9.5, 'boiler');
+  L('genr', 'wwB_-18', { door: doors.gen.id }); L('elecr', 'wwB_-7', { door: doors.elec.id }); L('par', 'wwB_2', { door: doors.pa.id }); L('boilr', 'wwB_9.5', { door: doors.boiler.id });
   N('b13n', -84, -4.5, -7, 'b13'); L('b13n', 'wwB_-7', { door: doors.b13.id });
   // parking
   for (let x = -60; x <= 60; x += 12) for (const z of [-6, 6]) { N(`gar${x}_${z}`, x, -4.5, z, 'garage'); }
   for (let x = -60; x <= 60; x += 12) { L(`gar${x}_-6`, `gar${x}_6`); if (x > -60) { L(`gar${x - 12}_-6`, `gar${x}_-6`); L(`gar${x - 12}_6`, `gar${x}_6`); } }
   N('gar_w', -64, -4.5, 9.6, 'garage'); L('gar_w', 'gar-60_6'); L('gar_w', 'boilr', { door: doors.boiler_g.id });
   N('gar_gate', 63.5, -4.5, -4.5, 'garage'); L('gar_gate', 'gar60_-6');
-  N('ramp0', 68, -4.2, -4.5, 'ramp'); N('ramp1', 82, -2.5, -4.5, 'ramp'); N('ramp2', 96, -0.2, -4.5, 'ramp', ['outside']);
-  L('gar_gate', 'ramp0', { shutter: true }); L('ramp0', 'ramp1'); L('ramp1', 'ramp2');
-  // escalier est
+  N('ramp00', 66.3, -4.456, -4.5, 'ramp'); // pied de la rampe, juste après le rideau (on ne monte qu'une fois sur la pente)
+  N('ramp0', 68, -4.21, -4.5, 'ramp'); N('ramp1', 82, -2.5, -4.5, 'ramp'); N('ramp2', 96, -0.2, -4.5, 'ramp', ['outside']);
+  N('ramp05', 79.5, -2.53, -4.5, 'ramp'); // au droit de la façade : sur la pente (on ne s'y enfonce plus)
+  L('gar_gate', 'ramp00', { shutter: true }); L('ramp00', 'ramp0'); L('ramp0', 'ramp05'); L('ramp05', 'ramp1'); L('ramp1', 'ramp2');
+  // escalier est : même principe que l'escalier ouest (noyau x 69,1 … 70,9, z 10,5 … 19,5)
   for (const [y, k] of [[-4.5, 'B'], [0, '0'], [5, '1']]) { N(`stE${k}`, 77.6, y, 9.2, 'stairsE'); N(`stE${k}s`, 77, y, 20.5, 'stairsE'); L(`stE${k}`, `stE${k}s`); }
-  const seMid = (a, b, y0, y1) => { const h = (y1 - y0) / 2; N(`stE${a}a`, 67.8, y0, 11, 'stairsE'); N(`stE${a}b`, 67.8, y0 + h, 20.6, 'stairsE'); N(`stE${a}c`, 72.2, y0 + h, 20.6, 'stairsE'); N(`stE${a}d`, 72.2, y1, 11, 'stairsE'); nav.chain([`stE${a}`, `stE${a}a`, `stE${a}b`, `stE${a}c`, `stE${a}d`, `stE${b}`]); };
+  const seMid = (a, b, y0, y1) => {
+    const h = (y1 - y0) / 2, n = Math.round(h / 0.25), sd = 9 / n, sr = h / n;
+    N(`stE${a}w`, 67.8, y0, 9.6, 'stairsE'); N(`stE${a}a`, 67.8, y0 + sr, 10.5 + sd / 2, 'stairsE'); N(`stE${a}a2`, 67.8, y0 + h, 19.5 - sd / 2, 'stairsE');
+    N(`stE${a}b`, 67.8, y0 + h, 20.4, 'stairsE'); N(`stE${a}c`, 72.2, y0 + h, 20.4, 'stairsE'); // (à l'écart des bouts bas des mains courantes de la 2e volée)
+    N(`stE${a}d`, 72.2, y0 + h + sr, 19.5 - sd / 2, 'stairsE'); N(`stE${a}d2`, 72.2, y1, 10.5 + sd / 2, 'stairsE'); N(`stE${a}e`, 72.2, y1, 9.6, 'stairsE');
+    nav.chain([`stE${a}`, `stE${a}w`, `stE${a}a`, `stE${a}a2`, `stE${a}b`, `stE${a}c`, `stE${a}d`, `stE${a}d2`, `stE${a}e`, `stE${b}`]);
+  };
   seMid('B', '0', -4.5, 0); seMid('0', '1', 0, 5);
   N('gar_e', 64, -4.5, 9.25, 'garage'); L('gar_e', 'gar60_6'); L('gar_e', 'stEB', { door: doors.stE_B.id });
-  L('stE0s', 'sv0n75', { door: doors.stE_svc0.id }); L('stE1s', 'sv1n75', { door: doors.stE_svc1.id });
+  N('sv0n_e', 77, 0, 23.3, 'service_n0'); N('sv1n_e', 77, 5, 23.3, 'service_n1'); L('sv0n_e', 'sv0n75'); L('sv1n_e', 'sv1n75');
+  L('stE0s', 'sv0n_e', { door: doors.stE_svc0.id }); L('stE1s', 'sv1n_e', { door: doors.stE_svc1.id });
   // hall, mezzanine, poubelles, CVC
   N('ent', 74, 0, 0, 'entrance', ['entrance']); N('ent_door', 78.8, 0, 0, 'entrance'); N('mez', 72, 5, 0, 'mezzanine');
   // le hall rejoint les deux voies de la galerie en contournant la banque d'accueil (x 70…72,5, z ±3)
@@ -1780,23 +1844,27 @@ function buildNav(world, doors) {
   N('ent_stE', 77.6, 0, 6.5, 'entrance'); N('ent_trash', 77.6, 0, -6.5, 'entrance'); N('mez_stE', 77.6, 5, 6.5, 'mezzanine');
   L('ent', 'ent_stE'); L('ent', 'ent_trash'); L('mez', 'mez_stE');
   L('ent_stE', 'stE0', { door: doors.entr_stE.id }); L('mez_stE', 'stE1', { door: doors.mez_stE.id });
-  N('trashr', 73, 0, -15, 'trash'); N('trash_in', 77.6, 0, -9.3, 'trash'); L('trash_in', 'trashr'); L('trash_in', 'ent_trash', { door: doors.entr_trash.id }); L('trashr', 'sv0s75', { door: doors.trash_svc.id });
-  N('hvacr', 73, 5, -15, 'hvac'); L('hvacr', 'mez', { door: doors.mez_hvac.id }); L('hvacr', 'sv1s75', { door: doors.hvac_svc.id });
-  // archives
-  N('arch', -71, 5, 0, 'adm_couloir'); L('arch', 'ww1_1', { door: doors.arch_w.id });
-  N('arch_out', -64, 5, 0, 'gallery1_w'); L('arch', 'arch_out', { door: doors.arch_g.id }); L('arch_out', 'g1n-63'); L('arch_out', 'g1s-63'); // porte franchie en face
-  // couloir de l'administration : chaîne de nœuds le long de x = -71, chaque bureau relié au nœud face à sa porte
-  const ac = [11, 8, 4, 0, -4, -8, -12, -16, -20].map(z => { const id = z === 0 ? 'arch' : 'adm_c' + z; if (z) N(id, -71, 5, z, 'adm_couloir'); return [z, id]; });
-  for (let i = 1; i < ac.length; i++) L(ac[i - 1][1], ac[i][1]);
-  N('adm_acc', -68, 5, 3.5, 'adm_accueil'); L('arch', 'adm_acc', { door: doors.adm_acc.id });
-  for (const [id, , b] of ADMIN_ROOMS) {
+  N('trashr', 73, 0, -15, 'trash'); N('trash_d', 77.6, 0, -9.2, 'trash'); N('trash_s', 72.6, 0, -20.8, 'trash'); N('sv0s_t', 72.6, 0, -23.3, 'service_s0');
+  L('trashr', 'trash_d'); L('trash_d', 'ent_trash', { door: doors.entr_trash.id }); L('trashr', 'trash_s'); L('trash_s', 'sv0s_t', { door: doors.trash_svc.id }); L('sv0s_t', 'sv0s69'); L('sv0s_t', 'sv0s75');
+  N('hvacr', 73, 5, -15, 'hvac'); N('hvac_s', 72.6, 5, -20.8, 'hvac'); N('sv1s_h', 72.6, 5, -23.3, 'service_s1');
+  L('hvacr', 'mez', { door: doors.mez_hvac.id }); L('hvacr', 'hvac_s'); L('hvac_s', 'sv1s_h', { door: doors.hvac_svc.id }); L('sv1s_h', 'sv1s69'); L('sv1s_h', 'sv1s75');
+  // administration : croisée (bras est vers la galerie et l'accueil, bras ouest vers l'aile ouest), couloir le long de
+  // x = -71 avec un nœud face à chaque porte ; chaque bureau est relié dans l'axe de sa porte
+  N('arch', -71, 5, 0, 'adm_couloir'); N('adm_x', -68, 5, 0, 'adm_couloir'); N('adm_w', -74.6, 5, 0, 'adm_couloir'); N('adm_go', -64.6, 5, 0, 'gallery1_w');
+  L('arch', 'adm_x'); L('arch', 'adm_w'); L('adm_x', 'adm_go', { door: doors.arch_g.id }); L('adm_go', 'g1n-63'); L('adm_go', 'g1s-63'); L('adm_w', 'ww1_0', { door: doors.arch_w.id });
+  const ac = [...new Set([11, 8, 4, 0, -4, -8, -12, -16, -20, ...ADMIN_ROOMS.map(([id]) => doors[id]?.o.z).filter(z => z !== undefined)])].sort((a, b) => b - a)
+    .map(z => { const id = z === 0 ? 'arch' : 'adm_c' + z; if (z) N(id, -71, 5, z, 'adm_couloir'); return id; });
+  for (let i = 1; i < ac.length; i++) L(ac[i - 1], ac[i]);
+  N('adm_acc', -68, 5, 2.6, 'adm_accueil'); L('adm_x', 'adm_acc', { door: doors.adm_acc.id });
+  for (const [id, , b] of ADMIN_ROOMS) { // à 2 m de la cloison (salle de réunion : allée entre la cloison et la table)
     const d = doors[id]; if (!d) continue;
-    N(id + '_n', (b[0] + b[2]) / 2, 5, (b[1] + b[3]) / 2, id);
-    const dzz = d.o.z; let best = ac[0]; for (const e of ac) if (Math.abs(e[0] - dzz) < Math.abs(best[0] - dzz)) best = e;
-    L(id + '_n', best[1], { door: d.id });
+    const xw = b[0] === -70 ? -70 : -72;
+    N(id + '_n', id === 'adm_reunion' ? -69.45 : xw + (xw === -70 ? 2 : -2), 5, d.o.z, id);
+    L(id + '_n', 'adm_c' + d.o.z, { door: d.id });
   }
-  // entrepôt
-  N('wh', -90, 0, -12.7, 'warehouse'); N('wh2', -100, 0, -8, 'warehouse'); N('wh3', -96, 0, 1, 'warehouse'); L('wh', 'ww0_-11', { door: doors.wh_a.id }); L('wh', 'wh2'); L('wh2', 'wh3'); L('wh', 'wh3');
+  // entrepôt : on contourne les rayonnages (rangée z -3 … -1,8 de x -108 à -86) par l'allée est
+  N('wh', -82.2, 0, -13.35, 'warehouse'); N('wh2', -100, 0, -8, 'warehouse'); N('wh3', -96, 0, 1, 'warehouse'); N('wh4', -84, 0, -0.6, 'warehouse');
+  L('wh', 'ww0_-13', { door: doors.wh_a.id }); L('wh', 'wh2'); L('wh', 'wh4'); L('wh4', 'wh3');
   // toit
   N('roofA', -78, 10.5, 17.75, 'roof'); L('roofA', 'stWR', { door: doors.stW_R.id });
   // le toit se parcourt autour de la verrière (rives nord et sud reliées aux deux pignons)

@@ -226,7 +226,10 @@ function buildShop(world, A, dev, s, rng) {
     const inId = `${id}_in`, cId = `${id}_c`;
     nav.node(inId, cx, y, zF + sg * 1.4, id, ['shop']);
     nav.node(cId, cx, y, zF + sg * Math.min(5, depth * 0.45), id, ['shop', 'center']);
-    nav.link(inId, `g${f}${lane}${nearX(cx, -63, 6, -63, 63)}`, s.noShutter ? { door: ctl.frontDoor.id } : { shutter: ctl.shutter.id });
+    if (s.noShutter) { // porte de 1,2 m : franchie dans son axe (nœud devant la porte, côté galerie)
+      nav.node(`${id}_out`, cx, y, zF - sg * 1.2, galleryZone); nav.link(inId, `${id}_out`, { door: ctl.frontDoor.id });
+      nav.link(`${id}_out`, `g${f}${lane}${nearX(cx, -63, 6, -63, 63)}`);
+    } else nav.link(inId, `g${f}${lane}${nearX(cx, -63, 6, -63, 63)}`, { shutter: ctl.shutter.id });
     nav.link(inId, cId);
     let lastC = cId;
     if (s.w > 1) for (let k = 0; k < s.w; k++) { const nid = `${id}_c${k}`; nav.node(nid, x0 + 6 + k * 12, y, zF + sg * Math.min(5, depth * 0.45), id, ['shop']); nav.link(cId, nid); lastC = nid; }
@@ -857,8 +860,9 @@ const LAYOUTS = {
     L.floorSpot(6, 6.9, L.faceFront);
     L.wallShelf('L', 2.0, D - 1.0, 5, 2.2, 0.35, 0x5d4037, null, { metal: false, back: 0x4e342e });
     L.solid(W - 1.2, 2.0, W - 0.3, 4.5, 0, 0.45); L.solid(W - 0.5, 2.0, W - 0.3, 4.5, 0.45, 0.95); // canapé de cuir
+    L.solid(W - 1.2, 2.0, W - 0.5, 2.2, 0.45, 0.7); L.solid(W - 1.2, 4.3, W - 0.5, 4.5, 0.45, 0.7); // accoudoirs
     sofa(L.penAt(W - 0.75, 3.25, L.ryOf(-1, 0)), { L: 2.5, D: 0.9, h: 0.45, color: 0x3e2723, mat: FU });
-    L.P.special.safe = { x: L.X(W - 0.7), y: L.y, z: L.Z(D - 0.7), ry: -Math.PI / 2 };
+    L.P.special.safe = { x: L.X(W - 0.45), y: L.y, z: L.Z(D - 0.7), ry: -Math.PI / 2 }; // dos contre le mur mitoyen
     L.table(1.0, 1.0, 2.2, 1.8, 0.9, 0x5d4037);
     L.floorSpot(2.0, 4.0, Math.PI / 2);
     L.floorSpot(3.0, D - 1.0, L.faceFront);
