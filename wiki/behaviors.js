@@ -159,7 +159,7 @@ export const USE_INFO = {
   // ── Lecture & indices ──
   read: U('lecture', 'À lire', 'Clic gauche pour lire. Livres, notes, affiches : certains textes racontent l\'histoire du centre ou cachent des indices.'),
   newspaper: U('lecture', 'Journal', 'Clic gauche pour lire les gros titres.'),
-  map: U('lecture', 'Plan du centre', 'Gardez-le dans l\'inventaire : la touche M affiche le plan du centre.'),
+  map: U('lecture', 'Plan du centre', 'Gardez-le dans l\'inventaire : la touche M affiche le plan du centre en plein écran (trois niveaux, votre position et votre regard en direct ; la nuit, les magasins qui ne sont pas sous votre responsabilité sont grisés « fermé »). Sans guide, les bornes « Plan du centre » des galeries, du hall et du parking se lisent avec E.'),
   scratch: U('lecture', 'Ticket à gratter', 'Clic gauche pour gratter. Qui sait ?'),
   gum: U('lecture', 'Chewing-gum', 'Mâchez-le (clic gauche), puis collez-le sur l\'objectif d\'une caméra pour l\'aveugler.'),
   clock: U('lecture', 'Horloge', 'Donne l\'heure. Le coucou chante à chaque heure… même à 3 h.'),
