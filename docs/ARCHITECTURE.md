@@ -119,6 +119,9 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   un autre qu'à 8 m d'un passage (arêtes du graphe de navigation qui changent de niveau : escaliers, escalators, rampe)
   ou près d'un vide (`void: true`, l'atrium : 10 m, ou 45 m s'il est dans le champ de `cam`).
 - Depuis un magasin, les magasins mitoyens du même côté sont masqués ; une réserve ne se voit qu'à moins de 14 m.
+- `zone.visibleAt(pos, niveau, near, zoneDeLaCaméra, range)` remplace ces règles pour une zone : les abords extérieurs
+  (`outside.js`) ne sont dessinés que depuis dehors, le toit, ou les zones qui voient par la façade vitrée (hall,
+  mezzanine, galeries est) ; rien de l'extérieur n'est dessiné depuis le cœur du centre.
 - Personnages : un seul mesh à squelette (`THREE.SkinnedMesh`) par personnage (`humanoid.js` : corps continu, visage
   modelé, mains, tenues) ; les accessoires tenus suivent l'os de la main (`propR`).
 
@@ -144,6 +147,19 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
 - `mall.js` : architecture (galeries, vide central coupé de passerelles, verrière à deux pans, aile administrative,
   parking, sous-sol, toit, couloirs de service), navigation, caméras fixes. Zones déclarées avant la géométrie ;
   la géométrie statique est regroupée par (zone, matériau) par `Arch` (`arch.js`).
+- `outside.js` : abords. Parking de surface (~250 places peintes et numérotées, PMR, familles, recharge, butées), voie de
+  desserte avec dépose-minute et quai de bus, giratoire, allées piétonnes plantées, parvis dallé (bancs, abri à
+  chariots, abribus avec horaires lisibles, arceaux, borne SOS), tranchée ouverte de la rampe (murets, garde-corps,
+  portique 2,10 m, borne et barrière), clôtures et haies, entrée du site, avenue barrée par un chantier, écran
+  acoustique, façades nord / sud et entrepôt vus de dehors, cour de service, ville au loin. Parvis et trottoirs à
+  y = 0, chaussée à y = -0,15 (bordures = marches de 15 cm, bateaux aux passages piétons). Quatre zones : `outside`
+  (celle où l'on se trouve dehors) et trois zones de rendu seules (`outside_lot`, `outside_far`, `outside_sides`,
+  boîtes dans le ciel). Voitures garées fusionnées en deux jeux (jour : clients ; nuit : personnel, camionnette)
+  basculés hors de la vue par `world.outside` (contrôleur) ; lampadaires par groupes (zone, circuit, état : allumé,
+  en panne, qui clignote), optiques émissives, halos, flaques additives au loin et sources du pool bornées à leur
+  boîte (`zone: {min, max}` d'une source de `lighting.addSource`) ; `world.streetLight` (0..1) dose la lumière des
+  lampadaires qui entre par la façade vitrée ; `world.offSite(pos)` : au-delà de l'entrée du site (abandon de poste) ;
+  `world.points.parkingCams` : caméras sur mâts (position, cap) pour une future vidéosurveillance.
 - `stocking.js` : planogramme dense après `placeContents` : premier rang de chaque planche rempli à ~92 % (`FILL`) de
   « facings » du même produit poussés vers le client, rangées en profondeur, piles des formes plates, cartons en haut
   et en réserve, présentoirs de sol ; budget d'objets par boutique (`BUDGET`, ~16 500 au total, plafond `HARD`). Les

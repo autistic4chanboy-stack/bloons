@@ -153,7 +153,7 @@ export class Lighting {
       // veilleuses de secours : à peine de quoi deviner les volumes (la nuit doit être noire)
       let base = 0;
       if (em && !lit) { if (z.circuit === 'gallery') base = 0.0035; else if (z.circuit === 'service' || z.circuit === 'basement' || z.circuit === 'garage') base = 0.002; }
-      const day = (z.circuit === 'gallery' || z.id === 'atrium') ? this.dayFactor : 0;
+      const day = (z.circuit === 'gallery' || z.id === 'atrium') ? this.dayFactor : this.dayFactor * (z.dayLight || 0); // abords (dayLight) : jour vu depuis l'intérieur
       const L = Math.max(level * z.lightLevel, base, day * 0.9);
       z.lit = L > 0.2;
       z._level = L;

@@ -93,7 +93,7 @@ export function buildMall(world) {
   Z('vent_n', 'Conduit nord', 'vent', 0, [-79.1, 3.5, 22.9, 66, 4.55, 24.1], { area: 'vents', cull: 35 });
   Z('vent_w', 'Conduit ouest', 'vent', 0, [-79.1, 3.5, -24.1, -77.9, 4.55, 24.1], { area: 'vents', cull: 35 });
   Z('vent_sec', 'Conduit du poste', 'vent', 0, [-79, 3.2, -0.6, -68.3, 4.55, 0.6], { area: 'vents', cull: 35 });
-  Z('outside', 'Parking extérieur', 'outside', 0, [80, -3, -75, 200, 30, 75], { area: 'outside', outdoor: true }); // visibilité : outside.js (visibleAt)
+  Z('outside', 'Parking extérieur', 'outside', 0, [80, -3, -75, 200, 100, 75], { area: 'outside', outdoor: true }); // visibilité : outside.js (visibleAt)
   // vides centraux sous la verrière (aucune géométrie : relient les niveaux pour la visibilité)
   Z('void_w', 'Vide central — ouest', 'void', 1, [-64, -0.5, -VOID_Z, -24, 14.5, VOID_Z], { area: 'gallery1', void: true, cull: 120 });
   Z('void_e', 'Vide central — est', 'void', 1, [24, -0.5, -VOID_Z, 64, 14.5, VOID_Z], { area: 'gallery1', void: true, cull: 120 });
@@ -1633,8 +1633,8 @@ function buildNav(world, doors) {
   N('gar_w', -64, -4.5, 9.6, 'garage'); L('gar_w', 'gar-60_6'); L('gar_w', 'boilr', { door: doors.boiler_g.id });
   N('gar_gate', 63.5, -4.5, -4.5, 'garage'); L('gar_gate', 'gar60_-6');
   // rampe : couverte (ramp0), tranchée côté voie d'entrée (ramp1), sommet sur la voie de desserte (ramp2)
-  N('ramp0', 68, -4.24, -4.5, 'ramp'); N('ramp1', 84, rampTop(84.5), -5.8, 'outside'); N('ramp2', 99.6, -0.15, -5.8, 'outside', ['outside']);
-  L('gar_gate', 'ramp0', { shutter: true }); L('ramp0', 'ramp1'); L('ramp1', 'ramp2');
+  N('ramp0', 68, -4.24, -4.5, 'ramp'); N('ramp1', 84, rampTop(84), -5.8, 'outside'); N('rampT', 98.2, -0.15, -5.8, 'outside', ['outside']); N('ramp2', 99.6, -0.15, -5.8, 'outside', ['outside']);
+  L('gar_gate', 'ramp0', { shutter: true }); L('ramp0', 'ramp1'); L('ramp1', 'rampT'); L('rampT', 'ramp2');
   // escalier est
   for (const [y, k] of [[-4.5, 'B'], [0, '0'], [5, '1']]) { N(`stE${k}`, 77.6, y, 9.2, 'stairsE'); N(`stE${k}s`, 77, y, 20.5, 'stairsE'); L(`stE${k}`, `stE${k}s`); }
   const seMid = (a, b, y0, y1) => { const h = (y1 - y0) / 2; N(`stE${a}a`, 67.8, y0, 11, 'stairsE'); N(`stE${a}b`, 67.8, y0 + h, 20.6, 'stairsE'); N(`stE${a}c`, 72.2, y0 + h, 20.6, 'stairsE'); N(`stE${a}d`, 72.2, y1, 11, 'stairsE'); nav.chain([`stE${a}`, `stE${a}a`, `stE${a}b`, `stE${a}c`, `stE${a}d`, `stE${b}`]); };

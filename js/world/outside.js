@@ -363,9 +363,10 @@ function hatch(Q, cx, cz, ux, uz, w, L, step = 0.55, lw = 0.1) {
 function setupZones(world) {
   const out = world.zone(ZO);
   out.extra.push([FW - 1, -3, 25.6, XF, 30, FZ + 1], [FW - 1, -3, -FZ - 1, XF, 30, -25.6]); // le long des façades latérales
-  out.visibleAt = (p, lv, near, cz) => outdoorCam(p) || (!!cz && ((cz.circuit === 'gallery' && p.x > -30) || cz.id === 'ramp'));
+  out.visibleAt = (p, lv, near, cz) => outdoorCam(p) || (lv === 0 && near[1]) || (!!cz && ((cz.circuit === 'gallery' && p.x > -30) || cz.id === 'ramp' || (cz.id === 'garage' && p.x > 44)));
+  out.dayLight = 0.45; // lumière du jour propre aux abords (power.js) : le parking reste clair vu depuis le hall
   // zones de rendu seules : boîtes dans le ciel (jamais « occupées », ni prises pour une ouverture de façade)
-  const mk = (id, name, b, vis) => { const z = world.addZone(new Zone(id, name, 'outside', 0, b[0], 60, b[1], b[2], 61, b[3], { area: id, cull: 1e4 })); z.visibleAt = vis; return z; };
+  const mk = (id, name, b, vis) => { const z = world.addZone(new Zone(id, name, 'outside', 0, b[0], 60, b[1], b[2], 61, b[3], { area: id, cull: 1e4 })); z.visibleAt = vis; z.dayLight = 0.45; return z; };
   const seen = (p, lv, near, cz) => outdoorCam(p) || (!!cz && VIEW_E.has(cz.id));
   mk(ZL, 'Parking extérieur — rangées', [XF, -FZ, FX, FZ], seen);
   mk(ZF, 'Abords lointains', [FX, -400, 700, 400], seen);
@@ -666,7 +667,7 @@ function lampMeshes(world, { groups, darks }) {
       G.points = new THREE.Points(gg, G.glowMat); G.points.frustumCulled = false; z.add(G.points);
     }
     if (G.pool.count) {
-      G.poolMat = addBlend(new THREE.ShaderMaterial({ vertexShader: POOL_VS, fragmentShader: POOL_FS, uniforms: { color: { value: new THREE.Color(G.col[0] * 0.55, G.col[1] * 0.55, G.col[2] * 0.55) }, k: { value: 0 } } }));
+      G.poolMat = addBlend(new THREE.ShaderMaterial({ vertexShader: POOL_VS, fragmentShader: POOL_FS, uniforms: { color: { value: new THREE.Color(G.col[0] * 0.03, G.col[1] * 0.03, G.col[2] * 0.03) }, k: { value: 0 } } }));
       G.poolMesh = G.pool.mesh(G.poolMat, { name: 'flaques' }); G.poolMesh.renderOrder = 2; z.add(G.poolMesh);
     }
   }
@@ -1058,11 +1059,11 @@ class OutsideCtl extends WorldObject {
       if (G.blink) k = dark * (Math.sin(this.t * 6.2 + G.seed) > 0.2 ? 1 : 0.04);
       G.k = k; if (G.circuit === 'garage') street = Math.max(street, k);
       const e = 0.02 + k * (G.blink ? 3.2 : 2.4); G.lensMat.color.setRGB(G.col[0] * e, G.col[1] * e, G.col[2] * e);
-      if (G.glowMat) G.glowMat.opacity = k * (G.blink ? 0.8 : 0.5);
+      if (G.glowMat) G.glowMat.opacity = k * (G.blink ? 0.7 : 0.38);
       if (G.poolMat) G.poolMat.uniforms.k.value = k;
     }
     this.world.streetLight = street; // façade vitrée : la lumière des lampadaires entre dans le hall (environment.js)
-    const lit = dark * (g.power.isOn('gallery') ? 1 : 0), e = 0.004 + lit * 1.4;
+    const lit = dark * (g.power.isOn('gallery') ? 1 : 0), e = 0.004 + lit * 1.4; this.dark = dark; this.lit = lit;
     this.litMat.emissive.setRGB(e, e, e);
     this.pubMat.emissive.setRGB(0.01 + dark * 1.1, 0.01 + dark * 1.1, 0.01 + dark * 1.1);
     const cd = dark < 0.5;
@@ -1212,6 +1213,15 @@ function furnish(A, W, Q, world, rng, lamps, bays, lit, pub, TB) {
   for (const s of [1, -1]) { camPole(A, world, ZL, 132.5, s * 23.5, s > 0 ? Math.PI * 0.85 : Math.PI * 0.15); sosPost(A, world, ZL, 133.0, s * 23.5 - s * 0.05, s > 0 ? -Math.PI / 2 : Math.PI / 2); }
   camPole(A, world, ZL, 157.5, 46.5, Math.PI * 0.3); camPole(A, world, ZL, 172.6, -12.5, -Math.PI * 0.35);
   for (const [x, z, a] of [[128, 13.1, 0.4], [147.6, -16.0, 2.1], [112, 31.2, 1.2]]) { caddy(A, W[ZL], ZL, x, z, a); world.physics.add(new Box(x - 0.55, YR, z - 0.55, x + 0.55, YR + 1.05, z + 0.55, LAYER.FURN)); }
+  // butées de roues préfabriquées (profil chanfreiné, bandes jaunes) dans les places qui butent sur une haie
+  const WS = [[-0.09, 0], [0.09, 0], [0.065, 0.1], [0.045, 0.11], [-0.045, 0.11], [-0.065, 0.1]];
+  for (const b of bays) {
+    if (b.blocked || !(Math.abs(b.cz) > 53 || b.cx > 164)) continue;
+    const zn = b.staff ? ZS : ZL, wx = b.cx + b.ux * (b.d / 2 - 0.75), wz = b.cz + b.uz * (b.d / 2 - 0.75), along = b.ux !== 0; // butée parallèle au fond de la place
+    A.plate(zn, 'concrete', WS, -0.75, 0.75, 0xffffff, { m: new THREE.Matrix4().makeRotationY(along ? 0 : Math.PI / 2).setPosition(wx, YR, wz) });
+    for (const d of [-0.45, 0.45]) A.furn(zn, wx + (along ? 0 : d) - (along ? 0.046 : 0.15), YR + 0.11, wz + (along ? d : 0) - (along ? 0.15 : 0.046), wx + (along ? 0 : d) + (along ? 0.046 : 0.15), YR + 0.113, wz + (along ? d : 0) + (along ? 0.15 : 0.046), 0xd4a017, { collide: false });
+    world.physics.add(new Box(wx - (along ? 0.09 : 0.75), YR, wz - (along ? 0.75 : 0.09), wx + (along ? 0.09 : 0.75), YR + 0.11, wz + (along ? 0.75 : 0.09), LAYER.FURN));
+  }
   Q[ZS].floor(70, YM, -50.5, 1, 0, 1.0, 4.0, MARKS.uv.livraisons);
   // ── abords lointains : totem, panneaux de l'avenue, écran acoustique, chantier ──
   pylon(A, ZF, 181, 14, lit);
@@ -1313,6 +1323,11 @@ export function buildOutside(world) {
   const ctl = new OutsideCtl(world, { groups: lampGroups.groups, cars: carSets, litMat, pubMat, city, vanMesh, vanBox, vanPos });
   world.add(ctl); ctl.setCars(true);
   g.lighting.addSource({ getLight: () => (ctl.van ? vanLight : null) });
+  // caisson publicitaire éclairé de l'abribus et faces du totem : un peu de lumière froide alentour la nuit
+  const pubL = { pos: V3(93.5, 1.3, -16.6), color: [0.75, 0.82, 1], intensity: 0, distance: 6, priority: 1.4, zone: { min: [86, -0.5, -24], max: [100, 4, -9] } };
+  const totL = { pos: V3(181, 8, 14), color: [1, 0.85, 0.6], intensity: 0, distance: 9, priority: 1.4, zone: { min: [176, -0.5, 6], max: [188, 12, 22] } };
+  g.lighting.addSource({ getLight: () => (ctl.dark > 0.2 ? (pubL.intensity = 1.2 * ctl.dark, pubL) : null) });
+  g.lighting.addSource({ getLight: () => (ctl.lit > 0.2 ? (totL.intensity = 1.6 * ctl.lit, totL) : null) });
   world.streetLamps = lamps.filter((l) => l.kind === 'lot' || l.kind === 'avenue').map((l) => ({ pos: V3(l.x, (l.y0 ?? YP) + 7.6, l.z), state: l.state, circuit: l.circuit }));
   world.offSite = (p) => p.x > FX + 0.4; // au-delà de la clôture (entrée du site) : on a quitté le centre
   world.outside = ctl;
