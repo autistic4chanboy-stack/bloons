@@ -233,7 +233,7 @@ export function buildMall(world) {
 
   // Portes du bloc ouest
   door('sec_front', { zone: 'security', x: -66, y: 0, z: 0, axis: 'z', width: 1.5, height: 2.5, mat: 'metal', armored: true, name: 'Porte blindée du poste', color: 0x50606a, hinge: 'a', swing: -1, label: 'SÉCURITÉ' });
-  door('sec_back', { zone: 'security', x: -76, y: 0, z: 3, axis: 'z', width: 1, mat: 'metal', lock: 'keys', locked: true, name: 'Porte arrière du poste', swing: 1 });
+  door('sec_back', { zone: 'security', x: -76, y: 0, z: 3, axis: 'z', width: 1, mat: 'metal', lock: 'keys', locked: true, name: 'Porte arrière du poste', swing: -1, hinge: 'b' }); // charnière côté nord : le vantail ouvert ne rentre plus dans la console des écrans
   door('sec_store', { zone: 'secstore', x: -73, y: 0, z: -5, axis: 'x', width: 1, mat: 'wood', name: 'Réserve de sécurité', swing: 1 });
   door('sec_vest', { zone: 'vestiaire', x: -73, y: 0, z: 5, axis: 'x', width: 1, mat: 'wood', name: 'Vestiaire', swing: -1 });
   door('store_ww', { zone: 'secstore', x: -76, y: 0, z: -13, axis: 'z', width: 1, mat: 'metal', lock: 'keys', locked: true, name: 'Réserve (couloir)', swing: 1 });
@@ -825,7 +825,7 @@ function buildAdmin(world, A, door, dev, rng) {
   }
   door('arch_g', { zone: 'adm_couloir', x: -66, y, z: 0, axis: 'z', width: 1.2, mat: 'wood', lock: 'keys', locked: true, name: 'Administration', label: 'ADMINISTRATION', swing: 1, window: true });
   door('arch_w', { zone: 'adm_couloir', x: -76, y, z: 0, axis: 'z', width: 1.2, mat: 'wood', name: 'Administration (couloir de service)', swing: -1 });
-  door('adm_acc', { zone: 'adm_accueil', x: -68, y, z: 1, axis: 'x', width: 1.4, mat: 'glass', name: 'Accueil de l\'administration', swing: 1 });
+  door('adm_acc', { zone: 'adm_accueil', x: -68, y, z: 1, axis: 'x', width: 1.4, mat: 'glass', name: 'Accueil de l\'administration', swing: 1, hinge: 'b' }); // s'ouvre vers l'accueil (elle barrait le couloir)
   const wh = (zn, x, yy, z, ry, title, lines) => { // tableau blanc lisible
     const c = document.createElement('canvas'); c.width = 512; c.height = 320; const x2 = c.getContext('2d');
     x2.fillStyle = '#f4f6f6'; x2.fillRect(0, 0, 512, 320); x2.strokeStyle = '#9aa'; x2.lineWidth = 8; x2.strokeRect(4, 4, 504, 312);
@@ -991,8 +991,8 @@ function buildAdmin(world, A, door, dev, rng) {
   cabinet('adm_infirm', -72.37, -15.0, -Math.PI / 2, 'Armoire à pharmacie', ['first_aid', 'first_aid'], 1.8);
   dev('sink', 'adm_infirm', -72.31, y + 0.45, -16.5, -Math.PI / 2); // contre la cloison du couloir, à l'écart de l'huisserie de la porte
   // caméras
-  world.cameras.push({ id: 'cam_admin', name: 'Administration — couloir', area: 'gallery1', zone: 'adm_couloir', pos: new THREE.Vector3(-71.6, 8.3, 12.4), yaw: 0, pitch: -0.3, fov: 70 });
-  world.cameras.push({ id: 'cam_coffre', name: 'Salle des coffres', area: 'gallery1', zone: 'adm_coffre', pos: new THREE.Vector3(-69.6, 8.3, -7.4), yaw: -0.65, pitch: -0.55, fov: 75 });
+  world.cameras.push({ id: 'cam_admin', name: 'Administration — couloir', area: 'gallery1', zone: 'adm_couloir', pos: new THREE.Vector3(-71.6, 8.4, 12.4), yaw: 0, pitch: -0.3, fov: 70 }); // (bras de fixation contre le faux plafond)
+  world.cameras.push({ id: 'cam_coffre', name: 'Salle des coffres', area: 'gallery1', zone: 'adm_coffre', pos: new THREE.Vector3(-69.6, 8.39, -7.4), yaw: -0.65, pitch: -0.55, fov: 75 });
 }
 
 // Habillage d'une volée posée par A.stairs (mêmes paramètres) : nez de marche en aluminium à bande antidérapante,
@@ -1690,18 +1690,19 @@ function defineAreaCameras(world) {
   C('cam_entrance', 'Hall d\'entrée', 'entrance', 'entrance', [67, 4.2, -7.4], Math.PI * 0.75 + 0.2, -0.35, 80);
   C('cam_g1w', 'Galerie étage ouest', 'gallery1', 'gallery1_w', [-65.3, 9.6, 7.2], -Math.PI / 2 + 0.25, -0.3, 75);
   C('cam_g1e', 'Galerie étage est', 'gallery1', 'gallery1_e', [65.3, 9.6, -7.2], Math.PI / 2 + 0.25, -0.3, 75);
-  C('cam_svc_s', 'Couloir de service sud', 'service', 'service_s0', [-75.5, 4.2, -22.4], -Math.PI / 2, -0.25, 60);
-  C('cam_svc_n', 'Couloir de service nord', 'service', 'service_n0', [79.5, 4.2, 22.4], Math.PI / 2, -0.25, 60);
-  C('cam_garage1', 'Parking — ouest', 'garage', 'garage', [-65.5, -1, -23.5], -Math.PI * 0.75, -0.3, 80);
-  C('cam_garage2', 'Parking — est', 'garage', 'garage', [65.5, -1, 23.5], Math.PI * 0.25, -0.3, 80);
-  C('cam_ramp', 'Rideau de la rampe', 'garage', 'garage', [60, -1, -12], Math.PI * 0.62, -0.25, 70);
-  C('cam_basement', 'Couloir technique', 'basement', 'westwingB', [-79.4, -1.0, 21.5], 0, -0.3, 70);
-  C('cam_gen', 'Groupe électrogène', 'basement', 'generator', [-66.6, -1.0, -12.6], -Math.PI * 0.25, -0.45, 75);
+  // (hauteurs : le bras de fixation de la caméra touche le plafond, ou le dessous de la poutre pour la rampe)
+  C('cam_svc_s', 'Couloir de service sud', 'service', 'service_s0', [-75.5, 4.4, -22.4], -Math.PI / 2, -0.25, 60);
+  C('cam_svc_n', 'Couloir de service nord', 'service', 'service_n0', [79.5, 4.4, 22.4], Math.PI / 2, -0.25, 60);
+  C('cam_garage1', 'Parking — ouest', 'garage', 'garage', [-65.4, -0.8, -23.5], -Math.PI * 0.75, -0.3, 80);
+  C('cam_garage2', 'Parking — est', 'garage', 'garage', [65.5, -0.8, 23.5], Math.PI * 0.25, -0.3, 80);
+  C('cam_ramp', 'Rideau de la rampe', 'garage', 'garage', [60, -1.25, -12], Math.PI * 0.62, -0.25, 70);
+  C('cam_basement', 'Couloir technique', 'basement', 'westwingB', [-79.4, -0.8, 21.5], 0, -0.3, 70);
+  C('cam_gen', 'Groupe électrogène', 'basement', 'generator', [-66.6, -0.81, -12.6], -Math.PI * 0.25, -0.45, 75);
   C('cam_vent_s', 'Conduit sud', 'vents', 'vent_s', [-77.5, 4.25, -23.5], -Math.PI / 2, -0.05, 60);
   C('cam_vent_w', 'Conduit ouest', 'vents', 'vent_w', [-78.5, 4.25, -23], Math.PI, -0.05, 60);
   C('cam_roof', 'Toit', 'roof', 'roof', [-75.5, 13.2, 12.6], -Math.PI * 0.8, -0.35, 80);
-  C('cam_warehouse', 'Entrepôt', 'warehouse', 'warehouse', [-80.8, 7.4, 4.6], -Math.PI * 0.25, -0.4, 80);
-  C('cam_dock', 'Quai de chargement', 'warehouse', 'warehouse', [-111.6, 7.4, -24.6], Math.PI * 0.75 + 0.4, -0.4, 75);
+  C('cam_warehouse', 'Entrepôt', 'warehouse', 'warehouse', [-80.8, 7.8, 4.6], -Math.PI * 0.25, -0.4, 80);
+  C('cam_dock', 'Quai de chargement', 'warehouse', 'warehouse', [-111.6, 7.8, -24.6], Math.PI * 0.75 + 0.4, -0.4, 75);
 }
 
 // ───────────────────────── GRAPHE DE NAVIGATION ─────────────────────────
@@ -1743,11 +1744,18 @@ function buildNav(world, doors) {
     L(`sv${f}${side}-75`, `ww${f}_${side === 's' ? -23 : 21}`);
   }
   // escalier ouest : volées le long des faces nord et sud du noyau plein, paliers intermédiaires à l'est (x -68 … -66) ;
-  // nœuds sur les paliers, juste avant la première marche et après la dernière (on suit la pente des volées et l'on
-  // contourne le noyau au lieu de le traverser)
+  // on traverse le palier intermédiaire au lieu du noyau
   const sw = [[-4.5, 'B'], [0, '0'], [5, '1'], [10.5, 'R']];
   for (const [y, k] of sw) N(`stW${k}`, -74.8, y, 17.75, 'stairsW');
-  const swMid = (a, b, y0, y1) => { const h = (y1 - y0) / 2; N(`stW${a}a`, -73.8, y0, 14.4, 'stairsW'); N(`stW${a}b`, -67.6, y0 + h, 14.4, 'stairsW'); N(`stW${a}c`, -67.6, y0 + h, 20.6, 'stairsW'); N(`stW${a}d`, -73.8, y1, 20.6, 'stairsW'); nav.chain([`stW${a}`, `stW${a}a`, `stW${a}b`, `stW${a}c`, `stW${a}d`, `stW${b}`]); };
+  // nœuds au milieu du premier et du dernier giron de chaque volée : la hauteur interpolée suit la ligne des marches, à
+  // une demi-contremarche près (les présences ne s'enfoncent plus dans les volées)
+  const swMid = (a, b, y0, y1) => {
+    const h = (y1 - y0) / 2, n = Math.round(h / 0.25), sd = 5.5 / n, sr = h / n;
+    N(`stW${a}a`, -73.5 + sd / 2, y0 + sr, 14.4, 'stairsW'); N(`stW${a}a2`, -68 - sd / 2, y0 + h, 14.4, 'stairsW');
+    N(`stW${a}b`, -67.6, y0 + h, 14.4, 'stairsW'); N(`stW${a}c`, -67.6, y0 + h, 20.6, 'stairsW');
+    N(`stW${a}d`, -68 - sd / 2, y0 + h + sr, 20.6, 'stairsW'); N(`stW${a}d2`, -73.5 + sd / 2, y1, 20.6, 'stairsW');
+    nav.chain([`stW${a}`, `stW${a}a`, `stW${a}a2`, `stW${a}b`, `stW${a}c`, `stW${a}d`, `stW${a}d2`, `stW${b}`]);
+  };
   swMid('B', '0', -4.5, 0); swMid('0', '1', 0, 5); swMid('1', 'R', 5, 10.5);
   L('stW0', 'ww0_17.75', { door: doors.stW_0.id }); L('stW1', 'ww1_17.75', { door: doors.stW_1.id });
   // sous-sol : couloir technique, un nœud dans l'axe de chaque porte
@@ -1766,7 +1774,13 @@ function buildNav(world, doors) {
   L('gar_gate', 'ramp0', { shutter: true }); L('ramp0', 'ramp05'); L('ramp05', 'ramp1'); L('ramp1', 'ramp2');
   // escalier est : même principe que l'escalier ouest (noyau x 69,1 … 70,9, z 10,5 … 19,5)
   for (const [y, k] of [[-4.5, 'B'], [0, '0'], [5, '1']]) { N(`stE${k}`, 77.6, y, 9.2, 'stairsE'); N(`stE${k}s`, 77, y, 20.5, 'stairsE'); L(`stE${k}`, `stE${k}s`); }
-  const seMid = (a, b, y0, y1) => { const h = (y1 - y0) / 2; N(`stE${a}a`, 67.8, y0, 10.2, 'stairsE'); N(`stE${a}b`, 67.8, y0 + h, 20.1, 'stairsE'); N(`stE${a}c`, 72.2, y0 + h, 20.1, 'stairsE'); N(`stE${a}d`, 72.2, y1, 10.2, 'stairsE'); nav.chain([`stE${a}`, `stE${a}a`, `stE${a}b`, `stE${a}c`, `stE${a}d`, `stE${b}`]); };
+  const seMid = (a, b, y0, y1) => {
+    const h = (y1 - y0) / 2, n = Math.round(h / 0.25), sd = 9 / n, sr = h / n;
+    N(`stE${a}w`, 67.8, y0, 9.6, 'stairsE'); N(`stE${a}a`, 67.8, y0 + sr, 10.5 + sd / 2, 'stairsE'); N(`stE${a}a2`, 67.8, y0 + h, 19.5 - sd / 2, 'stairsE');
+    N(`stE${a}b`, 67.8, y0 + h, 20.1, 'stairsE'); N(`stE${a}c`, 72.2, y0 + h, 20.1, 'stairsE');
+    N(`stE${a}d`, 72.2, y0 + h + sr, 19.5 - sd / 2, 'stairsE'); N(`stE${a}d2`, 72.2, y1, 10.5 + sd / 2, 'stairsE'); N(`stE${a}e`, 72.2, y1, 9.6, 'stairsE');
+    nav.chain([`stE${a}`, `stE${a}w`, `stE${a}a`, `stE${a}a2`, `stE${a}b`, `stE${a}c`, `stE${a}d`, `stE${a}d2`, `stE${a}e`, `stE${b}`]);
+  };
   seMid('B', '0', -4.5, 0); seMid('0', '1', 0, 5);
   N('gar_e', 64, -4.5, 9.25, 'garage'); L('gar_e', 'gar60_6'); L('gar_e', 'stEB', { door: doors.stE_B.id });
   N('sv0n_e', 77, 0, 23.3, 'service_n0'); N('sv1n_e', 77, 5, 23.3, 'service_n1'); L('sv0n_e', 'sv0n75'); L('sv1n_e', 'sv1n75');
