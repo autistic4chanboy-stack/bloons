@@ -201,7 +201,7 @@ export class Security {
       const belt = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.06, 5.4), beltMat); belt.position.set(x, 0.92, 0); grp.add(belt);
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.3), new THREE.MeshBasicMaterial({ map: this.signTexture('ÉTAGE FERMÉ'), transparent: false }));
       sign.position.set(x + (x < 0 ? 0.02 : -0.02), 0.72, 0); sign.rotation.y = x < 0 ? Math.PI / 2 : -Math.PI / 2; grp.add(sign);
-      zone.group.add(grp);
+      grp.visible = false; zone.group.add(grp); // visible et solide ensemble (updateBarriers)
       const box = g.world.physics.add(new Box(x - 0.08, 0, -2.75, x + 0.08, 1.2, 2.75, LAYER.WALL)); box.enabled = false;
       this.barriers.push({ grp, box });
     }
