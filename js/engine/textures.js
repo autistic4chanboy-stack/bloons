@@ -238,17 +238,33 @@ export function concrete(tone = 0x8d8a85, key = '') {
   });
 }
 
+// Surfaces « teintées » (enduit, moquettes, lino, parpaings) : le relief, la rugosité et le facteur de nuance k ne
+// dépendent pas de la couleur (graines fixes). Ils sont calculés une fois par structure (tintBase) : la carte de normales
+// est partagée par toutes les teintes (une quarantaine d'enduits dans le centre) et chaque teinte ne refait que sa carte
+// de couleur, couleur × k — mêmes octets qu'un calcul complet (k en double précision, produit arrondi en flottant 32 bits
+// comme dans les tableaux de surf()).
+function tintBase(key, relief, fill) {
+  return cached(key, () => {
+    release();
+    const size = 512, n = size * size, s = surf(size), k = new Float64Array(n), ro8 = new Uint8ClampedArray(n);
+    fill(s, k, size);
+    for (let i = 0; i < n; i++) ro8[i] = s.ro[i] * 255;
+    return { size, k, ro8, normalMap: packSurf(s, relief, true).normalMap };
+  });
+}
+function tinted(base, color) {
+  const { size, k, ro8, normalMap } = base, [r0, g0, b0] = rgb(color), m = size - 1, f = Math.fround;
+  const d = new Uint8ClampedArray(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0, i = y * size, j = (m - y) * size * 4; x < size; x++, i++, j += 4) { const kk = k[i]; d[j] = f(r0 * kk); d[j + 1] = f(g0 * kk); d[j + 2] = f(b0 * kk); d[j + 3] = ro8[i]; }
+  return { map: dataTex(d, size, true, FILL_MAP), normalMap, metal: false, packed: true };
+}
+
 // Enduit peint : peau d'orange, très légères nuances
 export function plaster(color = 0xd9d4c8) {
-  return cached('plaster' + color, () => {
-    release();
-    const size = 512, s = surf(size), [r0, g0, b0] = rgb(color), peel = fbm(size, 96, 96, 3, 41), mott = fbm(size, 3, 3, 4, 42), fine = fbm(size, 256, 256, 1, 43);
-    for (let i = 0; i < size * size; i++) {
-      const k = 1 + (mott[i] - 0.5) * 0.045 + (fine[i] - 0.5) * 0.02;
-      s.r[i] = r0 * k; s.g[i] = g0 * k; s.b[i] = b0 * k; s.h[i] = peel[i]; s.ro[i] = 0.86 + (peel[i] - 0.5) * 0.1;
-    }
-    return packSurf(s, 0.9);
-  });
+  return cached('plaster' + color, () => tinted(tintBase('plasterBase', 0.9, (s, k, size) => {
+    const peel = fbm(size, 96, 96, 3, 41), mott = fbm(size, 3, 3, 4, 42), fine = fbm(size, 256, 256, 1, 43);
+    for (let i = 0; i < size * size; i++) { k[i] = 1 + (mott[i] - 0.5) * 0.045 + (fine[i] - 0.5) * 0.02; s.h[i] = peel[i]; s.ro[i] = 0.86 + (peel[i] - 0.5) * 0.1; }
+  }), color));
 }
 
 // Briques : appareil en panneresse, joints creux, arêtes ébréchées, nuances par brique
@@ -271,19 +287,17 @@ export function brick(color = 0x8e4b36) {
 
 // Parpaings peints (couloirs de service) : blocs poreux sous la peinture, joints légèrement creux
 export function blockWall(color = 0xb8b4aa) {
-  return cached('block' + color, () => {
-    release();
-    const size = 512, s = surf(size), [r0, g0, b0] = rgb(color), bw = 256, bh = 128;
+  return cached('block' + color, () => tinted(tintBase('blockBase', 2.4, (s, K, size) => {
+    const bw = 256, bh = 128;
     const pores = cells(size, 110, 61), mott = fbm(size, 4, 4, 4, 62), fine = fbm(size, 160, 160, 2, 63), grime = fbm(size, 2, 6, 4, 64);
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const i = y * size + x, row = (y / bh) | 0, off = (row & 1) * bw / 2, lx = (x + off) % bw, ly = y % bh, e = Math.min(lx, ly, bw - lx, bh - ly) - 2.5;
       let k = 1 + (mott[i] - 0.5) * 0.07 + (fine[i] - 0.5) * 0.05 - (grime[i] > 0.7 ? (grime[i] - 0.7) * 0.3 : 0), h = 0.55 + (fine[i] - 0.5) * 0.15, ro = 0.8;
       if (pores.f1[i] < 1.1 && pores.rnd[pores.id[i]] < 0.5) { k *= 0.9; h -= 0.25; }
       if (e <= 0) { k *= 0.86; h = 0.3; ro = 0.88; } else if (e < 2) h -= (2 - e) * 0.1;
-      s.r[i] = r0 * k; s.g[i] = g0 * k; s.b[i] = b0 * k; s.h[i] = h; s.ro[i] = ro;
+      K[i] = k; s.h[i] = h; s.ro[i] = ro;
     }
-    return packSurf(s, 2.4);
-  });
+  }), color));
 }
 
 // Parquet vitrifié : lames de ~20 cm, cernes et fil du bois, nœuds, aboutages décalés, joints fins
@@ -308,45 +322,39 @@ export function woodPlanks(color = 0x8d6038, key = '') {
 
 // Moquette : velours bouclé (fibres), motif discret, nuances d'usure
 export function carpet(color = 0x5a2a3a) {
-  return cached('carpet' + color, () => {
-    release();
-    const size = 512, s = surf(size), [r0, g0, b0] = rgb(color), fib = fbm(size, 256, 256, 2, 81), tuft = fbm(size, 128, 128, 1, 82), mott = fbm(size, 6, 6, 4, 83);
+  return cached('carpet' + color, () => tinted(tintBase('carpetBase', 1.6, (s, K, size) => {
+    const fib = fbm(size, 256, 256, 2, 81), tuft = fbm(size, 128, 128, 1, 82), mott = fbm(size, 6, 6, 4, 83);
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const i = y * size + x, pat = (((x >> 5) + (y >> 5)) & 1) ? 0.03 : -0.03;
-      const k = 1 + (fib[i] - 0.5) * 0.36 + (tuft[i] - 0.5) * 0.16 + (mott[i] - 0.5) * 0.14 + pat;
-      s.r[i] = r0 * k; s.g[i] = g0 * k; s.b[i] = b0 * k; s.h[i] = fib[i] * 0.7 + tuft[i] * 0.3; s.ro[i] = 1;
+      K[i] = 1 + (fib[i] - 0.5) * 0.36 + (tuft[i] - 0.5) * 0.16 + (mott[i] - 0.5) * 0.14 + pat;
+      s.h[i] = fib[i] * 0.7 + tuft[i] * 0.3; s.ro[i] = 1;
     }
-    return packSurf(s, 1.6);
-  });
+  }), color));
 }
 // Moquette de bureau en dalles de 50 cm posées à quart de tour (le sens du velours alterne)
 export function officeCarpet(color = 0x4a5262) {
-  return cached('ocarpet' + color, () => {
-    release();
-    const size = 512, s = surf(size), [r0, g0, b0] = rgb(color), fa = fbm(size, 32, 256, 2, 91), fb = fbm(size, 256, 32, 2, 92), mott = fbm(size, 5, 5, 4, 93), fl = fbm(size, 256, 256, 1, 94);
+  return cached('ocarpet' + color, () => tinted(tintBase('ocarpetBase', 1.2, (s, K, size) => {
+    const fa = fbm(size, 32, 256, 2, 91), fb = fbm(size, 256, 32, 2, 92), mott = fbm(size, 5, 5, 4, 93), fl = fbm(size, 256, 256, 1, 94);
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const i = y * size + x, tx = x >> 7, ty = y >> 7, alt = (tx + ty) & 1, f = alt ? fa[i] : fb[i], seam = (x & 127) < 1 || (y & 127) < 1;
-      const k = (1 + (f - 0.5) * 0.28 + (fl[i] - 0.5) * 0.16 + (mott[i] - 0.5) * 0.1 + (alt ? 0.025 : -0.025)) * (seam ? 0.82 : 1);
-      s.r[i] = r0 * k; s.g[i] = g0 * k; s.b[i] = b0 * k; s.h[i] = seam ? 0.3 : 0.5 + (fl[i] - 0.5) * 0.4; s.ro[i] = 1;
+      K[i] = (1 + (f - 0.5) * 0.28 + (fl[i] - 0.5) * 0.16 + (mott[i] - 0.5) * 0.1 + (alt ? 0.025 : -0.025)) * (seam ? 0.82 : 1);
+      s.h[i] = seam ? 0.3 : 0.5 + (fl[i] - 0.5) * 0.4; s.ro[i] = 1;
     }
-    return packSurf(s, 1.2);
-  });
+  }), color));
 }
 
 // Lino / sol vinyle : moucheté, marbré, lés de 2 m, cire inégale
 export function linoleum(color = 0x9fa59a) {
-  return cached('lino' + color, () => {
-    release();
-    const size = 512, s = surf(size), [r0, g0, b0] = rgb(color), mott = fbm(size, 8, 8, 4, 101), fleck = fbm(size, 256, 256, 1, 102), wax = fbm(size, 3, 3, 4, 103), scuff = fbm(size, 40, 8, 2, 104);
+  return cached('lino' + color, () => tinted(tintBase('linoBase', 0.8, (s, K, size) => {
+    const mott = fbm(size, 8, 8, 4, 101), fleck = fbm(size, 256, 256, 1, 102), wax = fbm(size, 3, 3, 4, 103), scuff = fbm(size, 40, 8, 2, 104);
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const i = y * size + x, seam = (x & 255) < 1;
       let k = 1 + (mott[i] - 0.5) * 0.16; if (fleck[i] > 0.82) k += 0.12; else if (fleck[i] < 0.14) k -= 0.12;
       if (scuff[i] > 0.85) k -= (scuff[i] - 0.85) * 0.8;
       if (seam) k *= 0.8;
-      s.r[i] = r0 * k; s.g[i] = g0 * k; s.b[i] = b0 * k; s.h[i] = seam ? 0.35 : 0.5; s.ro[i] = 0.36 + wax[i] * 0.22 + (scuff[i] > 0.85 ? 0.2 : 0);
+      K[i] = k; s.h[i] = seam ? 0.35 : 0.5; s.ro[i] = 0.36 + wax[i] * 0.22 + (scuff[i] > 0.85 ? 0.2 : 0);
     }
-    return packSurf(s, 0.8);
-  });
+  }), color));
 }
 
 // Damier noir et blanc (carreaux de 25 cm), biseaux et brillance variable

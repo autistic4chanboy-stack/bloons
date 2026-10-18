@@ -112,7 +112,9 @@ export class PropSystem {
         const { geometry, ranges } = concatGeometries(entries.slice(start, end));
         const mesh = new THREE.Mesh(geometry, g.mats.get('props', zone));
         mesh.castShadow = true; mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
-        const merged = { mesh, orig: new Float32Array(geometry.attributes.position.array), dirty: false };
+        // pas de copie des positions d'origine (~50 Mo pour tout le centre) : _showStatic les recalcule depuis la
+        // géométrie de l'article (en cache) et sa place, avec les mêmes opérations que concatGeometries
+        const merged = { mesh, dirty: false };
         for (let i = start; i < end; i++) { props[i].merged = merged; props[i].range = ranges[i - start]; }
         (this.world.zone(zone)?.group || this.world.root).add(mesh);
         start = end;
@@ -125,13 +127,15 @@ export class PropSystem {
     if (!pr.merged || pr._hidden) return;
     const a = pr.merged.mesh.geometry.attributes.position; const arr = a.array; const { start, count } = pr.range;
     for (let i = start; i < start + count; i++) { arr[i * 3] = 0; arr[i * 3 + 1] = -500; arr[i * 3 + 2] = 0; }
-    a.needsUpdate = true; pr._hidden = true;
+    a.addUpdateRange(start * 3, count * 3); a.needsUpdate = true; pr._hidden = true; // envoi de la seule plage modifiée
   }
   _showStatic(pr) {
     if (!pr.merged || !pr._hidden) return;
-    const a = pr.merged.mesh.geometry.attributes.position; const arr = a.array; const o = pr.merged.orig; const { start, count } = pr.range;
-    arr.set(o.subarray(start * 3, (start + count) * 3), start * 3);
-    a.needsUpdate = true; pr._hidden = false;
+    const a = pr.merged.mesh.geometry.attributes.position; const arr = a.array; const { start, count } = pr.range;
+    const P = buildItemGeometry(pr.def, this.game.atlas).attributes.position;
+    _q.setFromEuler(_e.set(0, pr.home.ry || 0, 0)); _m.compose(_v.set(pr.home.x, pr.home.y, pr.home.z), _q, _s);
+    for (let i = 0; i < count; i++) { _v.fromBufferAttribute(P, i).applyMatrix4(_m); const o = (start + i) * 3; arr[o] = _v.x; arr[o + 1] = _v.y; arr[o + 2] = _v.z; }
+    a.addUpdateRange(start * 3, count * 3); a.needsUpdate = true; pr._hidden = false;
   }
   _ensureMesh(pr) {
     if (pr.mesh) return pr.mesh;
