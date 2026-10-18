@@ -148,8 +148,10 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   « facings » du même produit poussés vers le client, rangées en profondeur, piles des formes plates, cartons en haut
   et en réserve, présentoirs de sol ; budget d'objets par boutique (`BUDGET`, ~16 500 au total, plafond `HARD`). Les
   articles déjà posés sont réutilisés (déplacés avant la fusion des meshes) ; ceux qui ne trouvent pas de place sont
-  alignés au sol de la réserve le long de la cloison (les objets uniques restent dans la boutique). Rien n'est posé sur
-  les planches `noLabels`. Une planche peut être réservée à certaines formes (`shapes`, socle à guitares) ; les
+  alignés au sol de la réserve le long de la cloison (les objets uniques restent dans la boutique : dans un creux d'un
+  rayon, sinon au sol, jamais dans un meuble ; les portants prennent d'abord les vêtements restés sans place). Rien
+  n'est posé sur les planches `noLabels`. Une planche peut être réservée à certaines formes et à une hauteur minimale
+  (`shapes`, `minH` : socle à guitares) ; les
   intervalles occupés par un appareil posé dessus (`blocked`, relevés par `placeContents` : micro-ondes d'un podium,
   téléphone d'un bureau) restent libres, au placement comme au réassort.
 - `shopbuilder.js` : coque et aménagement des boutiques ; `stocking.js` complète les rayons ; `shopfront.js` ajoute
