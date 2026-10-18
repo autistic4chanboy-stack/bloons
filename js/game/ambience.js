@@ -15,9 +15,9 @@
 // Niveaux visés à la nuit, mesurés par Audio.meter() (sortie, efficace moyen des deux canaux / crête, au calme : 1 h du
 // matin, nuit 1, stress nul) : couloir de service ≈ -43 dBFS (crêtes ≈ -29), galerie ≈ -43, poste de sécurité ≈ -54
 // (ronronnement à peine perceptible), rampe du parking ≈ -42, toit et parvis ≈ -46 (grondement grave, presque le
-// silence), fontaine en marche à 6 m ≈ -34. Jour : poste ≈ -49, galerie ≈ -31, atrium avec la fontaine ≈ -30, parvis
-// ≈ -39. Repères : pas du joueur en marchant ≈ -35 (crêtes -12), voix proche ≈ -27 (crêtes -7). Le stress remonte le
-// fond (jusqu'à +5 dB) et fait passer le cœur et le souffle au premier plan.
+// silence), fontaine en marche à 6 m ≈ -34. Jour : poste ≈ -49, galerie ≈ -31, atrium avec la fontaine -30…-32 (selon
+// la foule), parvis ≈ -40. Repères : pas du joueur en marchant -32…-38 (crêtes -11), voix proche ≈ -27 (crêtes -7). Le
+// stress remonte le fond (jusqu'à +5 dB) et fait passer le cœur et le souffle au premier plan.
 const TAU = Math.PI * 2, clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 // bruits ponctuels selon le lieu d'où ils viennent : [son, poids]
 const SHOTS = {
