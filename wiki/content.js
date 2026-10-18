@@ -31,7 +31,9 @@ export const CONTROLS = [
     { keys: ['1 – 9', 'Molette'], or: true, action: 'Choisir l\'objet en main' },
   ] },
   { group: 'Interface', rows: [
-    { keys: ['M'], action: 'Afficher le plan (si vous avez le Guide du centre)' },
+    { keys: ['M'], action: 'Afficher le plan du centre, avec votre position et votre regard en direct (si vous avez le Guide du centre)' },
+    { keys: ['E'], action: 'Devant une borne ou un panneau « Plan du centre » : le lire en plein écran, avec son « vous êtes ici »' },
+    { keys: ['←', '→', 'Molette'], or: true, action: 'Sur le plan : changer de niveau (parking −1, niveau 0, niveau 1) ; Échap, E ou un clic referment' },
     { keys: ['N'], action: 'Regarder l\'heure' },
     { keys: ['T'], action: 'Chat textuel (multijoueur)' },
     { keys: ['Échap'], action: 'Pause' },

@@ -153,8 +153,9 @@ code { font-family: var(--mono); background: #0b0f16; padding: 0 4px; border-rad
 .nb-instrument .key { width: 46px; height: 140px; background: #f4f1ea; color: #222; border-radius: 0 0 6px 6px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 8px; font-weight: 700; cursor: pointer; transition: background .08s; }
 .nb-instrument .key small { font-weight: normal; font-size: 10px; }
 .nb-instrument .key.on { background: var(--accent); }
-.nb-map { width: min(1100px, 100%); }
-.nb-map svg { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
+.nb-modal.nb-mapmodal { padding: 0; overflow: hidden; background: #05070b; }
+.nb-mapmodal > .nb-map { position: absolute; inset: 0; margin: 0; }
+.nb-map canvas { display: block; cursor: pointer; }
 .nb-summary h1 { font-family: Georgia, serif; margin-top: 0; } .nb-summary ul { line-height: 1.7; }
 .nb-summary .good { color: var(--ok); } .nb-summary .bad { color: var(--red); }
 

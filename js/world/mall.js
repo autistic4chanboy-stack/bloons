@@ -16,6 +16,7 @@ import { buildDecor } from './decor.js';
 import { buildGarageDecor } from './garagedecor.js';
 import { buildServiceDecor } from './servicedecor.js';
 import { buildOutside, rampTop, rampSurface } from './outside.js';
+import { addMapSign, buildMapSigns } from './mallmap.js';
 import { Elevator } from './elevator.js';
 import { SHOPS } from '../data/shops.js';
 import { posterTexture, signTexture, textTexture } from '../engine/textures.js';
@@ -395,9 +396,8 @@ export function buildMall(world) {
   dev('mall_bench', 'entrance', 75, 0.225, 6.5, Math.PI);
   dev('mall_bench', 'mezzanine', 76, 5.225, 0, -Math.PI / 2);
   planter(A, 'entrance', 79, -6.4, rng); planter(A, 'entrance', 79, 6.4, rng); planter(A, 'mezzanine', 78, -6.5, rng); // dégagent les baies des portes latérales (x 77…78,2)
-  const dir = new Readable(world, world.newId('read'), { zone: 'entrance', name: 'Plan du centre', title: 'Plan du Centre Commercial Hélios', text: () => g.mapText(), box: [74.3, 0, -7.95, 76.7, 2.6, -7.6] });
-  world.add(dir);
-  directoryBoard(world, 'entrance', 75.5, 1.4, -7.85);
+  // plan du centre : grand panneau lumineux du niveau 0, plans de l'étage et du parking à côté (mallmap.js)
+  addMapSign(world, { kind: 'board', zone: 'entrance', x: 74.0, y: 1.45, z: -7.85, ry: 0, panels: [{ k: 0, w: 1.8, dx: -0.47, dy: 0 }, { k: 1, w: 0.9, dx: 0.96, dy: 0.31 }, { k: -1, w: 0.9, dx: 0.96, dy: -0.31 }] });
   const logo = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.1), new THREE.MeshBasicMaterial({ map: signTexture('CENTRE COMMERCIAL HÉLIOS', 0xffb300, { fontSize: 80 }) }));
   logo.position.set(79.854, 3.7, 0); logo.rotation.y = -Math.PI / 2; world.zone('entrance').group.add(logo); world.zone('entrance').signMats.push(logo.material);
   A.rbox('entrance', 'steel_dark', 79.905, 3.7, 0, 0.09, 1.16, 6.06, 0.01, 0xffffff, { n: 2 }); // caisson de l'enseigne, fixé sur l'imposte des portes
@@ -464,6 +464,7 @@ export function buildMall(world) {
 
   // ═══════════════════════════ DÉCOR DES GALERIES ═══════════════════════════
   buildDecor(world, A, dev, rng.fork ? rng.fork('decor') : rng);
+  buildMapSigns(world, A); // plans du centre (bornes et panneaux) : relevés sur le centre maintenant construit
 
   // ═══════════════════════════ EXTÉRIEUR ═══════════════════════════
   buildOutside(world);
@@ -506,6 +507,7 @@ const dedupe = (P) => P.filter((p, i) => !i || p.distanceTo(P[i - 1]) > 1e-4);
 function buildEscalator(world, A, xBottom, dir, laneZ) {
   const zn = 'atrium', sgn = dir === 'x-' ? -1 : 1, { run, rise, steps, newel, R } = ESC, sd = run / steps, sr = rise / steps;
   const X = (u) => xBottom + sgn * u, Z = (w) => laneZ + w, P = (u, y, w) => V3(X(u), y, Z(w));
+  (world.escalators ||= []).push({ x0: Math.min(X(-newel), X(run + newel)), x1: Math.max(X(-newel), X(run + newel)), z0: laneZ - 0.08, z1: laneZ + 2.08, dir: sgn }); // emprise (plans du centre)
   const G = escGuide(), gy = (u) => yAt(G, u);
   A.stairs(zn, 'cleats', xBottom, laneZ, dir, 2.0, run, rise, 0, steps, { solid: true, base: 0, visible: false });
   const ry = sgn * Math.PI / 2, W0 = 0.12, W1 = 1.88, yel = 0xf0c419, F = { collide: false, flat: true };
@@ -668,17 +670,6 @@ function poster(world, zone, x, y, z, ry, i) {
 function exitSign(world, zone, x, y, z, ry) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.22), new THREE.MeshBasicMaterial({ map: signTexture('SORTIE ➜', 0x00e676, { h: 100, fontSize: 64, font: 'Arial', bg: '#0a3d1a', textColor: '#d8ffe0' }) }));
   m.material.color.setScalar(1.6); m.position.set(x, y, z); m.rotation.y = ry; (world.zone(zone)?.group || world.root).add(m);
-}
-
-function directoryBoard(world, zone, x, y, z) {
-  const c = document.createElement('canvas'); c.width = 512; c.height = 384; const ctx = c.getContext('2d');
-  ctx.fillStyle = '#10161e'; ctx.fillRect(0, 0, 512, 384); ctx.fillStyle = '#ffd54f'; ctx.font = '700 26px Arial'; ctx.fillText('VOUS ÊTES ICI ★', 20, 36);
-  ctx.font = '13px Arial';
-  const list = SHOPS.filter(s => s.layout !== 'toilets');
-  list.forEach((s, i) => { ctx.fillStyle = '#' + s.color.toString(16).padStart(6, '0'); ctx.fillRect(20 + (i % 2) * 250, 56 + Math.floor(i / 2) * 18, 10, 10); ctx.fillStyle = '#e0e0e0'; ctx.fillText((s.floor ? 'Étage — ' : 'RDC — ') + s.name, 36 + (i % 2) * 250, 66 + Math.floor(i / 2) * 18); });
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.8), new THREE.MeshBasicMaterial({ map: t }));
-  m.position.set(x, y, z); (world.zone(zone)?.group || world.root).add(m); world.zone(zone).signMats.push(m.material);
 }
 
 // Unité d'étagère métallique (avec tablettes) le long d'un axe

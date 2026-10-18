@@ -6,6 +6,7 @@ import { CIRCUITS } from '../world/power.js';
 import { COSTUMES } from '../data/costumes.js';
 import { Net } from '../net/net.js';
 import { Audio } from '../engine/audio.js';
+import { openMapView } from './mapview.js';
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -264,39 +265,9 @@ export class UI {
     this.openModal('pause', wrap, { pause: true });
   }
 
-  // ── plan ──
-  toggleMap() { if (this.modal?.kind === 'map') { this.closeModal(); return; } const n = el('div', 'nb-map', this.mapSVG()); n.addEventListener('click', () => this.closeModal()); this.openModal('map', n); }
-  mapSVG() {
-    const g = this.game; const p = g.player.pos;
-    const floor = p.y < -1 ? -1 : p.y > 4.5 ? 1 : 0;
-    const sx = (x) => (x + 115) * 3.3, sz = (z) => (z + 28) * 3.3 + 20;
-    let s = `<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg"><rect width="640" height="210" fill="#0c1016"/>`;
-    s += `<text x="10" y="13" fill="#9ab" font-size="10" font-family="monospace">${floor === 1 ? 'ÉTAGE' : floor === -1 ? 'SOUS-SOL' : 'REZ-DE-CHAUSSÉE'} — le point rouge, c'est vous</text>`;
-    if (floor >= 0) {
-      s += `<rect x="${sx(-66)}" y="${sz(-8)}" width="${132 * 3.3}" height="${16 * 3.3}" fill="#1c2430"/>`;
-      for (const sh of SHOPS.filter(x => x.floor === floor)) {
-        const x0 = -66 + sh.slot * 12; const z0 = sh.side === 'N' ? 8 : -22;
-        const locked = !g.isShopUnlocked(sh.id);
-        s += `<rect x="${sx(x0) + 1}" y="${sz(z0) + 1}" width="${sh.w * 12 * 3.3 - 2}" height="${14 * 3.3 - 2}" fill="#${sh.color.toString(16).padStart(6, '0')}" opacity="${locked ? 0.15 : 0.55}"/>`;
-        s += `<text x="${sx(x0 + sh.w * 6)}" y="${sz(z0 + 7)}" fill="#fff" font-size="6" text-anchor="middle" font-family="Arial">${esc(sh.name.split(' ')[0])}</text>`;
-      }
-      if (floor === 0) { s += `<rect x="${sx(-76)}" y="${sz(-5)}" width="${10 * 3.3}" height="${10 * 3.3}" fill="#29b6f6" opacity="0.6"/><text x="${sx(-71)}" y="${sz(1)}" fill="#fff" font-size="6" text-anchor="middle">POSTE</text>`; s += `<rect x="${sx(-112)}" y="${sz(-25)}" width="${32 * 3.3}" height="${30 * 3.3}" fill="#795548" opacity="0.35"/><text x="${sx(-96)}" y="${sz(-10)}" fill="#fff" font-size="7" text-anchor="middle">ENTREPÔT</text>`; s += `<rect x="${sx(66)}" y="${sz(-8)}" width="${14 * 3.3}" height="${16 * 3.3}" fill="#ffb300" opacity="0.4"/><text x="${sx(73)}" y="${sz(1)}" fill="#fff" font-size="6" text-anchor="middle">ENTRÉE</text>`; }
-      s += `<circle cx="${sx(0)}" cy="${sz(0)}" r="${3 * 3.3}" fill="#4fc3f7" opacity="0.4"/>`;
-      if (floor === 1) { // vide central (entre les passerelles) et aile administrative
-        for (const [a, b] of [[-61.5, -46.5], [-43.5, -28], [-24, 24], [28, 43.5], [46.5, 61.5]]) s += `<rect x="${sx(a)}" y="${sz(-4)}" width="${(b - a) * 3.3}" height="${8 * 3.3}" fill="#06080b" stroke="#2a3644" stroke-dasharray="2 2"/>`;
-        s += `<rect x="${sx(-76)}" y="${sz(-22)}" width="${10 * 3.3}" height="${35 * 3.3}" fill="#8d6e63" opacity="0.45"/><text x="${sx(-71)}" y="${sz(-4)}" fill="#fff" font-size="6" text-anchor="middle">ADMIN.</text>`;
-      }
-      if (floor === 0) s += `<rect x="${sx(66)}" y="${sz(-8)}" width="${14 * 3.3}" height="${16 * 3.3}" fill="#c9a227" opacity="0.35"/><text x="${sx(70.5)}" y="${sz(-5)}" fill="#fff" font-size="6" text-anchor="middle">HALL</text>`;
-      s += `<rect x="${sx(-80)}" y="${sz(22)}" width="${160 * 3.3}" height="${3 * 3.3}" fill="#455a64"/><rect x="${sx(-80)}" y="${sz(-25)}" width="${160 * 3.3}" height="${3 * 3.3}" fill="#455a64"/>`;
-    } else {
-      s += `<rect x="${sx(-66)}" y="${sz(-24)}" width="${132 * 3.3}" height="${48 * 3.3}" fill="#263238"/><text x="${sx(0)}" y="${sz(0)}" fill="#cfd8dc" font-size="10" text-anchor="middle">PARKING</text>`;
-      for (const [n, z0, z1] of [['Groupe', -24, -12], ['Électrique', -12, -2], ['Régie', -2, 6], ['Chaufferie', 6, 13]]) s += `<rect x="${sx(-76)}" y="${sz(z0)}" width="${10 * 3.3}" height="${(z1 - z0) * 3.3}" fill="#5d4037" opacity="0.6" stroke="#000"/><text x="${sx(-71)}" y="${sz((z0 + z1) / 2)}" fill="#fff" font-size="5" text-anchor="middle">${n}</text>`;
-      s += `<rect x="${sx(-88)}" y="${sz(-10)}" width="${8 * 3.3}" height="${6 * 3.3}" fill="#000" stroke="#b71c1c"/><text x="${sx(-84)}" y="${sz(-6.5)}" fill="#e57373" font-size="5" text-anchor="middle">B-13</text>`;
-    }
-    s += `<rect x="${sx(-55.2)}" y="${sz(1.5)}" width="${2.4 * 3.3}" height="${2.4 * 3.3}" fill="#b2ebf2" opacity="0.8"/><text x="${sx(-54)}" y="${sz(6.4)}" fill="#b2ebf2" font-size="5" text-anchor="middle">ascenseur</text>`;
-    s += `<circle cx="${sx(p.x)}" cy="${sz(p.z)}" r="3.5" fill="#ff1744"><animate attributeName="r" values="3;5;3" dur="1s" repeatCount="indefinite"/></circle>`;
-    return s + '</svg><p class="hint">Clic ou Échap pour fermer</p>';
-  }
+  // ── plan : la pancarte du centre en plein écran (mapview.js), repère du joueur en direct ou celui d'une borne ──
+  toggleMap() { if (this.modal?.kind === 'map') { this.closeModal(); return; } openMapView(this.game, {}); }
+  openMapView(o) { return openMapView(this.game, o); }
   mapText() {
     return 'REZ-DE-CHAUSSÉE (ouest → est)\nNord : ' + SHOPS.filter(s => s.floor === 0 && s.side === 'N').map(s => s.name).join(' · ') + '\nSud : ' + SHOPS.filter(s => s.floor === 0 && s.side === 'S').map(s => s.name).join(' · ') +
       '\n\nÉTAGE\nNord : ' + SHOPS.filter(s => s.floor === 1 && s.side === 'N').map(s => s.name).join(' · ') + '\nSud : ' + SHOPS.filter(s => s.floor === 1 && s.side === 'S').map(s => s.name).join(' · ') +

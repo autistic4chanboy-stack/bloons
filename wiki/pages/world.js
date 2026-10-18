@@ -62,6 +62,7 @@ function shopList() {
     </div>
     ${mapBlock()}
     <p class="small muted">Plan schématique : la galerie court d'ouest en est sur 132 m (11 cases de 12 m de chaque côté), avec l'atrium, sa fontaine et ses escalators au centre. Le poste de sécurité est au bout ouest du rez-de-chaussée, le hall d'entrée au bout est. « N5 » = ouvert à partir de la nuit 5.</p>
+    <p class="small muted">${rich('Dans le centre, les bornes lumineuses « Plan du centre » (atrium, haut des escalators, bouts de l\'étage, ascenseur du parking) et les panneaux du hall, du poste de sécurité et du parking affichent le vrai plan de leur niveau : cellules numérotées depuis l\'entrée, couleurs par catégorie (mode, alimentation, restauration, beauté et santé, maison, loisirs, services), kiosques K1 à K4, services (toilettes, ascenseur, escalators, escaliers, sorties, accueil, distributeurs), zones réservées au personnel hachurées et « vous êtes ici » avec le sens du regard. [[key:E]] pour les lire en plein écran ; [[key:M]] avec le [[item:mall_guide|guide du centre]] pour suivre sa position en direct.')}</p>
     ${groups.map((g) => html`
       <section class="section">
         <h2>${floorName(g.f)} — ${sideName(g.sd)}</h2>

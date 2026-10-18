@@ -242,6 +242,13 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   d'arrêt d'urgence des escalators, comptoir d'accueil avec sonnette `DeskBell` et bac d'objets trouvés).
   `garagedecor.js` (parking : repères des piliers, numéros des places, flèches, gabarit, gaines, sprinklers ; tous
   les marquages en un seul mesh) et `servicedecor.js` (couloirs de service : rolls, conteneurs fouillables, palettes).
+- `mallmap.js` / `mapdraw.js` : plans du centre « façon pancarte ». Modèle relevé dans le centre construit
+  (`world.mallPlan` : zones, cellules numérotées depuis l'entrée et classées par catégorie, murs et vitrages des boîtes
+  de la physique, marches, `world.escalators`, ascenseur, portes de secours des escaliers, distributeurs, kiosques
+  `world.kiosks`) ; dessin canvas 2D sans three partagé par les bornes et panneaux (`addMapSign`, fabriqués par
+  `buildMapSigns` en fin de chantier : une texture 1536 × 1024 par niveau, repère « vous êtes ici » en calque à part,
+  rétroéclairage selon le circuit de la zone) et par la vue plein écran `js/game/mapview.js` (E devant un plan,
+  touche M, bouton « plan » de la console).
 - `elevator.js` : ascenseur panoramique. L'hôte décide (appels, file d'attente, trajets : état `{floor, to, moving,
   doors}`), chaque client anime la cabine et déplace son propre joueur s'il est dedans.
 - `fixtures.js` : portes, rideaux, vitres, interrupteurs, panneaux lisibles, sièges, contenants, casiers, grilles,

@@ -9,7 +9,7 @@ import { Box, LAYER } from '../engine/physics.js';
 import { Readable, Locker, PushButton, Container } from './fixtures.js';
 import { WorldObject } from './world.js';
 import { signTexture, posterTexture } from '../engine/textures.js';
-import { SHOPS } from '../data/shops.js';
+import { addMapSign } from './mallmap.js';
 import { GeoBuilder, roundBoxGeo, latheGeo, cylGeo, sweepGeo, circleShape, rectShape, roundPath, trs } from '../engine/geo.js';
 
 // géométrie colorée ajoutée au kit d'une forme (texel blanc de l'atlas)
@@ -240,26 +240,13 @@ export function buildDecor(world, A, dev, rng) {
   totem('gallery0_w', -64.2, 0, -3.2, Math.PI / 2, 0, 3); totem('gallery0_e', 64.2, 0, 3.2, -Math.PI / 2, 5, 6);
   totem('atrium', -20.5, 0, 5.5, 0, 7, 9); totem('atrium', 20.5, 0, -5.5, Math.PI, 4, 1);
   totem('gallery1_w', -64.2, 5, 3.2, Math.PI / 2, 9, 0); totem('gallery1_e', 64.2, 5, -3.2, -Math.PI / 2, 3, 7);
-  // ── plans du centre (bornes lisibles) ──
-  const dirTex = canvasTex(512, 640, (x, w, h) => {
-    x.fillStyle = '#10161e'; x.fillRect(0, 0, w, h); x.fillStyle = '#ffd54f'; x.font = '700 30px Arial'; x.fillText('PLAN DU CENTRE', 24, 46);
-    x.fillStyle = '#90caf9'; x.font = '700 16px Arial'; x.fillText('★ VOUS ÊTES ICI', 24, 74);
-    SHOPS.filter(s => s.layout !== 'toilets').forEach((s, i) => { const col = i % 2, row = (i / 2) | 0; x.fillStyle = '#' + s.color.toString(16).padStart(6, '0'); x.fillRect(24 + col * 240, 96 + row * 28, 12, 12); x.fillStyle = '#e0e0e0'; x.font = '14px Arial'; x.fillText((s.floor ? 'ét. ' : 'rdc ') + s.name, 42 + col * 240, 107 + row * 28); });
-  });
-  const directory = (zone, x, y, z, ry) => { // borne-plan : caisson laqué arrondi, socle, cadre inox, tablette de lecture
-    const grp = new THREE.Group(); grp.position.set(x, y, z); grp.rotation.y = ry;
-    const cs = Math.cos(ry), sn = Math.sin(ry), P = (lx, ly, lz) => [x + lx * cs + lz * sn, y + ly, z - lx * sn + lz * cs];
-    A.rbox(zone, 'steel_dark', ...P(0, 1.04, 0), 1.1, 1.92, 0.22, 0.035, 0xffffff, { ry, n: 2 });
-    A.rbox(zone, 'granite', ...P(0, 0.04, 0), 1.16, 0.08, 0.28, 0.01, 0xffffff, { ry });
-    for (const [lx, ly, w, h] of [[0, 1.79, 0.99, 0.03], [0, 0.61, 0.99, 0.03], [-0.48, 1.2, 0.03, 1.15], [0.48, 1.2, 0.03, 1.15]]) A.rbox(zone, 'aluminium', ...P(lx, ly, 0.112), w, h, 0.012, 0.004, 0xffffff, { ry });
-    A.rbox(zone, 'aluminium', ...P(0, 0.52, 0.15), 0.9, 0.03, 0.12, 0.01, 0xffffff, { ry, rx: 0 });
-    const sm = new THREE.MeshBasicMaterial({ map: dirTex }); const pl = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 1.15), sm); pl.position.set(0, 1.2, 0.1115); grp.add(pl); world.zone(zone).signMats.push(sm);
-    add(zone, grp);
-    const c = Math.abs(Math.sin(ry)) > 0.5;
-    world.add(new Readable(world, world.newId('read'), { zone, name: 'Plan du centre', title: 'Plan du Centre Commercial Hélios', text: () => g.mapText(), box: [x - (c ? 0.15 : 0.6), y, z - (c ? 0.6 : 0.15), x + (c ? 0.15 : 0.6), y + 2, z + (c ? 0.6 : 0.15)] }));
-    world.physics.add(new Box(x - (c ? 0.12 : 0.56), y, z - (c ? 0.56 : 0.12), x + (c ? 0.12 : 0.56), y + 2, z + (c ? 0.56 : 0.12), LAYER.FURN));
-  };
-  directory('atrium', -18.5, 0, -5.6, 0); directory('atrium', 18.5, 0, 5.6, Math.PI); directory('gallery1_w', -29.5, 5, 5.6, Math.PI); directory('gallery1_e', 29.5, 5, -5.6, 0);
+  // ── plans du centre (mallmap.js, fabriqués en fin de chantier quand les boutiques existent) : bornes lumineuses à
+  //    deux faces dans l'atrium, en haut des escalators, aux deux bouts de l'étage et devant l'ascenseur du parking ;
+  //    panneaux muraux devant le poste de sécurité et à la sortie de l'escalier est du parking ──
+  for (const [zone, x, y, z, ry] of [['atrium', -18.5, 0, -5.2, 0], ['atrium', 18.5, 0, 5.2, Math.PI], ['gallery1_w', -29.5, 5, 5.2, Math.PI], ['gallery1_e', 29.5, 5, -5.2, 0],
+    ['gallery1_w', -64.2, 5, -3.2, Math.PI / 2], ['gallery1_e', 64.2, 5, 3.2, -Math.PI / 2], ['garage', -57.6, -4.5, 4.0, 0]]) addMapSign(world, { kind: 'totem', zone, x, y, z, ry });
+  addMapSign(world, { kind: 'board', zone: 'gallery0_w', x: -65.85, y: 1.5, z: 1.95, ry: Math.PI / 2, panels: [{ k: 0, w: 1.0, dx: 0, dy: 0 }] });
+  addMapSign(world, { kind: 'board', zone: 'garage', x: 66.0, y: -3.05, z: 13.6, ry: -Math.PI / 2, panels: [{ k: -1, w: 1.2, dx: 0, dy: 0 }] });
   // ── signalétique suspendue (double face) sous les coursives ──
   const wayTex = (lines) => canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#1a237e'; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; x.font = '700 30px Arial'; x.textBaseline = 'middle'; lines.forEach((l, i) => x.fillText(l, 18, 34 + i * 58)); });
   const hang = (zone, x, y, z, lines) => { // caisson double face (une géométrie), tiges filetées et platines au plafond
@@ -293,8 +280,10 @@ export function buildDecor(world, A, dev, rng) {
   // kiosque : comptoir sur socle en retrait (bandeau de couleur, joints de panneaux, plateau de bois aux arêtes adoucies),
   // présentoir à rainures (tablettes sur consoles, nez de tablette), quatre poteaux ronds sur platines, auvent caissonné
   // (bandeaux d'enseigne, réglettes lumineuses en sous-face). Collisions inchangées.
+  const KCAT = { 'PRESSE · LOTO': 'services', 'COQUE & CO': 'services', 'GAUFRES & CAFÉ': 'resto', 'MONTRES · ACCESSOIRES': 'mode' };
   const kiosk = (cx, title, color, stock) => {
     const zn = galZone(cx, 0), F = (x0, y0, z0, x1, y1, z1, c, metal) => A.furn(zn, cx + x0, y0, z0, cx + x1, y1, z1, c, { metal, collide: false });
+    (world.kiosks ||= []).push({ x: cx, z: 0.1, w: 3.72, d: 3.32, name: title.charAt(0) + title.slice(1).toLowerCase(), cat: KCAT[title] || 'services' }); // emprise de l'auvent (plans du centre)
     for (const b of [[-1.5, 0, -0.6, 1.5, 0.95, 0.6], [-1.5, 0, 1.15, 1.5, 1.9, 1.5]]) world.physics.add(new Box(cx + b[0], b[1], b[2], cx + b[3], b[4], b[5], LAYER.FURN));
     F(-1.45, 0, -0.55, 1.45, 0.1, 0.55, 0x222222); F(-1.5, 0.1, -0.6, 1.5, 0.95, 0.6, 0xf2efe8);                         // comptoir
     F(-1.505, 0.74, -0.605, 1.505, 0.8, 0.605, color);
