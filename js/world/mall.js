@@ -180,8 +180,9 @@ export function buildMall(world) {
   // pour qu'on ne saute pas au-dessus de l'eau
   dev('fountain', 'atrium', 0, 0.5, 0, 0, { collide: false });
   A.disc(0, 0, 3, 0, 1.1, 12);
-  // Arbres en jardinière, bancs, poubelles (jardinières de l'atrium hors des voies z = ±6 et des traversées x = ±9)
-  for (const [x, z] of [[-10.5, -4.4], [10.5, -4.4], [-10.5, 4.4], [10.5, 4.4], [-40, 0], [40, 0], [-56, 0], [56, 0]]) planter(A, x < -24 ? 'gallery0_w' : x > 24 ? 'gallery0_e' : 'atrium', x, z, rng);
+  // Arbres en jardinière, bancs, poubelles (jardinières de l'atrium hors des voies z = ±6 et des traversées x = ±9,
+  // celles des galeries à 0,8 m des traversées x = ±39 / ±57)
+  for (const [x, z] of [[-10.5, -4.4], [10.5, -4.4], [-10.5, 4.4], [10.5, 4.4], [-40.5, 0], [40.5, 0], [-55.5, 0], [55.5, 0]]) planter(A, x < -24 ? 'gallery0_w' : x > 24 ? 'gallery0_e' : 'atrium', x, z, rng);
   for (const [x, z, ry] of [[-30, -2.5, 0], [-30, 2.5, Math.PI], [30, -2.5, 0], [30, 2.5, Math.PI], [-48, -2.5, 0], [48, 2.5, Math.PI], [-5, -6.8, 0], [-5, 6.8, Math.PI]]) { // (le banc de x = 5 était dans le piano)
     const zn = x < -24 ? 'gallery0_w' : x > 24 ? 'gallery0_e' : 'atrium';
     dev('mall_bench', zn, x, 0.225, z, ry);
@@ -571,6 +572,10 @@ function escalatorMedian(world, A, xBottom, dir) {
   A.box(zn, 'furniture', Math.min(xo, xo + sgn * 0.006), 0, -zo, Math.max(xo, xo + sgn * 0.006), 0.1, zo, { collide: false, flat: true, color: 0x1a1a1a });
   // (coupées au peigne haut : au-delà, la tête repose sur la dalle de l'étage au lieu de la traverser)
   for (let u = ua0; u < ub0 - 1e-3;) { const u1 = Math.min(ub0, u + 1, u < run ? run : Infinity), y0 = u >= run ? rise : 0; world.physics.add(new Box(Math.min(X(u), X(u1)), y0, -0.44, Math.max(X(u), X(u1)), gy(u1) + 0.31, 0.44, LAYER.FURN)); u = u1; }
+  // entre les têtes de balustrade intérieures, aux deux bouts : on ne monte plus sur le terre-plein (31 cm à l'étage,
+  // on descendait ensuite tout le terre-plein entre les deux voies)
+  world.physics.add(new Box(Math.min(X(ua0), X(0)), 0, -0.445, Math.max(X(ua0), X(0)), 1.1, 0.445, LAYER.FURN));
+  world.physics.add(new Box(Math.min(X(run), X(ub0)), rise, -0.445, Math.max(X(run), X(ub0)), rise + 1.1, 0.445, LAYER.FURN));
 }
 
 // Rideau métallique d'une baie dans un mur parallèle à Z (rampe du parking, quai) : tablier ondulé + lame finale (géométrie
