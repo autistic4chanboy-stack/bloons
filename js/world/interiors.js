@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { signTexture } from '../engine/textures.js';
 import {
   furnMaterial, scale, postcardSpinner, lotteryStand, consultDesk, pouf, ballCage, photoKiosk, backdrop, softbox, lollipop, flowerBucket, workbench,
-  jewelCase as kJewelCase, table as kTable, counter as kCounter, woodMat, FU, ME,
+  jewelCase as kJewelCase, table as kTable, counter as kCounter, frame as kFrame, woodMat, FU, ME,
 } from './furnkit.js';
 
 // ───────────────────────── papiers peints procéduraux ─────────────────────────
@@ -274,6 +274,44 @@ function menuTex(title, lines, style = 'chalk', accent = '#ffcc00') {
     x.fillStyle = style === 'chalk' ? '#f4f1e8' : '#111'; x.font = style === 'chalk' ? 'italic 700 40px Georgia, serif' : '900 38px Arial'; x.textAlign = 'center'; x.fillText(title, w / 2, style === 'chalk' ? 44 : 28);
     x.font = style === 'chalk' ? '26px Georgia, serif' : '700 25px Arial'; x.fillStyle = style === 'chalk' ? '#ece6d6' : '#f5f5f5';
     lines.forEach(([a, b], i) => { const y = 92 + i * 34; x.textAlign = 'left'; x.fillText(a, 30, y); x.textAlign = 'right'; x.fillStyle = style === 'chalk' ? '#ffe9a8' : accent; x.fillText(b, w - 30, y); x.fillStyle = style === 'chalk' ? '#ece6d6' : '#f5f5f5'; });
+  });
+}
+
+// affiche de cinéma (portrait 2:3) : fond dégradé, silhouette, titre sur deux lignes, mention
+function posterTex(kind) {
+  return cnv(256, 384, (x, w, h) => {
+    const P = kind === 'mannequins' ? { bg0: '#2a0508', bg1: '#060203', ink: '#e8dcc8', acc: '#c62828', t1: 'LA NUIT DES', t2: 'MANNEQUINS', sub: 'Séance de 23 h · Salle 1' }
+      : { bg0: '#d9c9a3', bg1: '#8a7550', ink: '#2a2118', acc: '#5a4630', t1: 'LES GRANDS', t2: 'MAGASINS', sub: 'Film muet · 1924' };
+    const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, P.bg0); gr.addColorStop(1, P.bg1); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+    x.fillStyle = P.acc; x.globalAlpha = 0.9;
+    if (kind === 'mannequins') { // silhouette de mannequin de vitrine sous un projecteur
+      x.beginPath(); x.ellipse(w / 2, 92, 22, 27, 0, 0, Math.PI * 2); x.fill();
+      x.fillRect(w / 2 - 6, 116, 12, 16); x.beginPath(); x.moveTo(w / 2 - 46, 140); x.lineTo(w / 2 + 46, 140); x.lineTo(w / 2 + 30, 250); x.lineTo(w / 2 - 30, 250); x.closePath(); x.fill();
+      x.fillRect(w / 2 - 26, 250, 18, 70); x.fillRect(w / 2 + 8, 250, 18, 70);
+      x.globalAlpha = 0.18; x.fillStyle = '#ffffff'; x.beginPath(); x.moveTo(w / 2 - 10, 0); x.lineTo(w / 2 + 10, 0); x.lineTo(w / 2 + 90, 330); x.lineTo(w / 2 - 90, 330); x.closePath(); x.fill();
+    } else { // chapeau melon et escalier roulant
+      x.beginPath(); x.ellipse(w / 2, 120, 60, 12, 0, 0, Math.PI * 2); x.fill(); x.beginPath(); x.ellipse(w / 2, 100, 34, 30, 0, Math.PI, Math.PI * 2); x.fill(); x.fillRect(w / 2 - 34, 99, 68, 14);
+      for (let k = 0; k < 7; k++) x.fillRect(40 + k * 24, 300 - k * 22, 30, 6);
+      x.lineWidth = 5; x.strokeStyle = P.acc; x.beginPath(); x.moveTo(36, 312); x.lineTo(220, 150); x.stroke();
+    }
+    x.globalAlpha = 1; x.textAlign = 'center'; x.fillStyle = P.ink;
+    x.font = '700 26px Georgia, serif'; x.fillText(P.t1, w / 2, 340);
+    x.font = '900 34px Georgia, serif'; x.fillText(P.t2, w / 2, 372);
+    x.font = 'italic 15px Georgia, serif'; x.fillText(P.sub, w / 2, 30);
+    x.strokeStyle = P.ink; x.globalAlpha = 0.5; x.lineWidth = 3; x.strokeRect(7, 7, w - 14, h - 14); x.globalAlpha = 1;
+  });
+}
+// Affiches rétroéclairées des films à l'affiche, sur le mur de la salle côté hall (plan v, face au hall) ; elles
+// s'éteignent avec le courant
+export function cinemaPosters(L, v, us) {
+  ['magasins', 'mannequins'].forEach((kind, i) => {
+    const u = us[i], w = 0.78, hh = 1.17, y0 = 1.62;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), new THREE.MeshBasicMaterial({ map: posterTex(kind) }));
+    m.position.set(L.X(u), L.y + y0, L.Z(v - 0.034)); m.rotation.y = L.faceFront; m.matrixAutoUpdate = false; m.updateMatrix();
+    L.c.zone.group.add(m); L.c.zone.signMats.push(m.material);
+    const p = L.penAt(u, v, L.faceFront, null, y0);
+    p.box(FU, -w / 2 - 0.04, -hh / 2 - 0.04, 0, w / 2 + 0.04, hh / 2 + 0.04, 0.03, 0x15151a, 'xXyYZ');            // caisson
+    kFrame(p, w, hh, 0.035, 0.04, 0xb8963e);                                                                         // cadre doré
   });
 }
 

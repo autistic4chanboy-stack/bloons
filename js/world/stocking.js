@@ -254,7 +254,7 @@ class Stocker {
   weight([, ps]) { return ps.reduce((a, p) => a + Math.min(p.unique ? 0.5 : Math.min(2, Math.max(1, p.n)), p.cap / 4) * this.pitch(p), 0) + 0.05; }
   // pas d'un facing : les petits articles se touchent presque, les gros gardent l'écart du style
   pitch(p) { return p.w + Math.min(this.st.gap, 0.003 + p.w * 0.06); }
-  fits(p, sg) { return p.h <= sg.clear - 0.006 && p.dep <= sg.depth + 0.04 && p.w <= sg.len; }
+  fits(p, sg) { return p.h <= sg.clear - 0.006 && p.dep <= sg.depth + 0.04 && p.w <= sg.len && (!sg.b.shapes || sg.b.shapes.includes(p.d.shape)); } // b.shapes : planche réservée (socle à guitares)
   // ordre des candidats d'une case : articles listés à replacer d'abord, gros formats en bas, petits en haut
   order(c) {
     const { sg } = c; let cands = c.ps.filter((p) => this.fits(p, sg) && (!p.unique || (this.pinLeft.get(p.id) || 0) > 0) && (this.placed.get(p.id) || 0) < p.cap); if (!cands.length) return cands;

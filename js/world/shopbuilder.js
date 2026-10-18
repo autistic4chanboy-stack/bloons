@@ -10,7 +10,7 @@ import { signTexture } from '../engine/textures.js';
 import { stockShop } from './stocking.js';
 import { labelShop } from './shelflabels.js';
 import { buildShopFront } from './shopfront.js';
-import { installInteriorMaterials, designFor, finishShop, INTERIOR_LAYOUTS } from './interiors.js';
+import { installInteriorMaterials, designFor, finishShop, INTERIOR_LAYOUTS, cinemaPosters } from './interiors.js';
 import {
   Pen, wallBay, gondola, table as kTable, riser, podium, stall, counter as kCounter, checkout as kCheckout, laneRail, cabinet, drawerBank,
   displayCase, candyBins, partitionWall, banquette, sofa, barStool, chair, clothesRail, plant as kPlant, pendantLamp, floorLamp as kFloorLamp,
@@ -385,11 +385,13 @@ class LayoutKit {
     this.solid(u0, v0, u1, v1, 0, h - 0.05);
     this.solid(u0 - 0.03, v0 - 0.03, u1 + 0.03, v1 + 0.03, h - 0.05, h);
     this.P.register.push({ x: this.X((u0 + u1) / 2), y: this.y + h, z: this.Z(v0 + (v1 - v0) * 0.5), ry: Math.PI / 2, zone: this.id });
-    const p = this.penAt((u0 + u1) / 2, (v0 + v1) / 2, this.sg * Math.PI / 2), hz = Math.abs(u1 - u0) / 2;
+    const p = this.penAt((u0 + u1) / 2, (v0 + v1) / 2, this.sg * Math.PI / 2), hz = Math.abs(u1 - u0) / 2, hx = Math.abs(v1 - v0) / 2;
     kCheckout(p, { L: Math.abs(v1 - v0), D: Math.abs(u1 - u0), h, color, accent: this.color });
-    // afficheur client et terminal sur flexible, côté client : petite boîte de collision au-dessus du plateau
-    const a = p.world(-0.33, 0, -hz - 0.01), b = p.world(0.18, 0, -hz + 0.16);
-    this.world.physics.add(new Box(a.x, this.y + h, a.z, b.x, this.y + h + 0.47, b.z, LAYER.FURN, null));
+    // au-dessus du plateau : afficheur client et terminal sur flexible (côté client), mât et lanterne de caisse
+    for (const [x0, z0, x1, z1, y0, y1] of [[-0.33, -hz - 0.01, 0.18, -hz + 0.16, 0, 0.47], [-hx + 0.03, hz - 0.09, -hx + 0.09, hz - 0.03, 0, 1.25], [-hx - 0.06, hz - 0.18, -hx + 0.18, hz + 0.06, 1.25, 1.5]]) {
+      const a = p.world(x0, 0, z0), b = p.world(x1, 0, z1);
+      this.world.physics.add(new Box(a.x, this.y + h + y0, a.z, b.x, this.y + h + y1, b.z, LAYER.FURN, null));
+    }
   }
   // garde-corps de file de caisse (le long de v)
   laneRail(u0, v0, u1, v1, h) { this.solid(u0, v0, u1, v1, 0, h); laneRail(this.penAt((u0 + u1) / 2, (v0 + v1) / 2, this.ryOf(1, 0)), Math.abs(v1 - v0), h); }
@@ -821,6 +823,7 @@ const LAYOUTS = {
     const ent = [[0.3, 1.6], [W - 1.6, W - 0.3]];
     L.A.wallX(L.id, 'plaster_3a2f4a', L.c.x0 + 0.15, L.c.x1 - 0.15, L.Z(3.2), y, y + 4.6, 0.2, ent.map(([a, b]) => ({ a: L.X(a), b: L.X(b), y0: y, y1: y + 2.4 })));
     for (const [a, b] of ent) doorCasing(L.penAt((a + b) / 2, 3.2, 0), b - a, 2.4, 0.2, 0x2a1a14, { lining: 0.03, arch: 0.09 }); // encadrements des entrées de salle
+    cinemaPosters(L, 3.1, [10.2, 13.8]);                                                                   // affiches côté hall
     // gradins en stadium (13 rangs : A … M) : le rang A, au plus près de l'écran, est au niveau du sol, chaque rang
     // suivant 13 cm plus haut, le rang M devant le palier de la cabine de projection (pente vers le fond : chacun voit
     // l'écran par-dessus le rang de devant). Couloirs latéraux de plain-pied (u < 1,85) des entrées jusqu'à
@@ -887,6 +890,12 @@ const LAYOUTS = {
     L.solid(W * 0.5 - 1.2, 5.6, W * 0.5 + 1.2, 7.6, 0, 0.12); stage(L.penAt(W * 0.5, 6.6, L.faceFront), 2.4, 2.0, 0.12, 0x5d4037); // estrade de démonstration
     L.wallShelf('R', 1.6, D - 0.8, 4, 2.1, 0.45, 0x8d6e63, null, { metal: false, back: 0x5d4037, uprights: 0x4e342e });
     L.wallShelf('B', 3.0, W - 2.4, 4, 2.1, 0.4, 0x8d6e63, null, { metal: false, back: 0x5d4037, uprights: 0x4e342e });
+    // guitares debout sur un socle, devant un panneau rainuré, dans l'angle du fond (trop hautes pour les étagères,
+    // elles traînaient par terre) ; la planche n'accepte que les instruments à manche
+    L.wallBlock('B', 0.35, 2.85, 0, 0.12, 0.45, 0x4e342e, null, 'plain');
+    L.wallPanel('B', 0.3, 2.9, 0.12, 1.75, 'wp_slat_6d4c41_3e2723', 0.02);
+    L.board('u', 0.4, 2.8, D - 0.12 - 0.225, 0.12, 0.42, 1.25, L.faceFront, null, { pad: 0.03, shapes: ['guitar'] });
+    L.solid(0.35, D - 0.57, 2.85, D - 0.12, 0.12, 1.25); // on ne marche pas dans les guitares
     L.table(1.6, 1.4, 4.2, 2.4, 0.8, 0x5d4037, 2);
     L.counter(W - 2.8, 1.0, W - 1.0, 1.7, 1.0, 0x6d4c41);
   },
@@ -1016,7 +1025,7 @@ function placeContents(world, dev, ctl, P, s, rng) {
     const w = def.s[0], h = def.s[1], dpt = def.s[2], start = cursor.get(list);
     for (let tries = 0; tries < list.length; tries++) {
       const k = (start + tries) % list.length, b = list[k];
-      if (h > b.clear || dpt > b.depth + 0.15) continue;
+      if (h > b.clear || dpt > b.depth + 0.15 || (b.shapes && !b.shapes.includes(def.shape))) continue;
       const len = b.a1 - b.a0;
       for (const [x0, x1] of b.blocked) if (b.a0 + b.cur + w + 0.03 > x0 && b.a0 + b.cur < x1) b.cur = x1 - b.a0; // appareil : on passe derrière
       if (b.cur + w + 0.03 > len) continue;

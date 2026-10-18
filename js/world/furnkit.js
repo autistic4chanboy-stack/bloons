@@ -320,6 +320,16 @@ export class Pen {
       if (o.flip) { nx = -nx; ny = -ny; nz = -nz; }
       nrm.push([nx, ny, nz]);
     }
+    // bord de largeur nulle (base et pointe des feuilles, des pétales) : la normale y serait nulle, ce qui donne un NaN
+    // dans l'éclairage (taches noires, halo blanc étalé par le flou de la lumière) ; on reprend celle du voisin le plus proche
+    for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
+      const q = nrm[j * W + i]; if (q[0] || q[1] || q[2]) continue;
+      let r = null;
+      for (let d = 1; d <= Math.max(nu, nv) && !r; d++) for (const [ii, jj] of [[i - d, j], [i + d, j], [i, j - d], [i, j + d]]) {
+        if (ii < 0 || jj < 0 || ii > nu || jj > nv) continue; const c = nrm[jj * W + ii]; if (c[0] || c[1] || c[2]) { r = c; break; }
+      }
+      nrm[j * W + i] = r ? [...r] : [0, o.flip ? -1 : 1, 0];
+    }
     const sides = o.both ? [1, -1] : [1], off = o.thick ?? 0.004;
     for (const sd of sides) {
       const b0 = a.p.length / 3;
