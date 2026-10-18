@@ -228,10 +228,10 @@ export class Entities {
     if (t !== 'shadow') litHumanoid(v);
     return v;
   }
-  // yeux lumineux (un seul mesh pour les deux), placés sur les yeux du modèle (repère de la tête)
+  // yeux lumineux (un seul mesh pour les deux, en peu de facettes), placés sur les yeux du modèle (repère de la tête)
   addEyes(root, color, k = 1) {
     const head = root.userData.parts?.head, ep = root.userData.eyePos || [0.032, 0.064, 0.074, 0.012], r = ep[3] * k;
-    const s = new THREE.SphereGeometry(r, 10, 8);
+    const s = new THREE.SphereGeometry(r, 6, 4);
     const eyes = new THREE.Mesh(concatGeometries([-1, 1].map((sx) => ({ geo: s, matrix: new THREE.Matrix4().makeTranslation(sx * ep[0], ep[1], ep[2] + r * 0.25) }))).geometry, new THREE.MeshBasicMaterial({ color }));
     eyes.castShadow = false;
     if (head) head.add(eyes); else root.add(eyes);
@@ -246,9 +246,10 @@ export class Entities {
     this.addEyes(v, 0xffffff, 0.85); v.userData.eyes.visible = false;
     return v;
   }
-  // la Chose de B-13 : masse noire et luisante, bosselée, voûtée, tentacules articulés (trois os chacun), yeux rouges
+  // la Chose de B-13 : masse noire et luisante, bosselée, voûtée, tentacules articulés (trois os chacun), gueule aux dents
+  // pâles, yeux rouges ; chair peinte (veines rouges) dans l'atlas des personnages, peu de polygones
   buildThing() {
-    const { Kit, ball, sweep, ell, mix, hash, ss } = MK;
+    const { Kit, loftF, facets, sphereRings, hash, ss, nrm, sub, cross, TX } = MK;
     const root = new THREE.Group(); root.userData.parts = null;
     const rng = (i) => hash(i, 17.3, 4.1);
     const J = { core: [0, 1.0, 0] }, PAR = {}, tend = [];
@@ -260,102 +261,100 @@ export class Entities {
       tend.push({ pts, names: ['t' + i + '0', 't' + i + '1', 't' + i + '2'] });
     }
     const b = rig(J, PAR), names = Object.keys(J), I = Object.fromEntries(names.map((n, i) => [n, i]));
-    const K = new Kit(), skinC = (x, y, z) => mix(0x141012, 0x3a0c0c, 0.55 * ss(0.62, 0.95, hash(Math.round(x * 14), Math.round(y * 14), Math.round(z * 14))) * ss(0.3, 0.9, Math.abs(Math.sin(y * 9 + x * 13))));
-    // masse : voûtée vers l'avant, étalée au sol, bosses de chair
+    const K = new Kit(0), fl = K.use(TX.mat('flesh', 0));
+    // masse : voûtée vers l'avant, étalée au sol, bosses de chair (anneaux déformés)
     const F = (x, y, z) => {
       const u = (y + 1) / 2, lump = 1 + 0.16 * Math.sin(x * 7 + y * 5) * Math.sin(z * 6 - y * 4) + 0.08 * Math.sin(y * 17 + x * 9);
       const w = (0.34 + 0.26 * Math.sin(u * Math.PI * 0.85) + 0.28 * ss(0.2, 0, u)) * lump;
       return [x * w, u * 2.15, z * w * 0.82 + 0.22 * ss(0.55, 1, u) * u];
     };
-    K.add(ball(30, 24, F), { c: skinC, r: 0.32, b: I.core });
-    // avant de la masse à (x, y) : recherche sur la sphère (les yeux affleurent la chair)
+    const seg = 10, rows = 9, P = [], UV = [], IX = [];
+    for (let r = 0; r <= rows; r++) for (let c = 0; c <= seg; c++) { const ph = Math.PI * (1 - r / rows), th = c / seg * Math.PI * 2, s = Math.sin(ph); P.push(...F(s * Math.sin(th), Math.cos(ph), s * Math.cos(th))); UV.push(c % 2 ? 31.5 : 0.5, r % 2 ? 31.5 : 0.5); } // chair répétée en miroir d'une facette à l'autre
+    for (let r = 0; r < rows; r++) for (let c = 0; c < seg; c++) { const a = r * (seg + 1) + c; IX.push(a, a + 1, a + seg + 1, a + 1, a + seg + 2, a + seg + 1); }
+    K.add({ p: P, i: IX, uv: UV }, fl, { c: 0xffffff, r: 0.32, b: I.core });
+    // avant de la masse à (x, y) : recherche sur la sphère (yeux et gueule affleurent la chair)
     const front = (ex, ey) => { let best = null, bd = 1e9; for (let i = 0; i <= 40; i++) for (let j = 0; j <= 40; j++) { const ph = 0.15 + i / 40 * 1.2, th = -0.9 + j / 40 * 1.8, d = [Math.sin(ph) * Math.sin(th), Math.cos(ph), Math.sin(ph) * Math.cos(th)], p = F(d[0], d[1], d[2]), e = Math.hypot(p[0] - ex, p[1] - ey); if (e < bd) { bd = e; best = p; } } return best[2]; };
     for (const t of tend) {
-      const rad = t.pts.map((p, k) => 0.075 * (1 - k / 7) + 0.01);
-      const ws = t.names.map((n) => I[n]), pts = t.pts;
-      K.add(sweep(pts, rad, 8, [1, 0, 0], true, [pts[6][0], pts[6][1] - 0.03, pts[6][2]]), { c: skinC, r: 0.3, w: (x, y) => { const u = Math.min(5.99, Math.max(0, (pts[0][1] - y) / (pts[0][1] - pts[6][1]) * 6)), k = Math.floor(u / 2), f = (u - k * 2) / 2; return k >= 2 ? [[ws[2], 1]] : [[ws[k], 1 - f], [ws[k + 1], f]]; } });
+      const pts = t.pts, ws = t.names.map((n) => I[n]);
+      const rings = pts.map((c, k) => { const d = nrm(sub(pts[Math.min(6, k + 1)], pts[Math.max(0, k - 1)])), ax = nrm(cross(d, [0, 0, 1])), rr = 0.075 * (1 - k / 7) + 0.01; return { c, ax, az: nrm(cross(ax, d)), rx: rr, rz: rr }; });
+      K.add(loftF(rings, 5, (r, c) => [c % 2 ? 31.5 : 0.5, r % 2 ? 31.5 : 0.5], false, [pts[6][0], pts[6][1] - 0.03, pts[6][2]]), fl, { c: 0xffffff, r: 0.3, w: (x, y) => { const u = Math.min(5.99, Math.max(0, (pts[0][1] - y) / (pts[0][1] - pts[6][1]) * 6)), k = Math.floor(u / 2), f = (u - k * 2) / 2; return k >= 2 ? [[ws[2], 1]] : [[ws[k], 1 - f], [ws[k + 1], f]]; } });
     }
+    // gueule : fente sombre et rouge, dents pâles (facettes), dans le même mesh
+    const mz = front(0, 1.62);
+    K.add(loftF(sphereRings([0, 1.62, mz - 0.012], 0.07, 0.2, 0.03, 4), 6, () => [8, 8], false, false), null, { c: 0x2a0606, r: 0.4, b: I.core });
+    for (let i = 0; i < 12; i++) { const s = i % 2 ? 1 : -1, y = 1.47 + (i >> 1) * 0.05, x = s * 0.055, z = mz - 0.005; const p3 = [[x, y - 0.009, z], [x, y + 0.009, z], [x, y, z + 0.008], [x - s * 0.04, y + 0.004 * s, z + 0.002]]; K.add(facets(p3, [[0, 1, 3], [1, 2, 3], [2, 0, 3], [0, 2, 1]], p3.map(() => [8, 8]), [x + s * 0.02, y, z - 0.02]), null, { c: 0xd8d0b8, r: 0.35, b: I.core, flat: true }); }
     skinned(K, root, names.map((n) => b[n]), b.core, new THREE.Sphere(new THREE.Vector3(0, 1.1, 0), 1.9));
-    const em = new THREE.MeshBasicMaterial({ color: 0xff1a1a }), eg = new THREE.SphereGeometry(0.035, 8, 6);
+    const em = new THREE.MeshBasicMaterial({ color: 0xff1a1a }), eg = new THREE.SphereGeometry(0.035, 6, 4);
     const eyes = new THREE.Mesh(concatGeometries([[-0.12, 2.0], [0.12, 2.0], [-0.22, 1.86], [0.2, 1.84]].map(([x, y]) => ({ geo: eg, matrix: new THREE.Matrix4().makeTranslation(x, y - 1.0, front(x, y) + 0.012) }))).geometry, em);
     b.core.add(eyes);
-    // gueule : fente sombre et rouge, dents pâles
-    const mz = front(0, 1.62), mK = new Kit();
-    mK.add(ell(0.07, 0.2, 0.03, 12, 10, 0, 1.62 - 1.0, mz - 0.012), { c: 0x2a0606, r: 0.4, b: 0 });
-    for (let i = 0; i < 14; i++) { const s = i % 2 ? 1 : -1, y = 1.47 + (i >> 1) * 0.045; mK.add(MK.loft(MK.T7([[0, 0.009, 0.007, 0.007, 0, 2], [0.04, 0.001, 0.001, 0.001, 0, 2]]), 6), { m: MK.M4(s * 0.055, y - 1.0, mz - 0.005, 0, 0, s * (Math.PI / 2 + 0.25)), c: 0xd8d0b8, r: 0.35, b: 0 }); }
-    const maw = new THREE.Mesh(mK.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4 })); maw.castShadow = false; b.core.add(maw);
     root.userData.eyes = eyes; root.userData.tend = tend.map((t) => t.names.map((n) => b[n])); root.userData.body = b.core;
     return root;
   }
-  // le chat errant : chat noir à poil court, squelette (colonne, cou, tête, pattes à deux ou trois segments, queue en
-  // quatre os), yeux verts à pupille fendue qui renvoient la lumière, oreilles, truffe, moustaches
+  // le chat errant : chat noir à poil court en peu de facettes, squelette (colonne, cou, tête, pattes à deux ou trois
+  // segments, queue en quatre os), face peinte (yeux verts à pupille fendue qui renvoient la lumière), oreilles, truffe
   buildCat() {
-    const { Kit, sweep, ell, ball, loft, T7, M4, mix, hash, ss } = MK;
+    const { Kit, loftF, facets, sphereRings, ss, nrm, sub, cross, TX } = MK;
     const root = new THREE.Group();
     const J = { body: [0, 0.2, -0.02], chest: [0, 0.205, 0.075], neck: [0, 0.225, 0.14], head: [0, 0.262, 0.19], fl: [-0.034, 0.185, 0.105], fle: [-0.034, 0.1, 0.1], fr: [0.034, 0.185, 0.105], fre: [0.034, 0.1, 0.1], hl: [-0.04, 0.195, -0.12], hlk: [-0.042, 0.118, -0.088], hla: [-0.04, 0.056, -0.142], hr: [0.04, 0.195, -0.12], hrk: [0.042, 0.118, -0.088], hra: [0.04, 0.056, -0.142], t1: [0, 0.212, -0.185], t2: [0, 0.222, -0.25], t3: [0, 0.238, -0.31], t4: [0, 0.258, -0.365] };
     const PAR = { chest: 'body', neck: 'chest', head: 'neck', fl: 'chest', fle: 'fl', fr: 'chest', fre: 'fr', hl: 'body', hlk: 'hl', hla: 'hlk', hr: 'body', hrk: 'hr', hra: 'hrk', t1: 'body', t2: 't1', t3: 't2', t4: 't3' };
     const b = rig(J, PAR), names = Object.keys(J), I = Object.fromEntries(names.map((n, i) => [n, i]));
-    const K = new Kit(), fur = 0x1f1e20, furC = (x, y, z) => mix(fur, 0x302c2a, 0.45 * hash(Math.round(x * 90), Math.round(y * 90), Math.round(z * 90))), fr = 0.68;
+    const K = new Kit(0), fur = K.use(TX.mat('catFur', 0)), face = K.use(TX.tile('cat|face', 32, 32, (P) => TX.paintCatFace(P), 0)), fr = 0.68;
     const blend = (a, bb, t) => [[I[a], 1 - t], [I[bb], t]];
+    // tube le long d'un chemin (anneaux perpendiculaires), uv le long du chemin
+    const path = (P, R, seg, cap0, cap1) => loftF(P.map((c, k) => { const d = nrm(sub(P[Math.min(P.length - 1, k + 1)], P[Math.max(0, k - 1)])), up = Math.abs(d[1]) > 0.9 ? [0, 0, 1] : [0, 1, 0], ax = nrm(cross(d, up)); const r = R[k]; return { c, ax, az: nrm(cross(ax, d)), rx: Array.isArray(r) ? r[0] : r, rz: Array.isArray(r) ? r[1] : r }; }), seg, (r, c) => [c / seg * 31 + 0.5, r / (P.length - 1) * 31 + 0.5], cap0, cap1);
     // corps (colonne le long de +z), cou
-    K.add(sweep([[0, 0.2, -0.225], [0, 0.203, -0.2], [0, 0.205, -0.15], [0, 0.199, -0.08], [0, 0.196, 0], [0, 0.2, 0.06], [0, 0.208, 0.11], [0, 0.222, 0.15]], [[0.012, 0.012], [0.032, 0.036], [0.05, 0.054], [0.054, 0.06], [0.055, 0.062], [0.05, 0.064], [0.045, 0.058], [0.034, 0.042]], 14, [1, 0, 0], true, [0, 0.226, 0.165]), { c: furC, r: fr, w: (x, y, z) => blend('body', 'chest', ss(-0.04, 0.06, z)) });
-    K.add(sweep([[0, 0.212, 0.115], [0, 0.236, 0.162], [0, 0.256, 0.192]], [0.034, 0.03, 0.028], 10, [1, 0, 0], false, false), { c: furC, r: fr, w: (x, y, z) => { const a = ss(0.12, 0.15, z), c = ss(0.17, 0.195, z); return [[I.chest, 1 - a], [I.neck, a * (1 - c)], [I.head, a * c]]; } });
-    // tête : crâne, joues, museau, menton, truffe, yeux, oreilles, moustaches
-    const hb = I.head;
-    K.add(ball(16, 12, (x, y, z) => [x * 0.041 * (1 + 0.16 * Math.max(0, -y)), 0.268 + y * 0.036, 0.2 + z * 0.038]), { c: furC, r: fr, b: hb });
-    K.add(ell(0.021, 0.016, 0.016, 10, 8, 0, 0.254, 0.232), { c: furC, r: fr, b: hb });
-    K.add(ell(0.012, 0.008, 0.01, 8, 6, 0, 0.243, 0.226), { c: furC, r: fr, b: hb });
-    K.add(ell(0.0058, 0.0042, 0.0042, 8, 6, 0, 0.2615, 0.2475), { c: 0x2a1c1e, r: 0.25, b: hb });
-    for (const s of [-1, 1]) {
-      const ex = s * 0.0175, ey = 0.2765;
-      K.add(ell(0.0094, 0.0086, 0.0062, 10, 8, ex, ey, 0.2295), { c: (x, y) => (Math.abs(x - ex) < 0.0017 && Math.abs(y - ey) < 0.0072 ? 0x050505 : 0x9cff57), r: 0.08, e: (x, y) => (Math.abs(x - ex) < 0.0017 ? 0 : 0.7), b: hb });
-      const em = M4(s * 0.026, 0.296, 0.195, -0.12, 0, s * -0.38);
-      K.add(loft(T7([[0, 0.017, 0.008, 0.008, 0, 2.2], [0.02, 0.01, 0.005, 0.005, 0, 2.2], [0.036, 0.0015, 0.0015, 0.0015, 0, 2]]), 8), { m: em, c: furC, r: fr, b: hb });
-      K.add(loft(T7([[0.002, 0.012, 0.003, 0.003, 0.0035, 2], [0.026, 0.004, 0.002, 0.002, 0.0035, 2]]), 6), { m: em, c: 0x4a2e30, r: 0.6, b: hb });
-      for (let k = 0; k < 3; k++) K.add(sweep([[s * 0.012, 0.252 + k * 0.003, 0.242], [s * 0.04, 0.254 + k * 0.005, 0.243], [s * 0.066, 0.25 + k * 0.009, 0.236]], 0.0007, 3, [0, 1, 0]), { c: 0xcfcac2, r: 0.4, b: hb });
-    }
-    // pattes avant et arrière, coussinets
+    K.add(path([[0, 0.2, -0.225], [0, 0.205, -0.15], [0, 0.197, -0.02], [0, 0.205, 0.08], [0, 0.222, 0.15]], [[0.012, 0.012], [0.05, 0.054], [0.055, 0.062], [0.047, 0.06], [0.034, 0.042]], 6, [0, 0.2, -0.232], [0, 0.226, 0.162]), fur, { c: 0xffffff, r: fr, w: (x, y, z) => blend('body', 'chest', ss(-0.04, 0.06, z)) });
+    K.add(path([[0, 0.212, 0.115], [0, 0.236, 0.162], [0, 0.256, 0.192]], [0.034, 0.03, 0.028], 5, false, false), fur, { c: 0xffffff, r: fr, w: (x, y, z) => { const a = ss(0.12, 0.15, z), c = ss(0.17, 0.195, z); return [[I.chest, 1 - a], [I.neck, a * (1 - c)], [I.head, a * c]]; } });
+    // tête : crâne, museau (face peinte projetée de face), oreilles
+    const hb = I.head, hp = loftF(sphereRings([0, 0.268, 0.2], 0.042, 0.036, 0.038, 4, (q) => ({ ...q, rx: q.rx * (q.c[1] < 0.268 ? 1.12 : 1) })), 8, () => [0, 0], false, false);
+    hp.uv = []; for (let k = 0; k < hp.p.length; k += 3) { if (hp.p[k + 2] < 0.205) hp.uv.push(2, 2); else hp.uv.push(16 + hp.p[k] / 0.05 * 16, 16 - (hp.p[k + 1] - 0.268) / 0.045 * 16); }
+    K.add(hp, face, { c: 0xffffff, r: fr, b: hb });
+    const mz = loftF(sphereRings([0, 0.252, 0.229], 0.021, 0.016, 0.017, 3), 6, () => [0, 0], false, false); mz.uv = []; for (let k = 0; k < mz.p.length; k += 3) mz.uv.push(16 + mz.p[k] / 0.05 * 16, 16 - (mz.p[k + 1] - 0.268) / 0.045 * 16);
+    K.add(mz, face, { c: 0xffffff, r: fr, b: hb });
+    for (const s of [-1, 1]) { const p3 = [[s * 0.014, 0.296, 0.2], [s * 0.04, 0.29, 0.188], [s * 0.03, 0.335, 0.192], [s * 0.026, 0.3, 0.208]]; K.add(facets(p3, [[0, 1, 2], [0, 2, 3], [1, 3, 2], [0, 3, 1]], p3.map(() => [4, 4]), [s * 0.027, 0.3, 0.185]), fur, { c: 0xffffff, r: fr, b: hb, flat: true }); }
+    // yeux : losanges verts qui renvoient la lumière (émission)
+    for (const s of [-1, 1]) { const ex = s * 0.0175, ey = 0.2765, ez = 0.2335, p3 = [[ex - 0.008, ey, ez], [ex, ey + 0.008, ez + 0.001], [ex + 0.008, ey, ez], [ex, ey - 0.007, ez + 0.001]]; K.add({ p: p3.flat(), i: [0, 2, 1, 0, 3, 2], uv: [8, 8, 8, 8, 8, 8, 8, 8] }, null, { c: 0x9cff57, r: 0.08, e: 0.7, b: hb, flat: true }); K.add({ p: [ex - 0.0012, ey + 0.006, ez + 0.0012, ex + 0.0012, ey + 0.006, ez + 0.0012, ex + 0.0012, ey - 0.005, ez + 0.0012, ex - 0.0012, ey - 0.005, ez + 0.0012], i: [0, 2, 1, 0, 3, 2], uv: [8, 8, 8, 8, 8, 8, 8, 8] }, null, { c: 0x050505, r: 0.1, b: hb, flat: true }); }
+    // pattes avant et arrière, queue (quatre os)
     for (const s of [-1, 1]) {
       const A = s < 0 ? 'l' : 'r', x = s * 0.034, xh = s * 0.041;
-      K.add(sweep([[x, 0.205, 0.108], [x, 0.15, 0.104], [x, 0.1, 0.1], [x, 0.05, 0.106], [x, 0.018, 0.112]], [0.019, 0.0155, 0.012, 0.0102, 0.0098], 9, [1, 0, 0], true, false), { c: furC, r: fr, w: (px, y) => blend('f' + A, 'f' + A + 'e', ss(0.115, 0.085, y)) });
-      K.add(ell(0.0135, 0.009, 0.017, 9, 6, x, 0.009, 0.12), { c: furC, r: fr, b: I['f' + A + 'e'] });
-      K.add(sweep([[xh, 0.218, -0.118], [xh, 0.17, -0.1], [xh, 0.122, -0.086], [xh, 0.09, -0.112], [xh, 0.058, -0.142], [xh, 0.032, -0.138], [xh, 0.013, -0.13]], [0.03, 0.03, 0.019, 0.013, 0.0105, 0.0098, 0.0098], 9, [1, 0, 0], true, false), { c: furC, r: fr, w: (px, y) => { const k = ss(0.13, 0.105, y), a = ss(0.072, 0.05, y); return [[I['h' + A], 1 - k], [I['h' + A + 'k'], k * (1 - a)], [I['h' + A + 'a'], k * a]]; } });
-      K.add(ell(0.0135, 0.009, 0.019, 9, 6, xh, 0.009, -0.122), { c: furC, r: fr, b: I['h' + A + 'a'] });
+      K.add(path([[x, 0.205, 0.108], [x, 0.1, 0.1], [x, 0.012, 0.112], [x, 0.008, 0.128]], [0.019, 0.012, 0.011, 0.01], 4, false, true), fur, { c: 0xffffff, r: fr, w: (px, y) => blend('f' + A, 'f' + A + 'e', ss(0.115, 0.085, y)) });
+      K.add(path([[xh, 0.218, -0.118], [xh, 0.122, -0.086], [xh, 0.058, -0.142], [xh, 0.01, -0.13], [xh, 0.008, -0.112]], [0.03, 0.019, 0.0105, 0.01, 0.009], 4, false, true), fur, { c: 0xffffff, r: fr, w: (px, y) => { const k = ss(0.13, 0.105, y), a = ss(0.072, 0.05, y); return [[I['h' + A], 1 - k], [I['h' + A + 'k'], k * (1 - a)], [I['h' + A + 'a'], k * a]]; } });
     }
-    // queue (quatre os, pointe arrondie)
-    const tp = [[0, 0.214, -0.2], [0, 0.222, -0.25], [0, 0.236, -0.31], [0, 0.255, -0.365], [0, 0.275, -0.41], [0, 0.29, -0.44]], tz = [-0.185, -0.25, -0.31, -0.365], tn = ['t1', 't2', 't3', 't4'];
-    K.add(sweep(tp, [0.0135, 0.0125, 0.011, 0.0095, 0.008, 0.006], 8, [1, 0, 0], true, [0, 0.296, -0.452]), { c: furC, r: fr, w: (x, y, z) => { if (z > tz[0]) return blend('body', 't1', ss(-0.17, -0.2, z)); for (let k = 0; k < 3; k++) if (z > tz[k + 1]) return blend(tn[k], tn[k + 1], (tz[k] - z) / (tz[k] - tz[k + 1])); return [[I.t4, 1]]; } });
+    const tz = [-0.185, -0.25, -0.31, -0.365], tn = ['t1', 't2', 't3', 't4'];
+    K.add(path([[0, 0.214, -0.2], [0, 0.222, -0.25], [0, 0.236, -0.31], [0, 0.255, -0.365], [0, 0.29, -0.44]], [0.0135, 0.0125, 0.011, 0.0095, 0.006], 4, false, [0, 0.296, -0.452]), fur, { c: 0xffffff, r: fr, w: (x, y, z) => { if (z > tz[0]) return blend('body', 't1', ss(-0.17, -0.2, z)); for (let k = 0; k < 3; k++) if (z > tz[k + 1]) return blend(tn[k], tn[k + 1], (tz[k] - z) / (tz[k] - tz[k + 1])); return [[I.t4, 1]]; } });
     skinned(K, root, names.map((n) => b[n]), b.body, new THREE.Sphere(new THREE.Vector3(0, 0.18, 0), 0.5));
-    root.userData = { parts: null, bones: b, cat: true };
+    root.userData = { parts: null, bones: b, cat: true, tiles: root.userData.tiles };
     return root;
   }
-  // rat : corps fuselé, museau pointu, oreilles rondes, yeux noirs, queue écailleuse (deux os), course saccadée
+  // rat : corps fuselé, museau pointu, oreilles rondes, yeux noirs, queue rose (deux os), course saccadée
   buildRat() {
-    const { Kit, sweep, ell, mix, ss } = MK;
+    const { Kit, loftF, facets, ss, nrm, sub, cross, TX } = MK;
     const root = new THREE.Group();
     const J = { body: [0, 0.035, 0], head: [0, 0.036, 0.06], t1: [0, 0.03, -0.08], t2: [0, 0.02, -0.14] }, PAR = { head: 'body', t1: 'body', t2: 't1' };
     const b = rig(J, PAR), names = Object.keys(J), I = Object.fromEntries(names.map((n, i) => [n, i]));
-    const K = new Kit(), furC = (x, y) => mix(0x4c4540, 0x8a7f76, ss(0.03, 0.016, y)), pink = 0xb89090;
-    K.add(sweep([[0, 0.032, -0.088], [0, 0.036, -0.062], [0, 0.038, -0.02], [0, 0.037, 0.02], [0, 0.034, 0.05], [0, 0.03, 0.075], [0, 0.025, 0.095], [0, 0.021, 0.108]], [[0.012, 0.01], [0.03, 0.028], [0.036, 0.032], [0.034, 0.031], [0.027, 0.025], [0.019, 0.018], [0.011, 0.011], [0.005, 0.005]], 10, [1, 0, 0], true, [0, 0.02, 0.114]), { c: furC, r: 0.8, w: (x, y, z) => [[I.body, 1 - ss(0.03, 0.06, z)], [I.head, ss(0.03, 0.06, z)]] });
-    K.add(ell(0.0042, 0.0036, 0.0036, 6, 5, 0, 0.0205, 0.1135), { c: pink, r: 0.4, b: I.head });
+    const K = new Kit(0), fur = K.use(TX.mat('ratFur', 0)), pink = K.use(TX.mat('pink', 0));
+    const path = (P, R, seg, cap0, cap1, tw) => loftF(P.map((c, k) => { const d = nrm(sub(P[Math.min(P.length - 1, k + 1)], P[Math.max(0, k - 1)])), ax = nrm(cross(d, [0, 1, 0])); const r = R[k]; return { c, ax, az: nrm(cross(ax, d)), rx: Array.isArray(r) ? r[0] : r, rz: Array.isArray(r) ? r[1] : r }; }), seg, (r, c) => [c / seg * tw, r / (P.length - 1) * tw], cap0, cap1);
+    K.add(path([[0, 0.032, -0.088], [0, 0.037, -0.05], [0, 0.037, 0.01], [0, 0.033, 0.055], [0, 0.026, 0.09]], [[0.012, 0.01], [0.032, 0.03], [0.034, 0.031], [0.024, 0.022], [0.01, 0.01]], 6, [0, 0.03, -0.094], [0, 0.021, 0.112], 31), fur, { c: 0xffffff, r: 0.8, w: (x, y, z) => [[I.body, 1 - ss(0.03, 0.06, z)], [I.head, ss(0.03, 0.06, z)]] });
     for (const s of [-1, 1]) {
-      K.add(ell(0.0035, 0.0035, 0.0035, 6, 5, s * 0.0125, 0.038, 0.082), { c: 0x050505, r: 0.08, b: I.head });
-      K.add(ell(0.009, 0.0105, 0.0028, 8, 6), { m: MK.M4(s * 0.015, 0.053, 0.06, 0, s * 0.5, 0), c: mix(pink, 0x4c4540, 0.4), r: 0.6, b: I.head });
-      for (const z of [0.042, -0.045]) { K.add(ell(0.0065, 0.012, 0.009, 7, 5, s * 0.023, 0.013, z), { c: furC, r: 0.8, b: I.body }); K.add(ell(0.006, 0.003, 0.009, 6, 4, s * 0.024, 0.003, z + 0.004), { c: pink, r: 0.5, b: I.body }); }
+      K.add({ p: [s * 0.012, 0.038, 0.082, s * 0.0135, 0.0385, 0.0825, s * 0.0128, 0.0372, 0.083], i: s > 0 ? [0, 1, 2] : [0, 2, 1], uv: [2, 2, 2, 2, 2, 2] }, fur, { c: 0x050505, r: 0.08, b: I.head, flat: true });
+      const e3 = [[s * 0.008, 0.045, 0.058], [s * 0.024, 0.047, 0.056], [s * 0.017, 0.062, 0.058], [s * 0.016, 0.05, 0.062]];
+      K.add(facets(e3, [[0, 1, 2], [0, 2, 3], [1, 3, 2]], e3.map(() => [8, 8]), [s * 0.016, 0.048, 0.05]), pink, { c: 0xffffff, r: 0.6, b: I.head, flat: true });
+      for (const z of [0.042, -0.045]) K.add(facets([[s * 0.018, 0.02, z - 0.008], [s * 0.03, 0.02, z + 0.004], [s * 0.024, 0.001, z + 0.01], [s * 0.022, 0.001, z - 0.004]], [[0, 1, 2], [0, 2, 3]], [[8, 8], [8, 8], [8, 8], [8, 8]], [s * 0.01, 0.02, z]), pink, { c: 0xffffff, r: 0.5, b: I.body, flat: true });
     }
-    const tp = [[0, 0.03, -0.082], [0, 0.022, -0.115], [0.008, 0.014, -0.16], [0.024, 0.009, -0.2], [0.045, 0.006, -0.235], [0.06, 0.005, -0.255]];
-    K.add(sweep(tp, [0.0048, 0.004, 0.0032, 0.0024, 0.0016, 0.001], 6, [0, 1, 0]), { c: pink, r: 0.5, w: (x, y, z) => z > -0.1 ? [[I.body, 1]] : z > -0.15 ? [[I.t1, 1]] : [[I.t2, 1]] });
+    const tp = [[0, 0.03, -0.082], [0, 0.018, -0.13], [0.024, 0.009, -0.2], [0.06, 0.005, -0.255]];
+    K.add(path(tp, [0.0048, 0.0034, 0.0022, 0.001], 3, false, true, 15), pink, { c: 0xffffff, r: 0.5, w: (x, y, z) => z > -0.1 ? [[I.body, 1]] : z > -0.15 ? [[I.t1, 1]] : [[I.t2, 1]] });
     skinned(K, root, names.map((n) => b[n]), b.body, new THREE.Sphere(new THREE.Vector3(0, 0.03, -0.05), 0.25));
-    root.userData = { parts: null, rat: b };
+    root.userData = { parts: null, rat: b, tiles: root.userData.tiles };
     return root;
   }
   // ballon rouge (latex brillant, nœud, ficelle qui suit le ballon)
   buildBalloon() {
-    const { Kit, ball, sweep, ell } = MK;
-    const root = new THREE.Group(), K = new Kit();
-    K.add(ball(18, 14, (x, y, z) => { const k = 1 - 0.32 * Math.max(0, -y) ** 1.6; return [x * 0.17 * k, y * (y > 0 ? 0.19 : 0.23), z * 0.17 * k]; }), { c: 0xd50000, r: 0.18, e: 0.08 });
-    K.add(ell(0.012, 0.014, 0.012, 8, 6, 0, -0.238, 0), { c: 0xb00000, r: 0.3, e: 0.05 });
-    K.add(sweep([[0, -0.25, 0], [0.02, -0.6, 0.01], [-0.015, -1.0, -0.01], [0.01, -1.4, 0.005]], 0.0025, 4, [1, 0, 0]), { c: 0xdddddd, r: 0.6 });
+    const { Kit, loftF, sphereRings } = MK;
+    const root = new THREE.Group(), K = new Kit(0);
+    K.add(loftF(sphereRings([0, 0, 0], 0.17, 0.21, 0.17, 7, (q) => ({ ...q, c: [0, q.c[1] < 0 ? q.c[1] * 1.1 : q.c[1], 0], rx: q.rx * (q.c[1] < 0 ? 1 - 0.32 * (-q.c[1] / 0.21) ** 1.6 : 1), rz: q.rz * (q.c[1] < 0 ? 1 - 0.32 * (-q.c[1] / 0.21) ** 1.6 : 1) })), 10, () => [8, 8], false, false), null, { c: 0xd50000, r: 0.18, e: 0.08 });
+    K.add(loftF(sphereRings([0, -0.238, 0], 0.012, 0.014, 0.012, 2), 5, () => [8, 8], false, false), null, { c: 0xb00000, r: 0.3, e: 0.05 });
+    const P = [[0, -0.25, 0], [0.02, -0.6, 0.01], [-0.015, -1.0, -0.01], [0.01, -1.4, 0.005]];
+    K.add(loftF(P.map((c) => ({ c, ax: [1, 0, 0], az: [0, 0, 1], rx: 0.0025, rz: 0.0025 })), 3, () => [8, 8], false, false), null, { c: 0xdddddd, r: 0.6 });
     const b = new THREE.Mesh(K.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.2, metalness: 0 }));
     b.position.y = 1.6; b.castShadow = true; root.add(b);
     root.userData.parts = null; root.userData.ball = b; return root;
