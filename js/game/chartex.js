@@ -9,7 +9,10 @@
 // Couleurs sur 15 bits (5 bits par canal, tramage ordonné 4 × 4) ; l'alpha sert de masque de teinte : 255 = multiplié
 // par la couleur du sommet (tissus et peau teintés par personnage), 0 = couleur peinte telle quelle (insignes, yeux,
 // boutons, lettres). Texels nets au grossissement (NearestFilter), mipmaps au loin (pas de scintillement des foules).
+// Une fois la page envoyée au GPU, une case peinte en cours de partie (visage d'un client qui arrive) n'envoie que son
+// rectangle (texSubImage2D), pas les 4 Mo de la page.
 import * as THREE from 'three';
+import { ENV } from '../engine/materials.js';
 
 const AW = 1024, CELL = 16, GW = AW / CELL;
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
@@ -27,6 +30,14 @@ class Page {
     const t = this.tex = new THREE.DataTexture(this.data, AW, AW);
     t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
     t.generateMipmaps = true; t.flipY = false; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.name = 'atlas_personnages_' + i; t.needsUpdate = true;
+    t.onUpdate = () => { this.live = true; }; // page entière envoyée : les cases suivantes partent seules
+  }
+  // envoi d'une case peinte (page déjà au GPU : son seul rectangle ; sinon la page entière au prochain rendu)
+  flush(t) {
+    const R = ENV.renderer;
+    if (!this.live || !R) { this.tex.needsUpdate = true; return; }
+    try { R.copyTextureToTexture(this.tex, this.tex, new THREE.Box2(new THREE.Vector2(t.x, t.y), new THREE.Vector2(t.x + t.w, t.y + t.h)), new THREE.Vector2(t.x, t.y)); }
+    catch (e) { this.tex.needsUpdate = true; }
   }
   // premier emplacement libre de w × h texels (multiples de 16), ou null
   alloc(w, h) {
@@ -64,7 +75,7 @@ export function tile(key, w, h, paint, pg = 0, dyn = false) {
     t = { key, page: pg, x: at.x, y: at.y, w, h, refs: 0, dyn, last: 0 };
     p.tiles.set(key, t);
     paint(new Painter(p, t.x, t.y, w, h));
-    p.tex.needsUpdate = true;
+    p.flush(t);
   }
   t.last = ++_clock;
   return t;
@@ -493,7 +504,7 @@ export const MATS = {
   // côtes du rampant (torse 32 × 32 : devant 0-15, dos 16-31)
   ribs: (P) => { for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { let k = 0.88 + 0.14 * hash2(x >> 1, y >> 1, 63) + (hash2(x, y, 64) - 0.5) * 0.05; const d = Math.abs(x - 8); if (y > 5 && y < 20 && y % 3 === 0 && d > 1 && d < 6 - (y > 14 ? 1 : 0)) k *= 0.8; if (d <= 1 && y > 4 && y < 18) k *= 1.06; if (x >= 16 && Math.abs(x - 24) < 1 && y % 2 === 0) k *= 1.12; if (y > 20 && y < 27 && d < 4) k *= 0.86; P.set(x, y, mul(0xc9c0b2, k), 0); } },
   // chair de la Chose : noire et luisante, veines rouges
-  flesh: (P) => { for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { const v = Math.abs(Math.sin(x * 0.55 + Math.sin(y * 0.35) * 2.4)) < 0.09 || Math.abs(Math.sin(y * 0.6 + Math.sin(x * 0.3) * 2)) < 0.05; P.set(x, y, v ? mix(0x5a0c0c, 0x8a1a14, hash2(x, y, 71)) : mul(0x161214, 0.8 + 0.5 * hash2(x >> 1, y >> 1, 72)), 0); } },
+  flesh: (P) => { for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { const v = Math.abs(Math.sin(x * 0.4 + Math.sin(y * 0.3) * 2.4)) < 0.05 || Math.abs(Math.sin(y * 0.45 + Math.sin(x * 0.25) * 2)) < 0.03, wet = hash2(x >> 1, y >> 1, 73) > 0.94; P.set(x, y, v ? mix(0x3a0808, 0x6a1210, hash2(x, y, 71)) : wet ? 0x3a3438 : mul(0x121012, 0.75 + 0.45 * hash2(x >> 1, y >> 1, 72)), 0); } },
   catFur: (P) => { for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) P.set(x, y, mix(0x1c1b1d, 0x34302e, hash2(x, y >> 1, 81) * 0.8), 0); },
   ratFur: (P) => { for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) P.set(x, y, mix(0x4c4540, 0x8a7f76, (y > 22 ? 0.6 : 0) + hash2(x, y >> 1, 82) * 0.35), 0); },
   pink: (P) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) P.set(x, y, mix(0xb08888, 0xc8a0a0, hash2(x, y, 83)), 0); },

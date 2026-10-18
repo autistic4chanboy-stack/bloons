@@ -206,8 +206,8 @@ export class Entities {
     switch (t) {
       case 'gerard': v = buildHumanoid({ outfit: 'guard', shirt: 0x2b3a55, pants: 0x1f2a44, hair: 0xbdbdbd, skin: 0xe0b89a, badge: true, hat: 'cap', hatColor: 0x1f2a44, height: 1.74, mustache: true, belly: 0.014, age: 1, seed: 7 }); break;
       case 'shopper': case 'keeper': {
-        const f = o.f ?? rnd(1) < 0.5;
-        v = buildHumanoid({ female: f, seed: seed + 1, outfit: t === 'keeper' ? 'shop' : 'casual', shop: o.keeper, shirt: o.shirt ?? shirts[Math.floor(rnd(2) * shirts.length)], pants: o.pants ?? [0x263238, 0x1a237e, 0x3e2723, 0x424242, 0x795548][Math.floor(rnd(3) * 5)], skin: skin(4), hair: hair(5), height: f ? 1.6 + rnd(6) * 0.12 : 1.7 + rnd(6) * 0.15, sleeves: rnd(7) < 0.5, badge: t === 'keeper', bag: t === 'shopper' && rnd(8) < 0.35 ? 'shopping' : null });
+        const f = o.f ?? rnd(1) < 0.5, kid = t === 'shopper' && !!o.kid;
+        v = buildHumanoid({ female: f, child: kid, seed: seed + 1, outfit: t === 'keeper' ? 'shop' : 'casual', shop: o.keeper, shirt: o.shirt ?? shirts[Math.floor(rnd(2) * shirts.length)], pants: o.pants ?? [0x263238, 0x1a237e, 0x3e2723, 0x424242, 0x795548][Math.floor(rnd(3) * 5)], skin: skin(4), hair: kid ? hairs[Math.floor(rnd(5) * 5)] : hair(5), height: kid ? 1.15 + rnd(6) * 0.3 : f ? 1.6 + rnd(6) * 0.12 : 1.7 + rnd(6) * 0.15, sleeves: rnd(7) < 0.5, badge: t === 'keeper', bag: t === 'shopper' && !kid && rnd(8) < 0.35 ? 'shopping' : null });
         break;
       }
       case 'police': v = buildHumanoid({ kind: 'police', shirt: 0x1a237e, pants: 0x0d1450, hat: 'police', hatColor: 0x0d1450, skin: skin(1, 4), hair: hair(2), hairStyle: rnd(3) < 0.6 ? 'buzz' : 'short', prop: 'torch', seed: seed + 3 }); break;
@@ -268,7 +268,7 @@ export class Entities {
       const w = (0.34 + 0.26 * Math.sin(u * Math.PI * 0.85) + 0.28 * ss(0.2, 0, u)) * lump;
       return [x * w, u * 2.15, z * w * 0.82 + 0.22 * ss(0.55, 1, u) * u];
     };
-    const seg = 10, rows = 9, P = [], UV = [], IX = [];
+    const seg = 12, rows = 10, P = [], UV = [], IX = [];
     for (let r = 0; r <= rows; r++) for (let c = 0; c <= seg; c++) { const ph = Math.PI * (1 - r / rows), th = c / seg * Math.PI * 2, s = Math.sin(ph); P.push(...F(s * Math.sin(th), Math.cos(ph), s * Math.cos(th))); UV.push(c % 2 ? 31.5 : 0.5, r % 2 ? 31.5 : 0.5); } // chair répétée en miroir d'une facette à l'autre
     for (let r = 0; r < rows; r++) for (let c = 0; c < seg; c++) { const a = r * (seg + 1) + c; IX.push(a, a + 1, a + seg + 1, a + 1, a + seg + 2, a + seg + 1); }
     K.add({ p: P, i: IX, uv: UV }, fl, { c: 0xffffff, r: 0.32, b: I.core });
@@ -628,7 +628,7 @@ export class Entities {
     }
     // clients
     const gnodes = [...this.nav.nodes.values()].filter(nd => /^g[01][ns]/.test(nd.id));
-    for (let i = 0; i < 12; i++) { const nd = pick(gnodes); this.spawn('shopper', { p: [nd.x + (R() - 0.5) * 2, nd.y, nd.z + (R() - 0.5) * 2], yaw: R() * 6, talk: true, name: 'Client' + (i % 2 ? 'e' : ''), v: i * 13 + 1, f: i % 2 === 1 }); }
+    for (let i = 0; i < 12; i++) { const nd = pick(gnodes), kid = i % 5 === 3; this.spawn('shopper', { p: [nd.x + (R() - 0.5) * 2, nd.y, nd.z + (R() - 0.5) * 2], yaw: R() * 6, talk: !kid, name: kid ? 'Enfant' : 'Client' + (i % 2 ? 'e' : ''), v: i * 13 + 1, f: i % 2 === 1, kid, h: kid ? 1.3 : undefined }); } // deux enfants parmi les clients (ils ne parlent pas au gardien)
     if (this.levels.cat) this.spawnCat();
   }
   spawnDusk() { if (this.levels.cat) this.spawnCat(); }

@@ -11,9 +11,9 @@ import { ENV, patchZone } from '../engine/materials.js';
 import * as TX from './chartex.js';
 
 // Réglages de la touche d'époque (constantes lues à la compilation des matériaux) :
-//  snap : lignes de la grille d'écran virtuelle où se calent les sommets (0 : désactivé ; 300 ≈ un léger tremblement)
+//  snap : lignes de la grille d'écran virtuelle où se calent les sommets (0 : désactivé ; 360 ≈ un léger tremblement)
 //  affine : part de placage affine de la texture (0 : correct en perspective, 1 : flottement franc des vieilles consoles)
-export const PS1 = { snap: 300, affine: 0.35 };
+export const PS1 = { snap: 360, affine: 0.35 };
 
 // ───────────────────────── outils ─────────────────────────
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -316,7 +316,7 @@ function dress(o, pr) {
     }
   }
   if (O.coat === true) O.coat = O.top;
-  if (!O.hairStyle) O.hairStyle = f ? (pr.c ? 'bob' : pick(R, 2, ['long', 'bob', 'ponytail', 'bun', 'long'])) : pick(R, 2, ['short', 'short', 'side', 'buzz', 'bald', 'curly']);
+  if (!O.hairStyle) O.hairStyle = f ? (pr.c ? pick(R, 2, ['bob', 'ponytail', 'long', 'bob']) : pick(R, 2, ['long', 'bob', 'ponytail', 'bun', 'long'])) : pick(R, 2, pr.c ? ['short', 'side', 'buzz', 'curly'] : ['short', 'short', 'side', 'buzz', 'bald', 'curly']);
   if (O.hat === 'balaclava' || O.hat === 'helmet') O.hairStyle = 'none';
   O.waistY = O.tuck || O.skirt ? 1.0 : O.hem;
   if (pr.c) O.waistY = O.skirt ? 0.93 : Math.min(O.waistY, 0.9);
