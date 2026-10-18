@@ -87,12 +87,12 @@ export class Phone {
   openUI(kind) {
     const g = this.game;
     const wrap = el('div', 'phone-ui');
-    wrap.innerHTML = `<div class="disp"></div><div class="st"></div>
+    wrap.innerHTML = `<div class="ph-l"><div class="disp"></div><div class="st"></div>
       <div class="pad">${['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map(d => `<button data-d="${d}">${d}</button>`).join('')}</div>
-      <div class="act"><button class="call">📞 Appeler</button><button class="hang">⛔ Raccrocher</button><button class="del">⌫</button></div>
-      <div class="choices"></div>
+      <div class="act"><button class="call">📞 Appeler</button><button class="hang">⛔ Raccrocher</button><button class="del">⌫</button></div></div>
+      <div class="ph-r"><div class="choices"></div>
       ${kind === 'desk' ? `<div class="postit nb-postit"><b>Numéros utiles</b>Police : 17 · Pompiers : 18 · SAMU : 15<br>Gérard : 06 47 22 19 87<br>Direction (M. Desmarais) : 01 44 87 19 87</div>` : ''}
-      <div class="contacts"></div><p class="hint">Chiffres au clavier ou à la souris, Entrée pour appeler, Échap pour raccrocher.</p>`;
+      <div class="contacts"></div><p class="hint">Chiffres au clavier ou à la souris, Entrée pour appeler, Échap pour raccrocher.</p></div>`;
     this.ui = { wrap, num: '', state: 'idle', kind };
     const disp = wrap.querySelector('.disp'), st = wrap.querySelector('.st');
     this.uiRefresh = () => { disp.textContent = formatNumber(this.ui.num) || (this.ui.state === 'idle' ? '' : '…'); };

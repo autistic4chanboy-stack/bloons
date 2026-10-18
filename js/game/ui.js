@@ -78,7 +78,7 @@ export class UI {
   damageFlash(a) { this.dmg.style.transition = 'none'; this.dmg.style.opacity = Math.min(0.8, a); requestAnimationFrame(() => { this.dmg.style.transition = 'opacity 0.8s'; this.dmg.style.opacity = 0; }); }
   fade(to, dur = 1) { this.fadeEl.style.transition = `opacity ${dur}s`; this.fadeEl.style.opacity = to; return new Promise(r => setTimeout(r, dur * 1000)); }
   // carton de titre (début de nuit…) : rubrique façon incrustation, titre condensé, sous-titre
-  card(title, sub, dur = 4, kicker = 'Hélios Sécurité') { this.cardEl.innerHTML = `<div class="cd-k">${esc(kicker)}</div><h1>${esc(title)}</h1><h2>${esc(sub || '')}</h2>`; this.cardEl.classList.add('on'); clearTimeout(this._cardT); this._cardT = setTimeout(() => this.cardEl.classList.remove('on'), dur * 1000); }
+  card(title, sub, dur = 4, kicker = 'Hélios Sécurité') { this.cardEl.innerHTML = `<div class="cd-k">${esc(kicker)}</div><h1>${esc(title)}</h1><h2>${esc(sub || '')}</h2>`; this.cardEl.classList.add('on'); this.root.classList.add('nb-card-on'); clearTimeout(this._cardT); this._cardT = setTimeout(() => { this.cardEl.classList.remove('on'); this.root.classList.remove('nb-card-on'); }, dur * 1000); }
   flashSlot(i) { this._flash = { i, t: 0.6 }; }
   error(e) { if (this._errShown) return; this._errShown = true; this.toast('Erreur : ' + (e?.message || e), 8); setTimeout(() => this._errShown = false, 5000); }
   showWatch() { this.toast('🕒 ' + this.game.clockString() + (this.game.isDay ? '' : '  —  nuit ' + this.game.night), 2.5); }
@@ -247,7 +247,7 @@ export class UI {
       <p class="ps-keys">${keys([['↑ ↓', 'Choisir'], ['Entrée', 'Valider'], ['Échap', 'Reprendre']])}</p>
       <div class="ps-opts" hidden>${win({ title: 'Options', k: 'Hélios Sécurité · Réglages du poste', ref: 'Pupitre', cls: 'w-opts', body: optionsHTML(s, { game: true }), foot: keys([['↑ ↓', 'Choisir'], ['← →', 'Régler'], ['Échap', 'Retour']]) + '<button data-a="back">Retour</button>' })}</div>`;
     const menu = wrap.querySelector('.ps-menu'), opts = wrap.querySelector('.ps-opts'), pk = wrap.querySelector('.ps-keys');
-    const showOpts = (on) => { menu.hidden = pk.hidden = on; opts.hidden = !on; this.root.classList.toggle('nb-paused', !on); focusFirst(on ? opts : menu, on ? null : '[data-a=options]'); }; // l'incrustation s'efface derrière la fenêtre
+    const showOpts = (on) => { menu.hidden = pk.hidden = on; opts.hidden = !on; focusFirst(on ? opts : menu, on ? null : '[data-a=options]'); };
     wrap.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'resume') this.closeModal();
@@ -291,8 +291,9 @@ export class UI {
     }
     const fields = (o.fields || []).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
     const lines = o.lines?.length ? `<h2>${o.linesTitle || 'Observations'}</h2><ul class="rp-l">${o.lines.map(([c, t]) => `<li class="${c}">${t}</li>`).join('')}</ul>` : '';
-    const html = `${paperHead(o.sub || 'Service de sécurité · Poste central', o.ref)}<h1>${o.title}</h1>${fields ? `<dl class="rp-f">${fields}</dl>` : ''}${o.lead ? `<p class="rp-lead">${o.lead}</p>` : ''}${o.body || ''}${lines}
-      <div class="rp-sign"><span class="vis">Visa de la direction<i>M. Desmarais</i></span>${o.stamp ? `<span class="stamp ${o.stamp[1] || ''}">${o.stamp[0]}</span>` : ''}</div>`;
+    const agent = esc(g.settings.playerName || 'Gardien');
+    const html = `${paperHead(o.sub || 'Service de sécurité · Poste central', o.ref)}<div class="rp-t"><h1>${o.title}</h1>${o.stamp ? `<span class="stamp ${o.stamp[1] || ''}">${o.stamp[0]}</span>` : ''}</div>${fields ? `<dl class="rp-f">${fields}</dl>` : ''}${o.lead ? `<p class="rp-lead">${o.lead}</p>` : ''}${o.body || ''}${lines}
+      <div class="rp-sign"><span class="vis">Visa de la direction<i>M. Desmarais</i></span><span class="vis r">L'agent ${agentNo()}<i>${agent}</i></span></div>`;
     this.showSummary(html, o.buttons, { node: 'nb-report' });
   }
   screamerFlash(kind = 'face', dur = 0.7) {
