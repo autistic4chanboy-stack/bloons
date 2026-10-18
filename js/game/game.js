@@ -294,7 +294,7 @@ export class Game {
     this.world.cull(cam.position, this.security.cullExtras(), cam, this.settings.quality === 'low' ? 0.8 : 1);
     this.lighting.update(dt, cam.position);
     this.screens.update(dt, cam.position);
-    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion), up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
+    const fwd = _fwd.set(0, 0, -1).applyQuaternion(cam.quaternion), up = _up.set(0, 1, 0).applyQuaternion(cam.quaternion);
     Audio.setListener(cam.position, fwd, up);
     Audio.update(dt);
     this.ui.update(dt);
@@ -305,5 +305,6 @@ export class Game {
   }
 }
 
+const _fwd = new THREE.Vector3(), _up = new THREE.Vector3(); // orientation de l'auditeur (réutilisés à chaque image)
 function tick() { return new Promise(r => setTimeout(r, 0)); }
 function voiceVol(s) { const v = +(s.voiceVolume ?? 1); return isFinite(v) ? Math.max(0, Math.min(1.5, v)) : 1; } // volume du babillage des personnages

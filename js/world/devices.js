@@ -15,6 +15,7 @@ const CHANNELS = ['channel:news', 'channel:weather', 'channel:cartoon', 'channel
 const CHANNEL_MUSIC = { 'channel:cartoon': 'kiddie', 'channel:music': 'disco', 'channel:shopping': 'muzak', 'channel:weather': 'hold_music', 'channel:news': 'radio_static_voice' };
 
 // ───────────────────────── Gestionnaire d'écrans (canvas partagés) ─────────────────────────
+const _sv = new THREE.Vector3(), byDist = (a, b) => a.dist - b.dist;
 export class ScreenManager {
   constructor(game, mod) {
     this.game = game; this.mod = mod; this.shared = new Map(); this.users = new Map(); this.t = 0;
@@ -37,13 +38,13 @@ export class ScreenManager {
   // met à jour les écrans visibles proches (budget limité)
   update(dt, camPos) {
     this.t += dt;
-    const list = [];
+    const list = this._list || (this._list = []); list.length = 0; // tableau réutilisé (aucune allocation par image)
     for (const e of this.shared.values()) {
       let best = Infinity;
-      for (const u of e.refs) { if (!u.screenMesh || !u.screenVisible()) continue; const d = u.screenMesh.getWorldPosition(new THREE.Vector3()).distanceToSquared(camPos); if (d < best) best = d; }
+      for (const u of e.refs) { if (!u.screenMesh || !u.screenVisible()) continue; const d = u.screenMesh.getWorldPosition(_sv).distanceToSquared(camPos); if (d < best) best = d; }
       e.dist = best; if (best < 900) list.push(e);
     }
-    list.sort((a, b) => a.dist - b.dist);
+    list.sort(byDist);
     for (let i = 0; i < list.length; i++) {
       const e = list[i]; const interval = i < 3 ? 0 : i < 8 ? 0.1 : 0.25;
       if (this.t - e.last < interval) continue;
@@ -533,6 +534,7 @@ class Projector extends ItemFixture {
       const len = Math.abs(sc.z - pos.z);
       const cone = new THREE.Mesh(new THREE.ConeGeometry(sc.w * 0.5, len, 4, 1, true), new THREE.MeshBasicMaterial({ color: 0x8899bb, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
       cone.position.set(sc.x, (pos.y + sc.y) / 2, (pos.z + sc.z) / 2); cone.rotation.x = (sc.z > pos.z ? -1 : 1) * Math.PI / 2; cone.rotation.y = Math.PI / 4; cone.visible = false;
+      cone.material.forceSinglePass = true; // additif : une seule passe suffit (même image)
       (world.zone(zone)?.group || world.root).add(cone); this.beam = cone;
     }
     world.game.lighting.addSource(this);

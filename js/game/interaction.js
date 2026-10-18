@@ -3,8 +3,9 @@
 import * as THREE from 'three';
 import { LAYER } from '../engine/physics.js';
 
+const AIM_MODES = new Set(['walk', 'sit', 'hide']), _d = new THREE.Vector3();
 export class Interaction {
-  constructor(game) { this.game = game; this.target = null; this.prompt = ''; this.dist = 0; this.point = null; }
+  constructor(game) { this.game = game; this.target = null; this.prompt = ''; this.dist = 0; this.point = null; this._pt = new THREE.Vector3(); }
 
   ray(maxDist, layers) {
     const cam = this.game.camera; const d = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
@@ -21,8 +22,8 @@ export class Interaction {
   update(dt) {
     const g = this.game, p = g.player;
     this.target = null; this.prompt = '';
-    if (!p.alive || !['walk', 'sit', 'hide'].includes(p.mode) || g.ui.modal) { g.ui.setPrompt(''); return; }
-    const cam = g.camera; const d = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    if (!p.alive || !AIM_MODES.has(p.mode) || g.ui.modal) { g.ui.setPrompt(''); return; }
+    const cam = g.camera; const d = _d.set(0, 0, -1).applyQuaternion(cam.quaternion); // vecteurs réutilisés à chaque image
     const maxD = p.inVent ? 3.0 : 2.6;
     const block = g.world.physics.raycast(cam.position.x, cam.position.y, cam.position.z, d.x, d.y, d.z, maxD, LAYER.WALL | LAYER.DOOR | LAYER.GLASS);
     const hit = g.world.pick.raycast(cam.position.x, cam.position.y, cam.position.z, d.x, d.y, d.z, maxD, LAYER.ALL);
@@ -31,7 +32,7 @@ export class Interaction {
     if (obj && obj.state?.where === 'held') obj = null;
     if (obj) {
       const pr = obj.prompt(p);
-      if (pr) { this.target = obj; this.prompt = pr; this.dist = hit.t; this.point = cam.position.clone().addScaledVector(d, hit.t); }
+      if (pr) { this.target = obj; this.prompt = pr; this.dist = hit.t; this.point = this._pt.copy(cam.position).addScaledVector(d, hit.t); }
     }
     g.ui.setPrompt(this.prompt, this.target);
     if (g.input.hit('KeyE')) this.activate('use');
