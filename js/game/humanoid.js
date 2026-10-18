@@ -195,9 +195,9 @@ const wSkirt = (y0, y1) => (x, y) => { const t = ss(y0, y1, y) * 0.6, l = ss(0.0
 
 // ───────────────────────── gabarits ─────────────────────────
 // torses (anneaux par y croissant, de l'entrejambe à la base du cou)
-const TORSO_M = [[0.8, 0.045, 0.04, 0.04, 0, 2], [0.845, 0.125, 0.082, 0.092, -0.004, 2.2], [0.91, 0.166, 0.098, 0.112, -0.008, 2.4], [1.1, 0.152, 0.1, 0.096, 0.004, 2.4], [1.21, 0.163, 0.112, 0.102, 0.008, 2.5], [1.31, 0.173, 0.118, 0.105, 0.008, 2.6], [1.4, 0.19, 0.104, 0.1, 0, 3], [1.45, 0.176, 0.085, 0.09, -0.01, 2.8], [1.485, 0.115, 0.066, 0.074, -0.016, 2.4], [1.505, 0.066, 0.058, 0.062, -0.02, 2]];
-const TORSO_F = [[0.8, 0.045, 0.04, 0.04, 0, 2], [0.845, 0.13, 0.08, 0.096, -0.006, 2.2], [0.91, 0.176, 0.098, 0.122, -0.012, 2.4], [1.0, 0.158, 0.092, 0.104, -0.006, 2.4], [1.1, 0.134, 0.088, 0.09, 0, 2.3], [1.2, 0.142, 0.1, 0.094, 0.006, 2.4], [1.29, 0.15, 0.124, 0.096, 0.01, 2.4], [1.38, 0.166, 0.096, 0.094, 0, 2.9], [1.432, 0.154, 0.076, 0.082, -0.01, 2.7], [1.468, 0.1, 0.06, 0.066, -0.015, 2.4], [1.49, 0.056, 0.05, 0.054, -0.018, 2]];
-const TORSO_C = [[0.71, 0.04, 0.036, 0.036, 0, 2], [0.75, 0.115, 0.08, 0.086, -0.004, 2.2], [0.82, 0.14, 0.096, 0.102, -0.004, 2.3], [0.92, 0.14, 0.106, 0.1, 0.004, 2.3], [1.04, 0.142, 0.108, 0.098, 0.008, 2.3], [1.16, 0.146, 0.1, 0.096, 0.006, 2.4], [1.27, 0.152, 0.094, 0.092, 0, 2.6], [1.345, 0.156, 0.082, 0.086, -0.008, 2.8], [1.395, 0.1, 0.064, 0.07, -0.012, 2.3], [1.435, 0.05, 0.046, 0.05, -0.015, 2]];
+const TORSO_M = [[0.8, 0.045, 0.04, 0.04, 0, 2], [0.845, 0.125, 0.082, 0.092, -0.004, 2.2], [0.91, 0.166, 0.098, 0.112, -0.008, 2.4], [1.1, 0.152, 0.1, 0.096, 0.004, 2.4], [1.21, 0.163, 0.112, 0.102, 0.008, 2.5], [1.31, 0.175, 0.118, 0.105, 0.008, 2.6], [1.4, 0.205, 0.104, 0.1, 0, 3.2], [1.45, 0.188, 0.085, 0.09, -0.01, 2.9], [1.485, 0.118, 0.066, 0.074, -0.016, 2.4], [1.505, 0.066, 0.058, 0.062, -0.02, 2]];
+const TORSO_F = [[0.8, 0.045, 0.04, 0.04, 0, 2], [0.845, 0.13, 0.08, 0.096, -0.006, 2.2], [0.91, 0.176, 0.098, 0.122, -0.012, 2.4], [1.0, 0.158, 0.092, 0.104, -0.006, 2.4], [1.1, 0.134, 0.088, 0.09, 0, 2.3], [1.2, 0.142, 0.1, 0.094, 0.006, 2.4], [1.29, 0.15, 0.124, 0.096, 0.01, 2.4], [1.38, 0.18, 0.096, 0.094, 0, 3.1], [1.432, 0.166, 0.076, 0.082, -0.01, 2.8], [1.468, 0.1, 0.06, 0.066, -0.015, 2.4], [1.49, 0.056, 0.05, 0.054, -0.018, 2]];
+const TORSO_C = [[0.71, 0.04, 0.036, 0.036, 0, 2], [0.75, 0.115, 0.08, 0.086, -0.004, 2.2], [0.82, 0.14, 0.096, 0.102, -0.004, 2.3], [0.92, 0.14, 0.106, 0.1, 0.004, 2.3], [1.04, 0.142, 0.108, 0.098, 0.008, 2.3], [1.16, 0.146, 0.1, 0.096, 0.006, 2.4], [1.27, 0.152, 0.094, 0.092, 0, 2.6], [1.345, 0.164, 0.082, 0.086, -0.008, 3], [1.395, 0.104, 0.064, 0.07, -0.012, 2.3], [1.435, 0.05, 0.046, 0.05, -0.015, 2]];
 // tête (repère de l'os de la tête, avant l'échelle) : du dessous du menton au sommet du crâne
 const HEAD_M = [[-0.066, 0.016, 0.012, 0.014, 0.052, 2], [-0.054, 0.036, 0.026, 0.032, 0.046, 2.2], [-0.03, 0.056, 0.044, 0.054, 0.03, 2.4], [-0.004, 0.064, 0.06, 0.074, 0.014, 2.5], [0.03, 0.07, 0.074, 0.088, 0.004, 2.6], [0.062, 0.074, 0.08, 0.097, -0.003, 2.7], [0.09, 0.075, 0.083, 0.102, -0.007, 2.6], [0.124, 0.072, 0.076, 0.1, -0.01, 2.4], [0.154, 0.061, 0.06, 0.086, -0.012, 2.3], [0.173, 0.04, 0.038, 0.06, -0.012, 2.1]];
 const HEAD_TOP = 0.182;
@@ -232,7 +232,7 @@ function profile(o, kind) {
   if (kind === 'firefighter') Object.assign(pr, { ar: 1.14, lr: 1.12, torso: TORSO_M.map((q) => R7([q[0], q[1] * 1.07 + 0.006, q[2] * 1.12 + 0.008, q[3] * 1.1 + 0.008, q[4], q[5]])) }); // tenue de feu épaisse
   if (kind === 'astronaut') Object.assign(pr, { ar: 1.5, lr: 1.35, hd: 1.15, ft: 1.15, torso: TORSO_M.map((q) => R7([q[0], q[1] * 1.18 + 0.01, q[2] * 1.3 + 0.01, q[3] * 1.25 + 0.01, q[4], 2.3])) });
   const nb = pr.neck[0], hb = pr.head[0], nr = kind === 'bear' ? 0.11 : c ? 0.044 : f ? 0.046 : pr.gaunt ? 0.04 : 0.056;
-  pr.neckR = [[nb - 0.075, nr, nr, nr * 1.1, -0.026], [nb, nr, nr, nr * 1.12, -0.021], [hb - 0.012, nr * 0.94, nr * 0.9, nr * 1.05, -0.013], [hb + 0.03, nr * 0.86, nr * 0.76, nr * 0.96, -0.012]].map((q) => R7([...q, 2.2]));
+  pr.neckR = [[nb - 0.075, nr, nr, nr * 1.1, -0.026], [lerp(nb, hb, 0.45), nr * 0.97, nr * 0.95, nr * 1.08, -0.017], [hb + 0.03, nr * 0.86, nr * 0.76, nr * 0.96, -0.012]].map((q) => R7([...q, 2.2]));
   pr.headR = headRings(pr); pr.L = faceLayout(pr);
   pr.J = joints(pr);
   return pr;
@@ -248,7 +248,7 @@ const torsoDef = (pr, O) => (v, r, c, th) => {
 // membres : anneaux [t sous l'articulation, rayon latéral, rayon avant-arrière, décalage z]
 function armRings(pr) {
   const k = pr.ar * 1.06, e = pr.el, w = pr.wr;
-  return [[-0.042, 0.026, 0.028], [-0.016, 0.05, 0.052], [0.04, 0.054, 0.056], [0.16, 0.047, 0.05], [e - 0.02, 0.04, 0.043], [e + 0.035, 0.043, 0.045], [e + w - 0.006, 0.026, 0.031]]
+  return [[-0.03, 0.022, 0.024], [-0.004, 0.046, 0.05], [0.05, 0.052, 0.055], [0.16, 0.047, 0.05], [e - 0.02, 0.04, 0.043], [e + 0.035, 0.043, 0.045], [e + w - 0.006, 0.026, 0.031]]
     .map(([t, a, b]) => [t < 0 ? t * Math.min(1.3, pr.ar) : t, a * k, b * k]);
 }
 const LEG_CLOTH = [[-0.075, 0.062, 0.068, -0.012], [0.0, 0.088, 0.093, -0.008], [0.2, 0.075, 0.08, 0.0], [0.385, 0.06, 0.064, 0.004], [0.45, 0.057, 0.062, 0.006], [0.56, 0.058, 0.062, -0.002], [0.87, 0.052, 0.056, 0.002]];
@@ -382,7 +382,7 @@ function torsoPieces(K, pr, O) {
 }
 function neckPiece(K, pr, O) {
   const J = pr.J, nc = O.catHood ? O.top : O.hat === 'balaclava' ? 0x222222 : O.skin;
-  K.add(tube(pr.neckR, colsAt(6, -Math.PI), [0, 3, 6, 9, 12, 15, 16].map((u) => u), [15, 10, 4, 1]), O.tex.skin, { c: nc, r: O.hat === 'balaclava' ? 0.95 : 0.6, w: wNeck(J) });
+  K.add(tube(pr.neckR, colsAt(6, -Math.PI), [0, 3, 6, 9, 12, 15, 16].map((u) => u), [15, 8, 1]), O.tex.skin, { c: nc, r: O.hat === 'balaclava' ? 0.95 : 0.6, w: wNeck(J) });
   // col de chemise, col montant, collerette
   const nb = J.neck[1];
   if (O.collar === 'shirt' || O.collar === 'polo' || O.collar === 'high') {
@@ -528,7 +528,7 @@ function hairPieces(K, pr, O, hm) {
     const yTop = capped ? 0.112 : 0.176;
     const p = [], uv = [], ix = [], nc = seg + 1;
     for (let r = 0; r < S.length; r++) for (let c = 0; c < nc; c++) {
-      const th = -Math.PI + TAU * c / seg, y0 = Math.min(hl(th), yTop - 0.01), y = lerp(y0, yTop, S[r]), o = (r === 0 ? (hang && Math.abs(th) > 1.1 ? thick : 0.0025) : thick * (0.6 + 0.4 * S[r])) + (st === 'curly' ? 0.004 * Math.sin(c * 2.3 + r) : 0) + (st === 'side' && th > 0 ? 0.003 * S[r] : 0);
+      const th = -Math.PI + TAU * c / seg, y0 = Math.min(hl(th), yTop - 0.01), y = lerp(y0, yTop, S[r]), o = (capped && Math.abs(th) < 1.2 ? -0.004 : r === 0 ? (hang && Math.abs(th) > 1.1 ? thick : 0.0025) : thick * (0.6 + 0.4 * S[r])) + (st === 'curly' ? 0.004 * Math.sin(c * 2.3 + r) : 0) + (st === 'side' && th > 0 ? 0.003 * S[r] : 0);
       const q = headSurf(HR, th, y, o); p.push(...q); uv.push(c / seg * 32, 31.5 - S[r] * 30);
     }
     for (let r = 0; r < S.length - 1; r++) for (let c = 0; c < seg; c++) { const a = r * nc + c; ix.push(a, a + 1, a + nc, a + 1, a + 1 + nc, a + nc); }
@@ -536,8 +536,13 @@ function hairPieces(K, pr, O, hm) {
     K.add({ p, i: ix, uv }, tile, { m: hm, c: hc, r: 0.7, b });
   }
   // rideau des cheveux longs / du carré : bande à double face qui tombe des côtés et de la nuque
-  if (st === 'long' || st === 'bob' || st === 'stringy') {
-    const y0 = 0.078, y1 = st === 'long' ? (pr.c ? -0.14 : -0.25) : st === 'bob' ? -0.035 : -0.3, a0 = st === 'stringy' ? 0.35 : 1.2, n = 9, rows = 3, q0 = R7(secAt(HR, y0));
+  if (st === 'stringy') for (let i = 0; i < 11; i++) { // rampant : longues mèches raides autour du crâne, quelques-unes devant le visage
+    const th = -Math.PI + (i + 0.5) / 11 * TAU + (hash(i, 2, 5) - 0.5) * 0.3, y0 = 0.12 - 0.05 * Math.abs(Math.cos(th / 2)), q = headSurf(HR, th, y0, 0.006), d = [Math.sin(th), 0, Math.cos(th)], tg = [Math.cos(th), 0, -Math.sin(th)], Lh = 0.22 + hash(i, 7, 2) * 0.16, w = 0.012;
+    const P = [add3(q, scl(tg, -w)), add3(q, scl(tg, w)), add3(add3(q, scl(d, 0.03)), [-tg[0] * w * 0.5, -Lh, -tg[2] * w * 0.5]), add3(add3(q, scl(d, 0.03)), [tg[0] * w * 0.5, -Lh, tg[2] * w * 0.5])];
+    K.add(twoSided({ p: P.flat(), i: [0, 2, 1, 1, 2, 3], uv: [i * 2.8, 1, i * 2.8 + 2.5, 1, i * 2.8, 30, i * 2.8 + 2.5, 30] }), tile, { m: hm, c: hc, r: 0.6, b });
+  }
+  if (st === 'long' || st === 'bob') {
+    const y0 = 0.078, y1 = st === 'long' ? (pr.c ? -0.14 : -0.25) : -0.035, a0 = 1.2, n = 9, rows = 3, q0 = R7(secAt(HR, y0));
     const p = [], uv = [], ix = [];
     for (let r = 0; r < rows; r++) for (let c = 0; c < n; c++) {
       const v = r / (rows - 1), th = a0 + (c / (n - 1)) * (TAU - 2 * a0), y = lerp(y0, y1 * (1 + 0.06 * (hash(c, 3, 1) - 0.5)), v);
@@ -546,11 +551,6 @@ function hairPieces(K, pr, O, hm) {
     }
     for (let r = 0; r < rows - 1; r++) for (let c = 0; c < n - 1; c++) { const a = r * n + c; ix.push(a, a + n, a + 1, a + 1, a + n, a + n + 1); }
     K.add(twoSided({ p, i: ix, uv }), tile, { m: hm, c: hc, r: 0.7, b });
-    if (st === 'stringy') for (let i = 0; i < 7; i++) { // mèches qui pendent devant le visage
-      const x = (i / 6 - 0.5) * 0.1, zf = headSurf(HR, Math.atan2(x, 0.075), 0.12)[2] + 0.006, Lh = 0.16 + hash(i, 7, 2) * 0.12, w = 0.006;
-      const P = [[x - w, 0.15, zf - 0.02], [x + w, 0.15, zf - 0.02], [x * 1.1 - w * 0.6, 0.12 - Lh, zf + 0.02], [x * 1.1 + w * 0.6, 0.12 - Lh, zf + 0.02]];
-      K.add(twoSided({ p: P.flat(), i: [0, 2, 1, 1, 2, 3], uv: [i * 4, 1, i * 4 + 3, 1, i * 4, 30, i * 4 + 3, 30] }), tile, { m: hm, c: hc, r: 0.6, b });
-    }
   }
   const lump = (c, r, k) => { const rings = []; for (let i = 0; i <= 3; i++) { const a = -Math.PI / 2 + Math.PI * i / 3; rings.push({ c: [c[0], c[1] + Math.sin(a) * r[1], c[2]], ax: [1, 0, 0], az: [0, 0, 1], rx: Math.cos(a) * r[0] + 1e-4, rz: Math.cos(a) * r[2] + 1e-4 }); } return loftF(rings, k, (rr, cc) => [cc / k * 32, rr / 3 * 31], false, false); };
   if (st === 'ponytail') {
@@ -569,13 +569,13 @@ function hatPieces(K, pr, O, hm) {
     const o = O.hairStyle === 'none' || O.hairStyle === 'buzz' || O.hairStyle === 'bald' ? 0.008 : 0.016;
     const ys = pol ? [0.096, 0.13, 0.172, 0.19] : [0.1, 0.14, 0.172, 0.186], ks = pol ? [1, 1.04, 1.16, 1.1] : [1, 0.995, 0.88, 0.55];
     const R = ys.map((y, i) => { const q = R7(secAt(HR, Math.min(0.176, y))); return R7([y + 0.012 * (i === 0 ? 1 : 0), (q[1] + o) * ks[i], (q[2] + o) * ks[i], (q[3] + o) * ks[i], q[4], 2.3]); });
-    const cols = colsAt(10, -Math.PI);
+    const cols = colsAt(8, -Math.PI);
     K.add(tube(R, cols, cols.map((th) => 16 + th / Math.PI * 16), R.map((_, i) => (pol ? [21, 15, 6, 2] : [23, 14, 6, 2])[i]), { c1: [0, ys[3] + 0.004, R[3][4]], uc1: [16, 1] }), t, { m: hm, c: O.hatCol, r: 0.75, b });
     // visière (dessus et dessous)
     const q = R7(secAt(HR, ys[0])), zf = q[4] + q[2] + o, V = [];
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) { const u = r / 2, x = (c / 4 - 0.5) * 0.15, z = zf - 0.01 + u * (pol ? 0.055 : 0.07) - 0.04 * (x / 0.075) ** 2 * (1 - u * 0.4); V.push([x, ys[0] + 0.01 - u * (pol ? 0.016 : 0.012) - 0.01 * (x / 0.075) ** 2, z]); }
-    const ix = []; for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) { const a = r * 5 + c; ix.push(a, a + 5, a + 1, a + 1, a + 5, a + 6); }
-    const uv = V.map((_, i) => [4 + (i % 5) * 6, 25 + Math.floor(i / 5) * 3]);
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 5; c++) { const u = r, x = (c / 4 - 0.5) * 0.15, z = zf - 0.01 + u * (pol ? 0.055 : 0.07) - 0.04 * (x / 0.075) ** 2 * (1 - u * 0.4); V.push([x, ys[0] + 0.01 - u * (pol ? 0.016 : 0.012) - 0.01 * (x / 0.075) ** 2, z]); }
+    const ix = []; for (let c = 0; c < 4; c++) ix.push(c, c + 5, c + 1, c + 1, c + 5, c + 6);
+    const uv = V.map((_, i) => [4 + (i % 5) * 6, 25 + Math.floor(i / 5) * 5]);
     K.add(twoSided({ p: V.flat(), i: ix, uv: uv.flat() }), t, { m: hm, c: pol ? 0x18181a : O.hatCol, r: pol ? 0.3 : 0.7, b });
   }
   if (h === 'firehelmet') { // casque de sapeur-pompier : coque, crête, visière dorée, couvre-nuque
@@ -669,7 +669,7 @@ function asmBear(K, pr, o) {
   const tt = T(K, 'top|bear', 128, 64, (P) => TX.paintBearTop(P));
   const R = pr.torso, yTop = R[R.length - 1][0], us = TORSO_COLS.map((_, c) => c / 12 * 128);
   K.add(tube(R, TORSO_COLS, us, R.map((q) => (yTop - q[0]) / (yTop - R[0][0]) * 64), { c0: [0, R[0][0] - 0.004, 0], c1: true }), tt, { c: 0xffffff, r: 0.97, w: wTorso(pr) });
-  K.add(tube(pr.neckR, colsAt(6, -Math.PI), [0, 5, 10, 16, 21, 26, 31], [30, 20, 10, 2]), fur, { c: 0xffffff, r: 0.97, w: wNeck(J) });
+  K.add(tube(pr.neckR, colsAt(6, -Math.PI), [0, 5, 10, 16, 21, 26, 31], [30, 16, 2]), fur, { c: 0xffffff, r: 0.97, w: wNeck(J) });
   // tête de mascotte (centre 5 cm au-dessus de l'os de la tête), projetée comme une tête humaine (visage peint)
   const H = J.head, hm = M4(H[0], H[1] + 0.05, H[2] + 0.01), b = B.head, ht = T(K, 'head|bear', 64, 64, (P) => TX.paintBearHead(P));
   const bv = (y) => (0.17 - y) / 0.34 * 64, bu = (x, z) => TX.headU(Math.atan2(x, z));
@@ -710,12 +710,12 @@ function asmMannequin(K, pr, o) {
   const lo = T0.filter((q) => q[0] <= 1.06), hi = [R7([1.075, 0.128, 0.086, 0.088, 0.002, 2.3]), ...T0.filter((q) => q[0] > 1.07)];
   K.add(tube(lo, TORSO_COLS, us, lo.map((q) => vT(q[0])), { c0: [0, 0.796, 0], c1: true }), pl, { c: 0xffffff, r: rg, b: B.hips });
   K.add(tube(hi, TORSO_COLS, us, hi.map((q) => vT(q[0])), { c0: true, c1: true }), pl, { c: 0xffffff, r: rg, b: B.torso });
-  K.add(tube(pr.neckR, colsAt(6, -Math.PI), [0, 5, 10, 16, 21, 26, 31], [30, 20, 10, 2]), pl, { c: 0xffffff, r: rg, w: (x, y) => (y < J.neck[1] + 0.03 ? [[B.torso, 1]] : [[B.head, 1]]) });
+  K.add(tube(pr.neckR, colsAt(6, -Math.PI), [0, 5, 10, 16, 21, 26, 31], [30, 16, 2]), pl, { c: 0xffffff, r: rg, w: (x, y) => (y < J.neck[1] + 0.03 ? [[B.torso, 1]] : [[B.head, 1]]) });
   const O = { skin: 0xe9e2d4, hair: 0xe9e2d4, eye: 0xe9e2d4, brow: 0xd8d0c0, lip: 0xe9e2d4, hairStyle: 'none', tex: {} };
   O.tex.head = headTile(K, pr, O);
   const H = pr.J.head, hm = M4(H[0], H[1], H[2], 0, 0, 0, pr.hs);
   headPiece(K, pr, O, hm);
-  const ball = (c, r, bone) => K.add(loftF(sphereRings(c, r, r, r, 4), 6, (rr, cc) => [cc / 6 * 16, rr / 4 * 15], false, false), jt, { c: 0xffffff, r: 0.45, b: bone });
+  const ball = (c, r, bone) => K.add(loftF(sphereRings(c, r, r, r, 3), 5, (rr, cc) => [cc / 5 * 16, rr / 3 * 15], false, false), jt, { c: 0xffffff, r: 0.45, b: bone });
   for (const s of [-1, 1]) {
     const A = SD(s), j = J['arm' + A], rs = armRings(pr), m = M4(j[0], j[1], j[2], 0, 0, 0, s, 1, 1), cols = colsAt(6, -Math.PI), ucol = cols.map((_, c) => c / 6 * 32);
     const up = rs.filter((r) => r[0] <= pr.el - 0.025).map(([t, a, b]) => R7([-t, a, b, b, 0, 2])).reverse(), lw = rs.filter((r) => r[0] >= pr.el + 0.025).map(([t, a, b]) => R7([-t, a, b, b, 0, 2])).reverse();

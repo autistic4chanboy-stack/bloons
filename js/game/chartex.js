@@ -153,7 +153,7 @@ export function paintHead(P, f, L) {
   // fond : peau, flancs et nuque un peu plus sombres, dessous du menton dans l'ombre, grain
   for (let v = 0; v < 64; v++) for (let u = 0; u < 64; u++) {
     const th = thOfU(u + 0.5), y = yOfV(v + 0.5), a = Math.abs(th);
-    let k = 1 - 0.1 * ss(1.1, 2.4, a) + (R(u, v) - 0.5) * (f.plastic ? 0.02 : 0.05);
+    let k = 1 - 0.12 * ss(1.0, 2.2, a) + (R(u, v) - 0.5) * (f.plastic ? 0.02 : 0.05) - (f.plastic ? 0 : 0.05 * ss(L.noseY, L.chinY, y));
     if (y < L.chinY - 0.004 && a < 1.5) k *= 0.8;
     if (y < L.chinY - 0.004 && a >= 1.5) k *= 0.9;
     if (a < 1.25 && y > L.chinY && y < L.mouthY) k *= 1 - 0.06 * ss(0.6, 1.2, a); // mâchoire
@@ -174,8 +174,8 @@ export function paintHead(P, f, L) {
       const th = thOfU(u + 0.5), y = yOfV(v + 0.5), a = Math.abs(th);
       let h = hl(th);
       if (f.scalp === 'bald' && !(a > 1.3 && y < 0.115)) continue; // couronne dégarnie
-      if (y < h - 0.006) continue;
-      if (y < h && (u + v) % 2) continue; // lisière tramée
+      if (y < h - 0.0035) continue;
+      if (y < h) { put(u, v, mix(P.get(u, v), mul(hc, 0.8), f.scalp === 'buzz' ? 0.3 : 0.5)); continue; } // lisière fondue
       if (f.scalp === 'buzz') { if (R(u, v) < 0.35) continue; put(u, v, mix(P.get(u, v), mul(hc, 0.85), 0.55)); continue; }
       const strand = 0.78 + 0.3 * hash2(u, 0, (f.seed || 0) + 3) + 0.14 * (R(u, v) - 0.5);
       put(u, v, mul(hc, strand * (y < h + 0.008 ? 0.88 : 1)));
@@ -185,17 +185,18 @@ export function paintHead(P, f, L) {
   }
   if (f.hood) for (let v = 0; v < 64; v++) for (let u = 0; u < 64; u++) { const th = thOfU(u + 0.5), y = yOfV(v + 0.5), a = Math.abs(th); if (a > 1.2 || y > L.browY + 0.016 || (y < L.chinY - 0.002 && a > 0.9)) put(u, v, mul(f.hood, 0.9 + 0.2 * R(u, v))); }
   // pommettes, sillons, menton
-  sym((s) => { at(X(s, ex + 2), ey + 4, 1.05); at(X(s, ex + 3), ey + 4, 1.04); at(X(s, ex + 3), ey + 6, 0.94); at(X(s, ex + 4), ey + 7, 0.93); });
-  for (let d = -2; d <= 1; d++) at(32 + d, cy - 1, 1.05);
-  sym((s) => { at(X(s, 3), cy, 0.9); at(X(s, mw + 4), cy - 3, 0.9); at(X(s, mw + 5), cy - 5, 0.92); });
   if (f.plastic) return paintPlastic(P, f, L, S, ex, ey, by, ny, my, mw, sym, X, at);
+  sym((s) => { at(X(s, ex + 2), ey + 4, 1.06); at(X(s, ex + 3), ey + 4, 1.05); at(X(s, ex + 1), ey + 4, 1.04); for (let d = 2; d <= 5; d++) { at(X(s, ex + d), ey + 7, 0.92); at(X(s, ex + d + 1), ey + 8, 0.92); } for (let v = ey + 9; v < ey + 12; v++) at(X(s, ex + 6), v, 0.94); });
+  for (let d = -2; d <= 1; d++) at(32 + d, cy - 1, 1.05);
+  sym((s) => { at(X(s, 3), cy, 0.9); at(X(s, mw + 4), cy - 3, 0.92); at(X(s, mw + 5), cy - 5, 0.94); });
   if (f.gaunt) return paintGaunt(P, f, L, S, ex, ey, ny, my, mw, sym, X, at, put);
   // orbites : ombre douce autour des yeux, plus marquée vers le coin interne et sous l'arcade
   sym((s) => {
     for (let v = ey - 3; v <= ey + 3; v++) for (let d = ex - 4; d <= ex + 4; d++) {
       const r = ((d - ex) / 4.5) ** 2 + ((v - ey + 0.3) / 3.2) ** 2; if (r > 1) continue;
-      at(X(s, d), v, 1 - (f.ghostly ? 0.22 : f.c ? 0.06 : 0.1) * (1 - r) - (d < ex && v < ey ? 0.03 : 0));
+      at(X(s, d), v, 1 - (f.ghostly ? 0.26 : f.c ? 0.1 : 0.17) * (1 - r) - (d < ex && v < ey ? 0.05 : 0));
     }
+    for (let d = ex - 3; d <= ex + 3; d++) at(X(s, d), by + 2, 0.88);
     if (f.ghostly) for (let d = ex - 3; d <= ex + 3; d++) { P.blend(X(s, d), ey + 2, 0x4a3a52, 0.35); P.blend(X(s, d), ey + 3, 0x4a3a52, 0.2); }
   });
   // yeux : ligne des cils, blanc, iris 2 × 2 avec pupille, paupière inférieure ; amande plus ouverte chez l'enfant
@@ -212,10 +213,11 @@ export function paintHead(P, f, L) {
     // rangée 1 : amande (coins en peau sombre), iris
     for (let d = -half; d < half; d++) put(col(d), ey + 1, d === -half || d === half - 1 ? mul(S, 0.78) : iris.includes(d) ? mul(eye, d === -1 ? 0.8 : 0.95) : W2);
     if (!f.c && !f.f) { put(col(-half), ey + 1, mul(S, 0.86)); put(col(half - 1), ey + 1, mul(S, 0.82)); }
-    for (let d = -half; d < half; d++) at(col(d), ey + 2, 0.86);
+    for (let d = -half; d < half; d++) at(col(d), ey + 2, 0.8);
     if (f.age) { for (let d = -2; d < 2; d++) at(col(d), ey + 3, 0.9); at(col(half), ey, 0.86); at(col(half + 1), ey + 1, 0.88); at(col(half), ey - 2, 0.9); }
     // pli de la paupière supérieure
-    for (let d = -half + 1; d < half; d++) at(col(d), ey - 2, f.makeup?.shadow ? 1 : 0.88);
+    for (let d = -half + 1; d < half; d++) at(col(d), ey - 2, f.makeup?.shadow ? 1 : 0.8);
+    at(col(-half - 1), ey, 0.86); at(col(half), ey + 1, 0.88);
     if (f.makeup?.shadow) for (let d = -half; d < half; d++) { P.blend(col(d), ey - 2, f.makeup.shadow, 0.55); if (d > -2) P.blend(col(d), ey - 3, f.makeup.shadow, 0.25); }
     if (f.makeup?.blush) for (let d = 1; d <= 3; d++) { P.blend(col(d), ey + 5, f.makeup.blush, 0.22); P.blend(col(d), ey + 6, f.makeup.blush, 0.16); }
     // sourcil : épais et droit (homme), fin et arqué (femme), peu marqué chez l'enfant
@@ -225,8 +227,8 @@ export function paintHead(P, f, L) {
     else { for (let d = -half - 1; d <= half; d++) { put(col(d), by, bc); if (d < half - 1) put(col(d), by + 1, d === -half - 1 ? mix(bc, S, 0.4) : mul(bc, 1.1)); } }
   });
   // nez : arête claire côté lumière, ailes et narines sombres, ombre portée sur la lèvre
-  for (let v = ey; v < ny - 1; v++) { at(32, v, 1.04); at(31, v, 0.96); }
-  at(31, ny, 1.05); at(32, ny, 1.07); at(30, ny - 1, 0.92); at(33, ny - 1, 0.92);
+  for (let v = ey; v < ny - 1; v++) { at(32, v, 1.05); at(31, v, 0.95); at(30, v, 0.92 + (v < ey + 3 ? 0.04 : 0)); }
+  at(31, ny, 1.06); at(32, ny, 1.09); at(30, ny - 1, 0.86); at(33, ny - 1, 0.9); at(30, ny, 0.84);
   if (f.clown) { for (let v = ny - 2; v <= ny + 1; v++) for (let u = 30; u <= 33; u++) put(u, v, u === 32 && v === ny - 1 ? 0xff7a6a : 0xd01010); }
   else {
     put(30, ny + 1, mul(S, f.c ? 0.72 : 0.62)); put(33, ny + 1, mul(S, f.c ? 0.72 : 0.62)); at(31, ny + 1, 0.88); at(32, ny + 1, 0.88);
@@ -237,11 +239,12 @@ export function paintHead(P, f, L) {
   // bouche : lèvre supérieure plus sombre, ligne des lèvres, lèvre inférieure éclairée, ombre sous la lèvre
   const lip = f.clown ? 0xd01010 : f.lip, cw = f.clown ? mw + 3 : mw;
   for (let u = 32 - cw + 1; u <= 31 + cw - 1; u++) put(u, my - 1, mix(P.get(u, my - 1), mul(lip, 0.82), f.f || f.clown ? 0.9 : 0.6));
-  for (let u = 32 - cw; u <= 31 + cw; u++) put(u, my, mul(lip, f.clown ? 0.6 : 0.42));
+  for (let u = 32 - cw; u <= 31 + cw; u++) put(u, my, mul(lip, f.clown ? 0.6 : 0.34));
   for (let u = 32 - cw + 1; u <= 31 + cw - 1; u++) put(u, my + 1, mix(P.get(u, my + 1), lip, f.f || f.clown ? 0.85 : 0.55));
   if (f.clown) { put(32 - cw - 1, my - 1, 0xd01010); put(31 + cw + 1, my - 1, 0xd01010); put(32 - cw - 1, my - 2, 0xd01010); put(31 + cw + 1, my - 2, 0xd01010); }
   else { at(32 - cw, my - 1, 0.9); at(31 + cw, my - 1, 0.9); at(31, my - 2, 0.94); at(32, my - 2, 0.94); at(32, my + 1, 1.06); }
-  for (let u = 30; u <= 33; u++) at(u, my + 2, 0.88);
+  for (let u = 30; u <= 33; u++) at(u, my + 2, 0.82);
+  for (let u = 29; u <= 34; u++) at(u, my + 3, 0.93);
   // barbe naissante, barbe, moustache (couleur des cheveux)
   const beardRegion = (u, v) => { const th = thOfU(u + 0.5), y = yOfV(v + 0.5), a = Math.abs(th); if (a > 1.5 || y > L.noseY - 0.006 || y < L.chinY - 0.02) return false; if (a > 1.0 && y > L.mouthY + 0.02 + 0.03 * ss(1.0, 1.45, a)) return a > 1.25 && y < L.earY1 - 0.01; if (y > L.mouthY + 0.013 && a > 0.32) return false; return !(Math.abs(u - 31.5) < cw && Math.abs(v - my) < 1.5); };
   if (f.beard === 'stubble' || f.beard === 'beard') {
@@ -457,6 +460,7 @@ export function paintShoe(P, k) {
 export function paintHand(P, k) {
   if (k === 'fur') { furFill(P, 0, 0, 32, 32, 0xb07434, 7); for (let v = 20; v < 32; v++) for (let u = 8; u < 24; u++) if (((u - 16) / 8) ** 2 + ((v - 26) / 6) ** 2 < 1) P.set(u, v, 0x4a2c18, 0); return; }
   if (k === 'plastic') { plasticFill(P, 0, 0, 32, 32, 0xe9e2d4); return; }
+  if (k === 'claw') { MATS.gauntSkin(P); for (let v = 25; v < 32; v++) for (let u = 0; u < 32; u++) if (u % 8 > 1 && u % 8 < 7) P.set(u, v, mix(0x2a2018, 0x4a3a2a, hash2(u, v, 23)), 0); for (const v of [13, 20]) for (let u = 2; u < 30; u++) if (u % 8) P.shade(u, v, 0.8); return; }
   const glove = k === 'glove';
   P.cloth(0, 0, 32, 32, glove ? 0xee : 0xf4, glove ? 10 : 6, 21);
   for (const v of [13, 20, 25]) for (let u = 2; u < 30; u++) if (u % 8 !== 0 && (glove ? (u + v) % 3 : true)) P.shade(u, v, v === 13 ? 0.86 : 0.9);
@@ -485,7 +489,7 @@ export const MATS = {
   plastic: (P) => plasticFill(P, 0, 0, 32, 32, 0xe9e2d4),
   joint: (P) => plasticFill(P, 0, 0, 16, 16, 0xb9b0a0),
   // peau décharnée : pâle, marbrures et veines
-  gauntSkin: (P) => { for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { const b = hash2(x >> 2, y >> 2, 61), v = Math.abs(Math.sin(x * 0.7 + Math.sin(y * 0.5) * 3)) < 0.06; P.set(x, y, v ? 0x707a88 : mul(0xc9c0b2, 0.86 + 0.16 * b + (hash2(x, y, 62) - 0.5) * 0.06), 0); } },
+  gauntSkin: (P) => { for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { const b = hash2(x >> 2, y >> 2, 61), v = Math.abs(Math.sin(x * 0.45 + Math.sin(y * 0.35) * 2.5)) < 0.035 && hash2(x >> 3, y >> 3, 65) > 0.5; P.set(x, y, v ? 0x8a8e98 : mul(0xc9c0b2, 0.86 + 0.16 * b + (hash2(x, y, 62) - 0.5) * 0.06), 0); } },
   // côtes du rampant (torse 32 × 32 : devant 0-15, dos 16-31)
   ribs: (P) => { for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { let k = 0.88 + 0.14 * hash2(x >> 1, y >> 1, 63) + (hash2(x, y, 64) - 0.5) * 0.05; const d = Math.abs(x - 8); if (y > 5 && y < 20 && y % 3 === 0 && d > 1 && d < 6 - (y > 14 ? 1 : 0)) k *= 0.8; if (d <= 1 && y > 4 && y < 18) k *= 1.06; if (x >= 16 && Math.abs(x - 24) < 1 && y % 2 === 0) k *= 1.12; if (y > 20 && y < 27 && d < 4) k *= 0.86; P.set(x, y, mul(0xc9c0b2, k), 0); } },
   // chair de la Chose : noire et luisante, veines rouges
