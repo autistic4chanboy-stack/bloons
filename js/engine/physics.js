@@ -47,8 +47,10 @@ export class PhysicsWorld {
   // à appeler après avoir modifié les dimensions d'une boîte (portes, rideaux)
   update(box) { this.remove(box); this._insert(box); }
 
-  // Boîtes qui chevauchent une zone xz
+  // Boîtes qui chevauchent une zone xz (out : tableau à remplir, vidé ici ; les requêtes internes de chaque image passent
+  // un tableau de travail réutilisé plutôt que d'en allouer un par appel)
   near(x0, z0, x1, z1, layers = LAYER.ALL, out = []) {
+    out.length = 0;
     const c = this.cell; const q = ++this.query;
     const ix0 = Math.floor(x0 / c), ix1 = Math.floor(x1 / c), iz0 = Math.floor(z0 / c), iz1 = Math.floor(z1 / c);
     for (let ix = ix0; ix <= ix1; ix++) for (let iz = iz0; iz <= iz1; iz++) {
@@ -60,7 +62,7 @@ export class PhysicsWorld {
 
   // Hauteur du sol sous un point (le dessus de boîte le plus haut <= maxY)
   groundAt(x, z, maxY, radius = 0.25, layers = LAYER.WALL | LAYER.FURN | LAYER.DOOR | LAYER.GLASS) {
-    const arr = this.near(x - radius, z - radius, x + radius, z + radius, layers);
+    const arr = this.near(x - radius, z - radius, x + radius, z + radius, layers, _nearG);
     let g = -Infinity, hit = null;
     for (const b of arr) {
       if (x + radius * 0.7 < b.min[0] || x - radius * 0.7 > b.max[0] || z + radius * 0.7 < b.min[2] || z - radius * 0.7 > b.max[2]) continue;
@@ -95,7 +97,7 @@ export class PhysicsWorld {
       // plafond
       if (v[1] > 0) {
         const head = newY + body.height;
-        const arr = this.near(p[0] - r, p[2] - r, p[0] + r, p[2] + r, layers);
+        const arr = this.near(p[0] - r, p[2] - r, p[0] + r, p[2] + r, layers, _nearC);
         for (const b of arr) {
           if (p[0] + r * 0.7 < b.min[0] || p[0] - r * 0.7 > b.max[0] || p[2] + r * 0.7 < b.min[2] || p[2] - r * 0.7 > b.max[2]) continue;
           if (b.min[1] >= p[1] + body.height - 0.01 && b.min[1] < head) { v[1] = 0; break; }
@@ -111,7 +113,7 @@ export class PhysicsWorld {
   _resolveXZ(body, layers) {
     const p = body.pos, r = body.radius;
     const feet = p[1] + body.stepHeight, head = p[1] + body.height;
-    const arr = this.near(p[0] - r - 0.1, p[2] - r - 0.1, p[0] + r + 0.1, p[2] + r + 0.1, layers);
+    const arr = this.near(p[0] - r - 0.1, p[2] - r - 0.1, p[0] + r + 0.1, p[2] + r + 0.1, layers, _nearX);
     for (let it = 0; it < 2; it++) for (const b of arr) {
       if (b.max[1] <= feet || b.min[1] >= head) continue;
       // cercle vs rectangle
@@ -121,9 +123,8 @@ export class PhysicsWorld {
       if (d2 >= r * r) continue;
       if (d2 < 1e-8) {
         // centre à l'intérieur : sortie par la face la plus proche
-        const pen = [p[0] - b.min[0], b.max[0] - p[0], p[2] - b.min[2], b.max[2] - p[2]];
-        const m = Math.min(...pen); const i = pen.indexOf(m);
-        if (i === 0) p[0] = b.min[0] - r; else if (i === 1) p[0] = b.max[0] + r; else if (i === 2) p[2] = b.min[2] - r; else p[2] = b.max[2] + r;
+        const e0 = p[0] - b.min[0], e1 = b.max[0] - p[0], e2 = p[2] - b.min[2], e3 = b.max[2] - p[2], m = Math.min(e0, e1, e2, e3);
+        if (m === e0) p[0] = b.min[0] - r; else if (m === e1) p[0] = b.max[0] + r; else if (m === e2) p[2] = b.min[2] - r; else p[2] = b.max[2] + r;
         continue;
       }
       const d = Math.sqrt(d2); const push = r - d; dx /= d; dz /= d;
@@ -136,7 +137,7 @@ export class PhysicsWorld {
 
   // Le cylindre tient-il debout ici (pour se relever d'accroupi, sortir d'un conduit…) ?
   fits(x, y, z, r, h, layers = LAYER.WALL | LAYER.FURN | LAYER.DOOR | LAYER.GLASS) {
-    const arr = this.near(x - r, z - r, x + r, z + r, layers);
+    const arr = this.near(x - r, z - r, x + r, z + r, layers, _nearF);
     for (const b of arr) {
       if (b.max[1] <= y + 0.3 || b.min[1] >= y + h) continue;
       const cx = Math.max(b.min[0], Math.min(x, b.max[0])), cz = Math.max(b.min[2], Math.min(z, b.max[2]));
@@ -154,21 +155,22 @@ export class PhysicsWorld {
     const tDeltaX = dx !== 0 ? Math.abs(c / dx) : Infinity, tDeltaZ = dz !== 0 ? Math.abs(c / dz) : Infinity;
     let tMaxX = dx !== 0 ? ((dx > 0 ? (ix + 1) * c - ox : ox - ix * c) / Math.abs(dx)) : Infinity;
     let tMaxZ = dz !== 0 ? ((dz > 0 ? (iz + 1) * c - oz : oz - iz * c) / Math.abs(dz)) : Infinity;
-    let best = null, bestT = maxT;
-    let tCell = 0;
+    let best = null, bestT = maxT, bAx = -1, bSg = 0;
     for (let guard = 0; guard < 200; guard++) {
       const arr = this.grid.get(this.key(ix, iz));
       if (arr) for (const b of arr) {
         if (b._q === q || !b.enabled || !(b.layer & layers) || b === ignore) continue; b._q = q;
-        const hit = rayBox(ox, oy, oz, dx, dy, dz, b);
-        if (hit && hit.t < bestT && hit.t >= 0) { bestT = hit.t; best = { t: hit.t, box: b, normal: hit.n }; }
+        const t = rayBoxT(ox, oy, oz, dx, dy, dz, b);
+        if (t >= 0 && t < bestT) { bestT = t; best = b; bAx = _rb.axis; bSg = _rb.sign; }
       }
       const tNext = Math.min(tMaxX, tMaxZ);
-      if (best && best.t <= tNext) break;
+      if (best && bestT <= tNext) break;
       if (tNext > maxT) break;
-      if (tMaxX < tMaxZ) { ix += stepX; tCell = tMaxX; tMaxX += tDeltaX; } else { iz += stepZ; tCell = tMaxZ; tMaxZ += tDeltaZ; }
+      if (tMaxX < tMaxZ) { ix += stepX; tMaxX += tDeltaX; } else { iz += stepZ; tMaxZ += tDeltaZ; }
     }
-    return best;
+    if (!best) return null;
+    const n = [0, 0, 0]; if (bAx >= 0) n[bAx] = bSg;
+    return { t: bestT, box: best, normal: n };
   }
 
   // Nombre de murs (couche WALL/DOOR) entre deux points — pour l'occlusion sonore
@@ -236,7 +238,7 @@ export class PhysicsWorld {
   }
 
   _bodyOverlap(b, layers) {
-    const arr = this.near(b.pos[0] - b.half[0], b.pos[2] - b.half[2], b.pos[0] + b.half[0], b.pos[2] + b.half[2], layers);
+    const arr = this.near(b.pos[0] - b.half[0], b.pos[2] - b.half[2], b.pos[0] + b.half[0], b.pos[2] + b.half[2], layers, _nearB);
     let best = null, bestVol = 0;
     for (const s of arr) {
       if (s === b.ignoreBox) continue;
@@ -249,29 +251,34 @@ export class PhysicsWorld {
   }
 }
 
+// Tableaux de travail des requêtes internes (aucune ne relance une requête du même type pendant son parcours)
+const _nearG = [], _nearC = [], _nearX = [], _nearF = [], _nearB = [];
+// Rayon contre boîte (méthode des dalles), sans allocation : renvoie t ≥ 0 (0 si l'origine est dedans) ou -1 ; l'axe et
+// le signe de la face d'entrée restent dans _rb (les lancers testent des centaines de boîtes par appel)
+const _rb = { axis: -1, sign: 0 };
+function rayBoxT(ox, oy, oz, dx, dy, dz, b) {
+  let tmin = -Infinity, tmax = Infinity, ax = -1, sg = 0, t1, t2, s;
+  const mn = b.min, mx = b.max;
+  if (Math.abs(dx) < 1e-9) { if (ox < mn[0] || ox > mx[0]) return -1; }
+  else { t1 = (mn[0] - ox) / dx; t2 = (mx[0] - ox) / dx; s = -1; if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; s = 1; } if (t1 > tmin) { tmin = t1; ax = 0; sg = s; } if (t2 < tmax) tmax = t2; if (tmin > tmax) return -1; }
+  if (Math.abs(dy) < 1e-9) { if (oy < mn[1] || oy > mx[1]) return -1; }
+  else { t1 = (mn[1] - oy) / dy; t2 = (mx[1] - oy) / dy; s = -1; if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; s = 1; } if (t1 > tmin) { tmin = t1; ax = 1; sg = s; } if (t2 < tmax) tmax = t2; if (tmin > tmax) return -1; }
+  if (Math.abs(dz) < 1e-9) { if (oz < mn[2] || oz > mx[2]) return -1; }
+  else { t1 = (mn[2] - oz) / dz; t2 = (mx[2] - oz) / dz; s = -1; if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; s = 1; } if (t1 > tmin) { tmin = t1; ax = 2; sg = s; } if (t2 < tmax) tmax = t2; if (tmin > tmax) return -1; }
+  if (tmax < 0) return -1;
+  _rb.axis = ax; _rb.sign = sg;
+  return tmin > 0 ? tmin : 0;
+}
 export function rayBox(ox, oy, oz, dx, dy, dz, b) {
-  let tmin = -Infinity, tmax = Infinity, nAxis = -1, nSign = 0;
-  const o = [ox, oy, oz], d = [dx, dy, dz];
-  for (let i = 0; i < 3; i++) {
-    if (Math.abs(d[i]) < 1e-9) { if (o[i] < b.min[i] || o[i] > b.max[i]) return null; continue; }
-    let t1 = (b.min[i] - o[i]) / d[i], t2 = (b.max[i] - o[i]) / d[i];
-    let s = -1;
-    if (t1 > t2) { const tt = t1; t1 = t2; t2 = tt; s = 1; }
-    if (t1 > tmin) { tmin = t1; nAxis = i; nSign = s; }
-    if (t2 < tmax) tmax = t2;
-    if (tmin > tmax) return null;
-  }
-  if (tmax < 0) return null;
-  const n = [0, 0, 0]; if (nAxis >= 0) n[nAxis] = nSign;
-  return { t: Math.max(0, tmin), n };
+  const t = rayBoxT(ox, oy, oz, dx, dy, dz, b); if (t < 0) return null;
+  const n = [0, 0, 0]; if (_rb.axis >= 0) n[_rb.axis] = _rb.sign;
+  return { t, n };
 }
 
 function rayBoxExit(ox, oy, oz, dx, dy, dz, b) {
-  let tmax = Infinity; const o = [ox, oy, oz], d = [dx, dy, dz];
-  for (let i = 0; i < 3; i++) {
-    if (Math.abs(d[i]) < 1e-9) continue;
-    const t1 = (b.min[i] - o[i]) / d[i], t2 = (b.max[i] - o[i]) / d[i];
-    tmax = Math.min(tmax, Math.max(t1, t2));
-  }
+  let tmax = Infinity;
+  if (Math.abs(dx) >= 1e-9) tmax = Math.min(tmax, Math.max((b.min[0] - ox) / dx, (b.max[0] - ox) / dx));
+  if (Math.abs(dy) >= 1e-9) tmax = Math.min(tmax, Math.max((b.min[1] - oy) / dy, (b.max[1] - oy) / dy));
+  if (Math.abs(dz) >= 1e-9) tmax = Math.min(tmax, Math.max((b.min[2] - oz) / dz, (b.max[2] - oz) / dz));
   return tmax;
 }

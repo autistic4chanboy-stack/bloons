@@ -138,6 +138,7 @@ export class Player {
       vertexShader: 'varying float vZ; varying vec3 vN; varying vec3 vV; void main(){ vZ = -position.z; vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix*normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
       fragmentShader: 'uniform vec3 color; uniform float strength; varying float vZ; varying vec3 vN; varying vec3 vV; void main(){ float a = pow(clamp(1.0 - vZ, 0.0, 1.0), 2.2); float rim = pow(abs(dot(vN, vV)), 1.5); gl_FragColor = vec4(color * a * rim * strength, 1.0); }',
     }));
+    this.beam.material.forceSinglePass = true; // mélange additif : l'ordre des faces est indifférent, une seule passe
     this.beam.frustumCulled = false; this.beam.renderOrder = 5; game.scene.add(this.beam);
     // viewmodel (objet en main) + lampe en main gauche
     this.vm = new THREE.Group(); cam.add(this.vm);

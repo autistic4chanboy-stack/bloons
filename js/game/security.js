@@ -288,7 +288,7 @@ export class Security {
       for (const c of g.world.cameras) { if (!unlocked.has(c.id)) continue; n++; c.kind = 'fixed'; c.short = 'CAM ' + String(n).padStart(2, '0'); out.push(c); }
     }
     let pn = 0;
-    for (const pr of g.props.find(x => x.def.use === 'place_cam')) {
+    for (const pr of g.props.findUse('place_cam')) { // liste indexée par type (pas de parcours de tous les objets du monde)
       if (!pr.data.cam || pr.state.where !== 'world') continue; pn++;
       const pos = new THREE.Vector3(...pr.state.pos).add(new THREE.Vector3(0, 0.05, 0));
       const z = g.world.zoneAt(pos.x, pos.y + 0.2, pos.z);
@@ -469,8 +469,9 @@ export class Security {
     const g = this.game; this.lastCap.set(c.id, g.time);
     try {
       this.cctvPass(this.capMat, tex, this.capRT, CAP_W, CAP_H, { ir, noise: 0.08, curvature: 0, brightness: 1.15 });
-      const px = g.renderer.readPixels(this.capRT, CAP_W, CAP_H);
-      const ctx = this.capCanvas.getContext('2d'); const img = ctx.createImageData(CAP_W, CAP_H);
+      // tampons réutilisés d'une prise à l'autre (deux fois 93 Ko de moins à ramasser par image enregistrée)
+      const px = g.renderer.readPixels(this.capRT, CAP_W, CAP_H, this._capPx || (this._capPx = new Uint8Array(CAP_W * CAP_H * 4)));
+      const ctx = this.capCanvas.getContext('2d'); const img = this._capImg || (this._capImg = ctx.createImageData(CAP_W, CAP_H));
       for (let y = 0; y < CAP_H; y++) img.data.set(px.subarray((CAP_H - 1 - y) * CAP_W * 4, (CAP_H - y) * CAP_W * 4), y * CAP_W * 4);
       ctx.putImageData(img, 0, 0);
       ctx.font = '10px monospace'; ctx.fillStyle = '#e8ffe8'; ctx.fillText((c.short || '') + '  ' + hhmmss(g.env.minutes), 4, CAP_H - 5);

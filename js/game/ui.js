@@ -326,17 +326,18 @@ export class UI {
       this.slotsVersion = p.inv.version;
       this.bar.innerHTML = p.inv.slots.map((id, i) => { const pr = id ? g.props.get(id) : null; return `<div class="hs ${i === p.inv.sel ? 'sel' : ''}"><b>${(i + 1) % 10}</b>${pr ? `<span class="sw" style="background:#${pr.def.c.toString(16).padStart(6, '0')}"></span><em>${esc(pr.def.name)}</em>` : ''}</div>`; }).join('');
     }
-    const S = p.stats;
-    const q = (sel) => this.stats.querySelector(sel);
-    q('.hp').style.width = Math.max(0, S.health) + '%'; q('.sta').style.width = Math.max(0, S.stamina) + '%'; q('.bat').style.width = Math.round((p.battery ?? 1) * 100) + '%';
-    this.stats.classList.toggle('lowbat', (p.battery ?? 1) < 0.2);
-    if (g.settings.showClock !== false) this.clockEl.textContent = (g.isDay ? '☀ ' : '☾ ') + g.clockString() + (g.mode === 'infinite' ? '  ·  nuit ' + g.night : g.isDay ? '' : '  ·  nuit ' + g.night + '/10');
-    const hideHud = !!this.modal || p.mode === 'desk' || g.security?.fullscreen;
-    this.root.classList.toggle('hud-hidden', hideHud);
-    this.root.classList.toggle('cctv-on', !!g.security?.fullscreen);
+    // le DOM n'est touché que si une valeur affichée change (pas d'invalidation de style ni de chaînes à chaque image)
+    const S = p.stats, H = this._hud || (this._hud = { hp: this.stats.querySelector('.hp'), sta: this.stats.querySelector('.sta'), bat: this.stats.querySelector('.bat'), v: {} }), V = H.v;
+    let v = Math.max(0, S.health); if (V.hp !== v) { V.hp = v; H.hp.style.width = v + '%'; }
+    v = Math.max(0, S.stamina); if (V.sta !== v) { V.sta = v; H.sta.style.width = v + '%'; }
+    v = Math.round((p.battery ?? 1) * 100); if (V.bat !== v) { V.bat = v; H.bat.style.width = v + '%'; }
+    v = (p.battery ?? 1) < 0.2; if (V.low !== v) { V.low = v; this.stats.classList.toggle('lowbat', v); }
+    if (g.settings.showClock !== false) { const m = g.env ? Math.floor(g.env.minutes) : -1; if (V.min !== m || V.day !== g.isDay || V.night !== g.night) { V.min = m; V.day = g.isDay; V.night = g.night; this.clockEl.textContent = (g.isDay ? '☀ ' : '☾ ') + g.clockString() + (g.mode === 'infinite' ? '  ·  nuit ' + g.night : g.isDay ? '' : '  ·  nuit ' + g.night + '/10'); } }
+    v = !!this.modal || p.mode === 'desk' || !!g.security?.fullscreen; if (V.hide !== v) { V.hide = v; this.root.classList.toggle('hud-hidden', v); }
+    v = !!g.security?.fullscreen; if (V.cctv !== v) { V.cctv = v; this.root.classList.toggle('cctv-on', v); }
     this.updateOSD();
-    if (Net.online) this.netEl.textContent = `🌐 ${Net.room} · ${Net.playerCount} joueur(s)${Net.isHost ? ' · hôte' : ''} · ${Math.round(Net.latency)} ms`;
-    this.netEl.style.display = Net.online ? 'block' : 'none';
+    if (Net.online) { const t = `🌐 ${Net.room} · ${Net.playerCount} joueur(s)${Net.isHost ? ' · hôte' : ''} · ${Math.round(Net.latency)} ms`; if (V.net !== t) { V.net = t; this.netEl.textContent = t; } }
+    v = Net.online; if (V.netOn !== v) { V.netOn = v; this.netEl.style.display = v ? 'block' : 'none'; }
   }
 }
 
