@@ -260,8 +260,10 @@ class Line {
         const d = W.S * step; blip(t, d * 1.1, f0 * m, 0.5, FM[x.f] || FM.n, false); t += d;
       } else { // consonne : bouffée de bruit (+ murmure voisé si sonore)
         const [fc, qq, lv, burst] = NZ[x.n], d = (burst ? W.Cp : W.Cf) * step, b = burst || d * 0.75;
-        NF.setValueAtTime(fc * (0.92 + 0.16 * r()), t - 0.002); NQ.setValueAtTime(qq, t - 0.002);
-        NA.setTargetAtTime(lv * (whisper ? 0.8 : 1), t, burst ? 0.0008 : 0.008); NA.setTargetAtTime(0, t + b, burst ? 0.005 : 0.012);
+        // filtre du bruit glissé (pas de saut de coupure pendant qu'un souffle sonne encore) ; attaque des plosives
+        // à ~2 ms au lieu de 0,8 (elles claquaient comme des défauts) et relâchement adouci
+        NF.setTargetAtTime(fc * (0.92 + 0.16 * r()), t - 0.006, 0.002); NQ.setTargetAtTime(qq, t - 0.006, 0.002);
+        NA.setTargetAtTime(lv * (whisper ? 0.8 : 1), t, burst ? 0.0022 : 0.008); NA.setTargetAtTime(0, t + b, burst ? 0.009 : 0.014);
         if (x.v && !whisper) blip(t, d, f0 * m * 0.97, 0.22, [260, lastF[1] / k], false);
         t += d;
       }

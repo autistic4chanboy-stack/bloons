@@ -1964,7 +1964,7 @@ def('battery_insert', { d: 0.75, v: 2, g: 0.55, r(B) {
   for (const t of [0, 0.25]) { B.nz(t, 0.06, { att: 0.01, dec: 0.02, bp: 2000, q: 1, a: 0.15 }); tick(B, t + 0.05, B.rr(2600, 3000), 0.4, 0.03); } // ressorts
   B.nz(0.55, 0.004, { dec: 0.001, hp: 1200, lp: 7000, a: 0.6 }); B.thump(0.55, { f0: 500, f1: 300, dec: 0.008, a: 0.25 }); // couvercle clipsé
 } });
-def('flashlight_click', { d: 0.08, v: 3, sr: 'H', g: 0.5, r(B) { B.nz(0, 0.002, { dec: 0.0005, hp: 2500, a: 1 }); B.modal(0, [[B.rr(3300, 3700), 1, 0.008], [B.rr(5400, 5800), 0.5, 0.006]], { ct: 0.0001, a: 0.4 }); B.thump(0, { f0: 600, f1: 400, dec: 0.006, a: 0.25 }); } });
+def('flashlight_click', { d: 0.08, v: 3, sr: 'H', g: 0.42, r(B) { B.nz(0, 0.003, { dec: 0.0009, hp: 2200, a: 0.6 }); B.modal(0, [[B.rr(3300, 3700), 1, 0.008], [B.rr(5400, 5800), 0.5, 0.006]], { ct: 0.0004, a: 0.35 }); B.thump(0, { f0: 600, f1: 400, dec: 0.006, a: 0.25 }); } }); // clic d'interrupteur arrondi (il claquait sec)
 def('gunshot', { duck: 0.3, dkT: 1, d: 1.4, v: 3, sr: 'H', g: 1, rev: 1.8, ref: 6, md: 150, r(B) { // pistolet en intérieur
   B.nz(0, 0.25, { att: 0.0003, dec: 0.035, a: 1 }); B.nz(0, 0.004, { dec: 0.0008, hp: 3000, a: 1 }); // détonation, onde de choc
   B.thump(0, { f0: 180, f1: 60, k: 0.01, dec: 0.06, a: 0.9, drive: 3 });
@@ -2448,7 +2448,7 @@ const ZONES = {
 // écho flottant entre murs parallèles, résonances de conduit, échos de façade. Énergie normalisée.
 // Fonction pure (canaux Float32Array) : calculable dans le worker de synthèse.
 function irData(z, seed, sr) {
-  const len = Math.min(4.5, z.pre + z.rt * 1.15 + 0.06 + (z.slap ? 0.4 : 0)), n = Math.max(256, Math.round(len * sr));
+  const len = Math.min(2.8, z.pre + z.rt * 1.15 + 0.06 + (z.slap ? 0.4 : 0)), n = Math.max(256, Math.round(len * sr)); // queue bornée à 2,8 s (−45 dB au-delà) : convolution plus légère
   const ch = [new Float32Array(n), new Float32Array(n)], r = mulberry(seed);
   const kM = Math.exp(-6.9078 / (z.rt * sr)), kL = Math.exp(-6.9078 / (z.rt * (z.lo || 1) * sr)), aLo = 1 - Math.exp(-TAU * 220 / sr);
   const pre = Math.round(z.pre * sr), build = Math.max(1, Math.round(Math.min(0.08, z.rt * 0.06 + 0.004) * sr));
@@ -2528,7 +2528,7 @@ const PA_DRY = 0.35, PA_WET = 0.4; // calibrés : même sonie que le bus musique
 const WORLD_2D = { sfx: 1, ambience: 1, voice: 1 }; // bus 2D « diégétiques » soumis à l'étouffement (musique 2D et UI y échappent : baladeur, interface)
 const SEND_2D = { sfx: 0.16, voice: 0.2 };          // réverbération des sons 2D du joueur (ses propres gestes sonnent dans la pièce)
 const OCC_CUT = [20000, 2500, 900, 400];            // coupure du passe-bas selon le nombre de murs
-const REV = 0.5, MAX_SHOTS = 48, MAX_HRTF = 6, OCC_BUDGET = 10, MEM_LIMIT = 40e6;
+const REV = 0.5, MAX_SHOTS = 32, MAX_HRTF = 6, OCC_BUDGET = 10, MEM_LIMIT = 40e6; // 32 ponctuels au plus : le fil audio garde de la marge
 // même son joué par plusieurs sources : au plus CAP_LOOP boucles spatialisées audibles (les plus audibles ; les autres se
 // taisent en fondu et reviennent si l'on s'approche), au plus CAP_SHOT ponctuels simultanés, une seule boucle 2D (def.cap :
 // réglage par son)
