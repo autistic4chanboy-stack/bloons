@@ -15,9 +15,10 @@ import { buildShops, shopX, ventXForShop } from './shopbuilder.js';
 import { buildDecor } from './decor.js';
 import { buildGarageDecor } from './garagedecor.js';
 import { buildServiceDecor } from './servicedecor.js';
+import { buildOutside, rampTop, rampSurface } from './outside.js';
 import { Elevator } from './elevator.js';
 import { SHOPS } from '../data/shops.js';
-import { posterTexture, signTexture, buildingFacade, textTexture } from '../engine/textures.js';
+import { posterTexture, signTexture, textTexture } from '../engine/textures.js';
 import { RNG } from '../engine/rng.js';
 import { GeoBuilder, rectShape, circleShape, roundPath, latheGeo, trs } from '../engine/geo.js';
 
@@ -85,14 +86,14 @@ export function buildMall(world) {
   Z('boiler', 'Chaufferie', 'basement', -1, [-76, -4.5, 6, -66, -0.6, 13], { circuit: 'basement', area: 'basement' });
   Z('b13', 'Local B-13', 'backroom', -1, [-88, -4.5, -10, -80, -0.6, -4], { circuit: null, area: 'b13' });
   Z('garage', 'Parking souterrain', 'garage', -1, [-66, -4.5, -24, 66, -0.6, 24], { circuit: 'garage', area: 'garage', cull: 80 });
-  Z('ramp', 'Rampe du parking', 'garage', -1, [66, -4.5, -7, 100, 1, -2], { circuit: 'garage', area: 'garage' });
+  Z('ramp', 'Rampe du parking', 'garage', -1, [66, -4.5, -7, 80.3, 0, -2], { circuit: 'garage', area: 'garage' }); // partie couverte (la tranchée est dehors)
   Z('warehouse', 'Entrepôt', 'warehouse', 0, [-112, 0, -25, -80, 8, 5], { circuit: 'service', area: 'warehouse', cull: 60 });
   Z('roof', 'Toit', 'roof', 2, [-82, 10.4, -27, 82, 16, 27], { circuit: 'roof', area: 'roof', outdoor: true, cull: 120 });
   Z('vent_s', 'Conduit sud', 'vent', 0, [-79.1, 3.5, -24.1, 66, 4.55, -22.9], { area: 'vents', cull: 35 });
   Z('vent_n', 'Conduit nord', 'vent', 0, [-79.1, 3.5, 22.9, 66, 4.55, 24.1], { area: 'vents', cull: 35 });
   Z('vent_w', 'Conduit ouest', 'vent', 0, [-79.1, 3.5, -24.1, -77.9, 4.55, 24.1], { area: 'vents', cull: 35 });
   Z('vent_sec', 'Conduit du poste', 'vent', 0, [-79, 3.2, -0.6, -68.3, 4.55, 0.6], { area: 'vents', cull: 35 });
-  Z('outside', 'Parking extérieur', 'outside', 0, [80, -1, -120, 260, 30, 120], { area: 'outside', outdoor: true, alwaysVisible: true });
+  Z('outside', 'Parking extérieur', 'outside', 0, [80, -3, -75, 200, 30, 75], { area: 'outside', outdoor: true }); // visibilité : outside.js (visibleAt)
   // vides centraux sous la verrière (aucune géométrie : relient les niveaux pour la visibilité)
   Z('void_w', 'Vide central — ouest', 'void', 1, [-64, -0.5, -VOID_Z, -24, 14.5, VOID_Z], { area: 'gallery1', void: true, cull: 120 });
   Z('void_e', 'Vide central — est', 'void', 1, [24, -0.5, -VOID_Z, 64, 14.5, VOID_Z], { area: 'gallery1', void: true, cull: 120 });
@@ -446,7 +447,7 @@ export function buildMall(world) {
   buildDecor(world, A, dev, rng.fork ? rng.fork('decor') : rng);
 
   // ═══════════════════════════ EXTÉRIEUR ═══════════════════════════
-  buildOutside(world, A, rng);
+  buildOutside(world);
 
   A.build(); world.arch = null;
   buildNav(world, doors);
@@ -460,7 +461,7 @@ export function buildMall(world) {
     securityDoorOut: new THREE.Vector3(-64.5, 0, 0), securityInside: new THREE.Vector3(-68, 0, 0),
     gerardSpot: new THREE.Vector3(-69.5, 0, -2.6),
     cafe: new THREE.Vector3(-60, 0, -12), b13: new THREE.Vector3(-84, -4.5, -7),
-    entranceOutside: new THREE.Vector3(84, 0, 0), garageGate: new THREE.Vector3(66, -4.5, -4.5), rampEnd: new THREE.Vector3(97, -0.2, -4.5),
+    entranceOutside: new THREE.Vector3(84, 0, 0), garageGate: new THREE.Vector3(66, -4.5, -4.5), rampEnd: new THREE.Vector3(103.5, -0.15, -5.6),
     fountain: new THREE.Vector3(0, 0, 0), roofDoor: new THREE.Vector3(-77.5, 10.5, 17.75),
   });
   return world;
@@ -1290,13 +1291,13 @@ function buildGarage(world, A, door, dev, rng) {
   gate.applyVisual = function () { const h = 3.4 * Math.max(0.03, this.pos01); this.mesh.scale.y = Math.max(0.03, this.pos01); this.mesh.position.y = yb + 3.4 - h / 2; this.col.enabled = this.pos01 > 0.55; this.col.min[1] = yb + 3.4 - h; world.physics.update(this.col); };
   gate.name = 'Rideau de la rampe du parking';
   gate.applyVisual(); world.add(gate);
-  // rampe vers l'extérieur
-  A.stairs('ramp', 'asphalt', 66, -7, 'x+', 5, 32, 4.5, yb, 32, { solid: true, base: yb - 0.4 });
-  // murs de la trémie : sous le hall ils s'arrêtent à la dalle (ils traversaient le sol du hall d'entrée sur 1 m,
-  // au travers du distributeur et du DAB) ; dehors, ils forment le parapet de 1 m au-dessus du trottoir
-  for (const zw of [-7.2, -1.8]) { A.wallX('ramp', 'concrete_dark', 66, 80.3, zw, yb, -0.6, 0.4); A.wallX('ramp', 'concrete_dark', 80.3, 98, zw, yb, 1, 0.4); }
+  // rampe vers l'extérieur, partie couverte sous le hall (x 66 … 80) : 1,8 m de dénivelé, ce qui laisse 2,10 m sous la
+  // dalle du hall ; la tranchée à ciel ouvert (x 80 … 98) est construite avec les abords (outside.js). Collision : marches
+  // invisibles de 1 m ; surface visible lisse.
+  A.stairs('ramp', 'asphalt', 66, -7, 'x+', 5, 14, 1.8, yb, 14, { solid: true, base: yb - 0.4, visible: false });
+  rampSurface(A, 'ramp', 66, 80);
+  for (const zw of [-7.2, -1.8]) A.wallX('ramp', 'concrete_dark', 66, 80.3, zw, yb, -0.6, 0.4);
   A.ceiling('ramp', 'concrete', 66, -7, 80, -2, -0.6, 0.6);
-  A.box('ramp', 'concrete', 98, -1, -7.4, 98.4, 3, -1.6); // barrière (mur fin : le reste du monde n'est pas modélisé)
   // voitures
   const colors = [0x1565c0, 0xb71c1c, 0x2e7d32, 0x424242, 0xe0e0e0, 0x6a1b9a, 0xf9a825, 0x00695c];
   const spots = [[-49.5, -21], [-37.5, -21], [-10.5, -9], [16.5, 9], [31.5, 21], [-22.5, 9], [43.5, -9], [55.5, 21]];
@@ -1558,106 +1559,6 @@ function buildVents(world, A) {
   world.ventY = yf;
 }
 
-// ───────────────────────── EXTÉRIEUR ─────────────────────────
-function buildOutside(world, A, rng) {
-  const g = world.game; const zone = world.zone('outside');
-  // parking extérieur
-  const lot = new THREE.Mesh(new THREE.PlaneGeometry(520, 440), g.mats.get('asphalt', 'outside'));
-  lot.rotation.x = -Math.PI / 2; lot.position.set(0, -0.03, 0); lot.receiveShadow = true;
-  const uv = lot.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 104, uv.getY(i) * 88);
-  zone.group.add(lot);
-  // murs extérieurs (périmètre de jeu : on peut sortir si on brise la façade, mais pas trop loin)
-  world.physics.add(new Box(80.4, -1, -60, 130, 0, 60, LAYER.WALL));
-  for (const [x0, z0, x1, z1] of [[130, -60, 131, 60], [80.4, 60, 131, 61], [80.4, -61, 131, -60]]) world.physics.add(new Box(x0, 0, z0, x1, 3, z1, LAYER.WALL));
-  // lampadaires : fût conique sur embase, crosse, lanterne plate (émissive), halo et flaque de lumière ; chaque famille
-  // de pièces est fusionnée en une géométrie (un appel de rendu pour tous les fûts, un pour les lanternes…)
-  const lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 2.4, 1.6) }); lampMat.toneMapped = false;
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0x37474f, roughness: 0.6, metalness: 0.5 });
-  const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const ctx = c.getContext('2d'); const gr = ctx.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,220,160,0.9)'); gr.addColorStop(1, 'rgba(255,200,120,0)'); ctx.fillStyle = gr; ctx.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-  world.streetLamps = [];
-  const poles = new GeoBuilder({ uvScale: 1 }), heads = new GeoBuilder(), pools = new GeoBuilder(), glowPos = [];
-  const POLE = latheGeo([[0, 0], [0.2, 0], [0.2, 0.05], [0.13, 0.12], [0.12, 0.6], [0.11, 0.62], [0.08, 7.4], [0.06, 7.6], [0, 7.62]], 10), ARM = new THREE.CylinderGeometry(0.04, 0.05, 1.3, 6), DISC = new THREE.CircleGeometry(6, 24);
-  for (let x = 95; x <= 190; x += 24) for (const z of [-50, -18, 18, 50]) {
-    const sd = z > 0 ? -1 : 1; // la crosse se tourne vers l'allée
-    poles.geometry(POLE, new THREE.Matrix4().makeTranslation(x, 0, z), { flat: false });
-    poles.geometry(ARM, trs(x, 7.85, z + sd * 0.55, sd * 1.3, 0, 0), { flat: false });
-    poles.box(x, 8.02, z + sd * 1.1, 0.5, 0.12, 0.7);
-    heads.box(x, 7.95, z + sd * 1.1, 0.44, 0.03, 0.62, { faces: 'y' });
-    pools.geometry(DISC, new THREE.Matrix4().makeRotationX(-Math.PI / 2).setPosition(x, 0.01, z + sd * 1.1), { flat: false });
-    glowPos.push(x, 7.8, z + sd * 1.1);
-    world.streetLamps.push({ pos: new THREE.Vector3(x, 8, z + sd * 1.1) });
-  }
-  const pm = new THREE.Mesh(poles.build(), poleMat); pm.castShadow = true;
-  const hm = new THREE.Mesh(heads.build(), lampMat);
-  const plm = new THREE.Mesh(pools.build(), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.35 }));
-  const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(glowPos, 3));
-  const glows = new THREE.Points(gg, new THREE.PointsMaterial({ map: glowTex, size: 5, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
-  zone.group.add(pm, hm, plm, glows); POLE.dispose(); ARM.dispose(); DISC.dispose();
-  // marquage des places (une géométrie)
-  const lines = new GeoBuilder(), LP = new THREE.PlaneGeometry(0.1, 5);
-  for (let x = 88; x <= 200; x += 3) for (const z of [-35, 35, -10, 10]) lines.geometry(LP, new THREE.Matrix4().makeRotationX(-Math.PI / 2).setPosition(x, 0.005, z), { flat: false });
-  zone.group.add(new THREE.Mesh(lines.build(), new THREE.MeshBasicMaterial({ color: 0x9e9e9e }))); LP.dispose();
-  // ville au loin : immeubles regroupés par façade (sept géométries)
-  const city = new THREE.Group(); const R = new RNG('city'), byTex = [];
-  for (let i = 0; i < 90; i++) {
-    const a = (i / 90) * Math.PI * 2 + R.range(-0.02, 0.02); const d = R.range(330, 520);
-    const w = R.range(14, 40), h = R.range(18, 110), k = i % 7;
-    const bg = byTex[k] || (byTex[k] = new GeoBuilder()), bgeo = new THREE.BoxGeometry(w, h, w);
-    bg.geometry(bgeo, trs(Math.cos(a) * d, h / 2 - 2, Math.sin(a) * d, 0, R.range(0, 3), 0), { flat: false }); bgeo.dispose();
-  }
-  byTex.forEach((bg, k) => city.add(new THREE.Mesh(bg.build(), new THREE.MeshBasicMaterial({ map: buildingFacade(1 + k), fog: false, color: new THREE.Color(0.55, 0.55, 0.6) }))));
-  zone.group.add(city);
-  world.city = city;
-  buildFacade(world, A);
-}
-
-// ───────────────────────── FAÇADE EST ET PARVIS ─────────────────────────
-// Habillage de la façade (cassettes métalliques à joints creux, bandeau d'acrotère), marquise d'entrée (poutres
-// cintrées sur tirants, vitrage, chéneau), enseigne extérieure, potelets, jardinières et cendrier du parvis.
-function buildFacade(world, A) {
-  const zo = 'outside', o = { collide: false };
-  const F = (x0, y0, z0, x1, y1, z1, c, metal = true) => A.furn(zo, x0, y0, z0, x1, y1, z1, c, { metal, collide: false });
-  // cassettes : parties pleines de la façade (|z| de 8,3 à 25,4), du sol à l'acrotère, joints horizontaux et verticaux
-  for (const s of [-1, 1]) {
-    const za = s * 8.3, zb = s * 25.45, lo = Math.min(za, zb), hi = Math.max(za, zb);
-    F(80.4, 0.45, lo, 80.45, 10.0, hi, 0x8b9095);
-    for (let y = 1.25; y < 10; y += 1.25) F(80.45, y - 0.008, lo, 80.455, y + 0.008, hi, 0x2a2d30);
-    for (let z = 10.8; z < 25.4; z += 2.5) F(80.45, 0.45, s * z - 0.008, 80.455, 10.0, s * z + 0.008, 0x2a2d30);
-    F(80.4, 0, lo, 80.5, 0.45, hi, 0x2b2b2b, false); // soubassement
-  }
-  F(80.65, 10.0, -25.5, 80.7, 11.62, 25.5, 0x8b9095); F(80.62, 11.62, -25.55, 80.74, 11.67, 25.55, 0xb8bdc2); // bandeau d'acrotère, couvertine
-  // marquise : quatre poutres cintrées en console dans l'axe des meneaux, pannes, vitrage feuilleté, chéneau, tirants
-  const y0 = 4.3, ext = 3.2, cy = (t) => y0 + Math.sin(t * Math.PI * 0.5) * 0.25 - t * 0.1;
-  for (const z of [-4.8, -1.6, 1.6, 4.8]) {
-    const P = []; for (let k = 0; k <= 8; k++) { const t = k / 8; P.push(V3(80.42 + t * ext, cy(t), z)); }
-    A.sweep(zo, 'steel_dark', P, rectShape(0.08, 0.22, 0.01, 1), 0xffffff, { caps: true });
-    A.tube(zo, 'steel', V3(80.36, 5.45, z), V3(80.42 + ext - 0.15, cy(0.95) + 0.08, z), 0.016, 0xffffff, { segs: 8 });
-    A.lathe(zo, 'steel', [[0, 0], [0.055, 0], [0.055, 0.025], [0, 0.025]], 10, 80.35, 5.45, z, 0xffffff, { rz: -Math.PI / 2 });
-    A.box(zo, 'steel_dark', 80.35, y0 - 0.16, z - 0.12, 80.42, y0 + 0.32, z + 0.12, o);
-  }
-  for (let k = 1; k <= 3; k++) { const t = k / 4, xx = 80.42 + t * ext, yy = cy(t) + 0.13; A.box(zo, 'steel_dark', xx - 0.04, yy - 0.04, -5.0, xx + 0.04, yy + 0.04, 5.0, o); }
-  const gl = []; for (let k = 0; k <= 8; k++) { const t = k / 8; gl.push([80.42 + t * ext, cy(t) + 0.18]); }
-  A.plate(zo, 'glass', gl.concat(gl.slice().reverse().map(([x, y]) => [x, y + 0.02])), -5.05, 5.05);
-  A.box(zo, 'steel_dark', 80.42 + ext - 0.05, cy(1) + 0.02, -5.1, 80.42 + ext + 0.12, cy(1) + 0.28, 5.1, o);
-  // enseigne extérieure (même texture que le logo du hall), sur le bandeau d'acrotère
-  const sm = new THREE.MeshBasicMaterial({ map: signTexture('CENTRE COMMERCIAL HÉLIOS', 0xffb300, { fontSize: 80 }) });
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(8.4, 1.4), sm); sign.position.set(80.706, 10.8, 0); sign.rotation.y = Math.PI / 2;
-  world.zone('entrance').group.add(sign); world.zone('entrance').signMats.push(sm);
-  // parvis : potelets inox côté nord (au sud, le parapet de la trémie protège déjà la façade), jardinières de béton
-  // avec arbustes, cendrier
-  for (const z of [3.2, 5.2, 7.2]) { world.physics.add(new Box(84.4, 0, z - 0.1, 84.6, 1.0, z + 0.1, LAYER.FURN)); A.lathe(zo, 'aluminium', [[0, 0], [0.08, 0], [0.08, 0.92], [0.07, 0.97], [0.04, 1.0], [0, 1.0]], 12, 84.5, 0, z); A.lathe(zo, 'furniture', [[0.081, 0.8], [0.081, 0.84]], 12, 84.5, 0, z, 0xe8c21a); }
-  const prng = new RNG('parvis');
-  for (const z of [-11, 11]) {
-    world.physics.add(new Box(83.4, 0, z - 1.1, 85.6, 0.55, z + 1.1, LAYER.FURN));
-    A.rbox(zo, 'concrete', 84.5, 0.275, z, 2.2, 0.55, 2.2, 0.03);
-    A.furn(zo, 83.5, 0.5, z - 1.0, 85.5, 0.54, z + 1.0, 0x2a1d15, { collide: false });
-    tree(A, zo, 84.5, 0.54, z, prng, 2.4);
-  }
-  world.physics.add(new Box(83.75, 0, 1.95, 84.05, 0.9, 2.25, LAYER.FURN));
-  A.lathe(zo, 'aluminium', [[0, 0], [0.15, 0], [0.15, 0.85], [0.13, 0.9], [0, 0.9]], 14, 83.9, 0, 2.1);
-  A.lathe(zo, 'furniture', [[0, 0.902], [0.12, 0.902]], 14, 83.9, 0, 2.1, 0x5a5a5a);
-}
-
 // ───────────────────────── CAMÉRAS DE ZONES ─────────────────────────
 function defineAreaCameras(world) {
   const C = (id, name, area, zone, pos, yaw, pitch = -0.35, fov = 70) => world.cameras.push({ id, name, area, zone, pos: new THREE.Vector3(...pos), yaw, pitch, fov });
@@ -1731,7 +1632,8 @@ function buildNav(world, doors) {
   for (let x = -60; x <= 60; x += 12) { L(`gar${x}_-6`, `gar${x}_6`); if (x > -60) { L(`gar${x - 12}_-6`, `gar${x}_-6`); L(`gar${x - 12}_6`, `gar${x}_6`); } }
   N('gar_w', -64, -4.5, 9.6, 'garage'); L('gar_w', 'gar-60_6'); L('gar_w', 'boilr', { door: doors.boiler_g.id });
   N('gar_gate', 63.5, -4.5, -4.5, 'garage'); L('gar_gate', 'gar60_-6');
-  N('ramp0', 68, -4.2, -4.5, 'ramp'); N('ramp1', 82, -2.5, -4.5, 'ramp'); N('ramp2', 96, -0.2, -4.5, 'ramp', ['outside']);
+  // rampe : couverte (ramp0), tranchée côté voie d'entrée (ramp1), sommet sur la voie de desserte (ramp2)
+  N('ramp0', 68, -4.24, -4.5, 'ramp'); N('ramp1', 84, rampTop(84.5), -5.8, 'outside'); N('ramp2', 99.6, -0.15, -5.8, 'outside', ['outside']);
   L('gar_gate', 'ramp0', { shutter: true }); L('ramp0', 'ramp1'); L('ramp1', 'ramp2');
   // escalier est
   for (const [y, k] of [[-4.5, 'B'], [0, '0'], [5, '1']]) { N(`stE${k}`, 77.6, y, 9.2, 'stairsE'); N(`stE${k}s`, 77, y, 20.5, 'stairsE'); L(`stE${k}`, `stE${k}s`); }

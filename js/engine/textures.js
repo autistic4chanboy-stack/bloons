@@ -603,6 +603,73 @@ export function rubber(color = 0x2c2e30) {
   });
 }
 
+// ───────────────────────── Extérieur ─────────────────────────
+// Dalles de béton du parvis et des trottoirs (40 × 40 cm, texture de 1,6 m) : nuance par dalle, granulats lavés,
+// arêtes chanfreinées, joints sablés, salissures et usure au centre des dalles
+export function paving(color = 0xaca79c) {
+  return cached('paving' + color, () => {
+    release();
+    const size = 512, s = surf(size), [r0, g0, b0] = rgb(color), cw = 128, rnd = mulberry32(color & 0xfff), tone = [];
+    for (let i = 0; i < 16; i++) tone.push([(rnd() - 0.5) * 0.12, (rnd() - 0.5) * 0.03]);
+    const agg = cells(size, 150, 271), mott = fbm(size, 5, 5, 4, 272), fine = fbm(size, 256, 256, 1, 273), dirt = fbm(size, 3, 3, 4, 274);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const i = y * size + x, cx = (x / cw) | 0, cy = (y / cw) | 0, lx = x % cw, ly = y % cw, e = Math.min(lx, ly, cw - 1 - lx, cw - 1 - ly);
+      if (e < 2) { const k = 0.46 + fine[i] * 0.12; s.r[i] = r0 * k; s.g[i] = g0 * k; s.b[i] = b0 * k * 0.95; s.h[i] = 0.08; s.ro[i] = 0.96; continue; }
+      const t = tone[cy * 4 + cx], ar = agg.rnd[agg.id[i]], isAgg = agg.f2[i] - agg.f1[i] > 0.9 && agg.f1[i] < 1.3;
+      let k = 1 + t[0] + (mott[i] - 0.5) * 0.08 + (fine[i] - 0.5) * 0.1 + (isAgg ? (ar - 0.5) * 0.22 : 0) - (dirt[i] > 0.62 ? (dirt[i] - 0.62) * 0.35 : 0);
+      s.r[i] = r0 * k * (1 + t[1]); s.g[i] = g0 * k; s.b[i] = b0 * k * (1 - t[1]); s.h[i] = 0.45 + Math.min(1, (e - 2) / 4) * 0.35 + (isAgg ? 0.08 : 0); s.ro[i] = 0.84 + (fine[i] - 0.5) * 0.1;
+    }
+    return packSurf(s, 2.2);
+  });
+}
+// Gazon tondu (texture de 2 m) : brins en stries courtes orientées par touffes, trèfle, plaques jaunies, terre nue
+export function grass() {
+  return cached('grass', () => {
+    release();
+    const size = 512, s = surf(size), big = fbm(size, 3, 3, 4, 281), mid = fbm(size, 20, 20, 3, 282), bl1 = fbm(size, 96, 384, 1, 283), bl2 = fbm(size, 384, 96, 1, 284), tuft = cells(size, 36, 285), dry = fbm(size, 4, 4, 4, 286), clo = cells(size, 60, 287);
+    for (let i = 0; i < size * size; i++) {
+      const b = tuft.rnd[tuft.id[i]] < 0.5 ? bl1[i] : bl2[i], k = 0.62 + (b - 0.5) * 0.9 + (mid[i] - 0.5) * 0.35;
+      const d = Math.max(0, (dry[i] - 0.58) * 2.4), cl = clo.rnd[clo.id[i]] < 0.12 && clo.f1[i] < 3.5 ? 1 : 0;
+      let r = (56 + d * 46) * k, gg = (92 + d * 14 + cl * 10) * k, bb = (34 + d * 4) * k, h = 0.25 + b * 0.6 + cl * 0.1;
+      if (big[i] < 0.16 && mid[i] < 0.45) { const t = Math.min(1, (0.16 - big[i]) * 9); r += (84 - r) * t; gg += (70 - gg) * t; bb += (52 - bb) * t; h -= t * 0.25; } // terre
+      s.r[i] = r; s.g[i] = gg; s.b[i] = bb; s.h[i] = h; s.ro[i] = 0.9 + (b - 0.5) * 0.08;
+    }
+    return packSurf(s, 2.2);
+  });
+}
+// Haie taillée (troène, charme ; texture de 1 m) : petites feuilles serrées, creux d'ombre, rameaux secs par endroits
+export function hedge() {
+  return cached('hedge', () => {
+    release();
+    const size = 512, s = surf(size), lf = cells(size, 110, 291), lf2 = cells(size, 190, 292), sh = fbm(size, 7, 7, 4, 293), fine = fbm(size, 256, 256, 1, 294), tw = fbm(size, 40, 40, 2, 295);
+    for (let i = 0; i < size * size; i++) {
+      const a = lf.rnd[lf.id[i]], e = Math.min(1, (lf.f2[i] - lf.f1[i]) / 2.5), b = lf2.rnd[lf2.id[i]], e2 = Math.min(1, (lf2.f2[i] - lf2.f1[i]) / 2);
+      const top = a > b ? e : e2, hole = sh[i] < 0.3 ? (0.3 - sh[i]) * 3.3 : 0;
+      let k = (0.5 + (a > b ? a : b) * 0.45 + (sh[i] - 0.5) * 0.6) * (0.45 + top * 0.55) * (1 - hole * 0.75);
+      let r = 38 * k, g = 70 * k + fine[i] * 6, bb = 26 * k;
+      if (tw[i] > 0.82 && hole < 0.2) { r = 70 * k + 10; g = 58 * k + 6; bb = 40 * k; } // rameaux secs
+      s.r[i] = r; s.g[i] = g; s.b[i] = bb; s.h[i] = 0.2 + top * 0.55 * (1 - hole) + (sh[i] - 0.5) * 0.3; s.ro[i] = 0.62 + (1 - top) * 0.3;
+    }
+    return packSurf(s, 3.2);
+  });
+}
+// Bardage de façade (cassettes de 2,5 × 1,25 m, texture de 2,5 m) : tôle laquée à grain fin, joints creux, légères
+// ondulations de planéité, coulures sous les joints horizontaux
+export function cladding(color = 0x8b9095) {
+  return cached('cladding' + color, () => {
+    release();
+    const size = 512, s = surf(size, true), [r0, g0, b0] = rgb(color), fine = fbm(size, 256, 256, 1, 301), wav = fbm(size, 2, 4, 3, 302), streak = fbm(size, 64, 2, 3, 303), rnd = mulberry32(color & 0xfff), tone = [rnd(), rnd()];
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const i = y * size + x, row = (y / 256) | 0, ly = y % 256, e = Math.min(x, 511 - x, ly, 255 - ly);
+      if (e < 3) { const k = 0.24; s.r[i] = r0 * k; s.g[i] = g0 * k; s.b[i] = b0 * k; s.h[i] = 0; s.ro[i] = 0.7; s.me[i] = 0.2; continue; }
+      const run = ly < 90 ? (1 - ly / 90) * Math.max(0, streak[i] - 0.55) * 0.5 : 0;
+      const k = 1 + (tone[row] - 0.5) * 0.05 + (fine[i] - 0.5) * 0.03 + (wav[i] - 0.5) * 0.04 - run;
+      s.r[i] = r0 * k; s.g[i] = g0 * k; s.b[i] = b0 * k; s.h[i] = 0.55 + Math.min(1, (e - 3) / 3) * 0.2 + (wav[i] - 0.5) * 0.1; s.ro[i] = 0.42 + (fine[i] - 0.5) * 0.08 + run * 0.6; s.me[i] = 0.35;
+    }
+    return packSurf(s, 1.6);
+  });
+}
+
 export function grate() {
   return cached('grate', () => {
     const size = 128; const c = canvas(size), ctx = c.getContext('2d');

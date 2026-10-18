@@ -187,8 +187,8 @@ export class Story {
       const nm = nightMin(m);
       for (const s of this.scripted) if (!s.done && nm >= s.t) { s.done = true; if (!s.cond || this.cond(s.cond)) g.events.execute(s, true); }
       if (nm >= 480 - 0.01) this.endNight(false);
-      // abandon de poste
-      for (const pl of g.alivePlayers()) { if (pl.pos.x > 112) { this.fail('Vous avez quitté le centre en pleine nuit. Abandon de poste.'); return; } }
+      // abandon de poste : au-delà de l'entrée du site (world.offSite, voir outside.js)
+      for (const pl of g.alivePlayers()) { if (g.world.offSite ? g.world.offSite(pl.pos) : pl.pos.x > 112) { this.fail('Vous avez quitté le centre en pleine nuit. Abandon de poste.'); return; } }
       if (g.alivePlayers().length === 0) { if (this.mode === 'infinite') this.gameOver(); else this.fail(this.deathReason || 'Vous n\'avez pas survécu à la nuit.'); }
       // rituel de la dernière nuit
       if (this.mode === 'story' && this.night === 10 && !g.flags.ritual) this.checkRitual();

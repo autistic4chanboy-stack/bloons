@@ -175,7 +175,7 @@ export class Lighting {
     }
     for (const s of this.sources) {
       const l = s.getLight && s.getLight(); if (!l) continue;
-      const d = l.pos.distanceToSquared(camPos); if (d < 2500) n = this._cand(n, l.pos, d * (l.priority ?? 1), l.color[0], l.color[1], l.color[2], l.hex, l.intensity, l.distance || 8);
+      const d = l.pos.distanceToSquared(camPos); if (d < 2500) n = this._cand(n, l.pos, d * (l.priority ?? 1), l.color[0], l.color[1], l.color[2], l.hex, l.intensity, l.distance || 8, l.zone || null); // l.zone : boîte {min, max} qui borne la lumière (lampadaires)
     }
     // blocs de secours (sur batterie : toujours là, plus faibles pendant une panne totale) dans les zones éteintes
     if (this.emergency && P.state.emergency) {
