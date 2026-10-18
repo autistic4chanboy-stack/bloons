@@ -445,7 +445,9 @@ export function batchStaticMeshes(world) {
     const parent = dev ? o.group.parent : m.parent;
     if (dev) o.group.updateMatrix(); m.updateMatrix();
     const matrix = dev ? o.group.matrix.clone().multiply(m.matrix) : m.matrix.clone();
-    const k = parent.uuid + '|' + m.material.uuid + '|' + (g.attributes.color ? 'c' : '') + (m.castShadow ? 's' : '') + (m.receiveShadow ? 'r' : '');
+    // lots découpés en cases de 10 m : un grand magasin (hyper) garde l'élimination hors champ de ses appareils
+    const at = dev ? o.group.position : m.position, cell = Math.floor(at.x / 10) + ',' + Math.floor(at.z / 10);
+    const k = parent.uuid + '|' + m.material.uuid + '|' + cell + '|' + (g.attributes.color ? 'c' : '') + (m.castShadow ? 's' : '') + (m.receiveShadow ? 'r' : '');
     let e = lots.get(k); if (!e) lots.set(k, e = { parent, mat: m.material, cast: m.castShadow, receive: m.receiveShadow, list: [] });
     e.list.push({ geo: g, matrix }); m.material = NO_DRAW; n++;
   }
