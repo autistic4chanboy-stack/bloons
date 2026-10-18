@@ -130,7 +130,7 @@ export class Game {
     this.story = new Story(this);
     this.sync = new Sync(this);
     this.speech = Speech;
-    Speech.init();
+    Speech.init(); Speech.volume = voiceVol(this.settings);
     progress(0.85, 'Compilation des shaders…');
     await tick();
     this.world.resetAll();
@@ -165,19 +165,39 @@ export class Game {
   clockString() { return this.env ? this.env.hhmm() : '22:00'; }
   dayPickupAllowed(prop) { return prop.zone === 'security' || prop.zone === 'cafe' || !prop.home?.zone || this.story?.dayFree; }
   mapText() { return this.ui ? this.ui.mapText() : ''; }
-  // Réplique (sous-titre + voix). Avec opts.pos, la voix baisse avec la distance et les murs : pleine à 4 m, muette
-  // au-delà de ~25 m ; au-delà de 35 m on n'entend plus rien du tout (pas de sous-titre non plus)
+  // Réplique : sous-titre + voix babillée (js/engine/speech.js). Avec opts.pos, la voix baisse avec la distance et les
+  // murs : pleine à 4 m, muette au-delà de ~25 m ; au-delà de 35 m on n'entend plus rien du tout (pas de sous-titre non
+  // plus). Sans position, la voix vient du personnage qui parle s'il est là (le plus proche portant ce nom ou tenant ce
+  // rôle) : même atténuation, mais le sous-titre reste toujours. opts.channel : 'phone' (combiné), 'pa', 'radio', 'spk' ;
+  // opts.voice === false : réplique muette (sauf si le personnage est là pour la dire)
   say(who, text, opts = {}) {
-    let vol = 0.9;
-    if (opts.pos && this.camera) {
-      const c = this.camera.position, d = Math.hypot(opts.pos[0] - c.x, opts.pos[1] - c.y, opts.pos[2] - c.z);
-      if (d > 35) return;
-      let walls = 0; try { walls = this.world.physics.countWalls([c.x, c.y, c.z], opts.pos, 3); } catch (e) { /* */ }
+    let vol = 0.9, pos = opts.pos || null, walls = 0, src = null;
+    const c = this.camera?.position;
+    if (!pos && c && !opts.channel) { src = this.speakerOf(who); if (src) pos = src.pos; }
+    if (pos && c) {
+      const d = Math.hypot(pos[0] - c.x, pos[1] - c.y, pos[2] - c.z);
+      if (d > 35 && !src) return;
+      try { walls = this.world.physics.countWalls([c.x, c.y, c.z], pos, 3); } catch (e) { /* */ }
       vol *= Math.max(0, Math.min(1, 1 - (d - 4) / 21)) * Math.pow(0.45, walls);
-      if (d > 15 || walls) who = (who || '') + ' (au loin)';
+      if (!src && (d > 15 || walls)) who = (who || '') + ' (au loin)';
     }
     this.lastSubtitle = text; this.ui?.subtitle(who, text, opts.dur);
-    if (opts.voice !== false && this.settings.voices !== false && vol > 0.05) Speech.say(text, { who, pitch: opts.pitch, rate: opts.rate, voice: opts.voice, volume: vol });
+    if ((opts.voice !== false || src) && this.settings.voices !== false && vol > 0.03) Speech.say(text, { who, volume: vol, pos, walls, channel: opts.channel, style: opts.style, pitch: opts.pitch, rate: opts.rate, fem: src?.f, seed: src?.v });
+  }
+  // personnage qui dit une réplique sans position : le plus proche portant ce nom (commerçants, clients nommés) ou tenant
+  // ce rôle (braqueurs, police, pompiers, livreur, Gérard, clients) → { pos (tête), f (voix de femme), v (variante) }
+  speakerOf(who) {
+    const L = this.entities?.list; if (!L || !who) return null;
+    const w = String(who).toLowerCase().trim(), c = this.camera.position;
+    const role = /braqueur|parking/.test(w) ? 'robber' : /^polic/.test(w) ? 'police' : /^pompier/.test(w) ? 'fireman' : /^livreur/.test(w) ? 'visitor' : /^gérard/.test(w) ? 'gerard' : /^client/.test(w) ? 'shopper' : null;
+    let best = null, bd = Infinity; // même très loin : il parle de là-bas (voix muette), pas dans l'oreille du joueur
+    for (const e of L.values()) {
+      if (!e.pos || e.camOnly) continue;
+      if (role) { if (e.type !== role || (role === 'shopper' && !!e.o?.f !== (w === 'cliente'))) continue; }
+      else { const n = String(e.o?.name || '').toLowerCase(); if (!n || (n !== w && !n.startsWith(w + ' ('))) continue; }
+      const d = e.pos.distanceTo(c); if (d < bd) { bd = d; best = e; }
+    }
+    return best ? { pos: [best.pos.x, best.pos.y + 1.55 * (best.o?.h || 1.75) / 1.75, best.pos.z], f: !!best.o?.f, v: best.o?.v | 0 } : null;
   }
   mirrorLook(mirror, p) { this.story?.mirrorLook(mirror, p); }
   costumeDesc(c) { return COSTUMES[c]?.desc || ''; }
@@ -185,6 +205,8 @@ export class Game {
     const s = this.settings;
     if (k === 'volume') Audio.setBusVolume('master', s.volume);
     if (k === 'musicVolume') Audio.setBusVolume('music', s.musicVolume);
+    if (k === 'voiceVolume') Speech.volume = voiceVol(s);
+    if (k === 'voices' && s.voices === false) Speech.stop();
     if (k === 'sensitivity') this.input.sensitivity = s.sensitivity;
     if (k === 'invertY') this.input.invertY = s.invertY;
     if (k === 'renderScale' || k === 'quality' || k === 'autoScale') { this.renderer.dynScale = 1; this.renderer.resize(); }
@@ -198,7 +220,7 @@ export class Game {
     const S = this.sim;
     S.effect('fx', (p) => { const pos = p.pos ? new THREE.Vector3(...p.pos) : null; this.sfx(p.s, pos, { volume: p.v ?? 1, intensity: p.i ?? p.v ?? 1 }); });
     S.effect('toast', (p) => this.toast(p.text, p.dur));
-    S.effect('say', (p) => this.say(p.who, p.text, { voice: p.voice === 'parrot' ? undefined : p.voice, pitch: p.voice === 'parrot' ? 1.9 : p.pitch, rate: p.voice === 'parrot' ? 1.2 : p.rate, pos: p.pos }));
+    S.effect('say', (p) => this.say(p.who, p.text, { voice: p.voice === 'parrot' ? undefined : p.voice, style: p.voice === 'parrot' ? 'parrot' : undefined, pitch: p.pitch, rate: p.rate, pos: p.pos }));
     S.effect('note', (p) => Audio.note(p.instr, p.n, { pos: p.pos ? new THREE.Vector3(...p.pos) : null, volume: p.v ?? 0.8 }));
     S.effect('drum', (p) => Audio.drum(p.k, { pos: p.pos ? new THREE.Vector3(...p.pos) : null }));
     S.effect('flash', (p) => this.particles.flash(new THREE.Vector3(...p.pos)));
@@ -284,3 +306,4 @@ export class Game {
 }
 
 function tick() { return new Promise(r => setTimeout(r, 0)); }
+function voiceVol(s) { const v = +(s.voiceVolume ?? 1); return isFinite(v) ? Math.max(0, Math.min(1.5, v)) : 1; } // volume du babillage des personnages

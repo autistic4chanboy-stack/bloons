@@ -743,7 +743,7 @@ export class Security {
   select(id) {
     const g = this.game; if (id === this.selId && this.fullscreen) return;
     this.selId = id; this.zoom = 1; this.playback = null;
-    g.sfx('camera_switch', null, { volume: 0.45, bus: 'ui' });
+    g.sfx('camera_switch', null, { volume: 0.3, bus: 'ui' });
     this.switchFlash = 0.15; this.renderUI(true);
     const c = this.find(id); if (c) g.hooks.emit('cam_view', { cam: c, player: g.player });
   }
@@ -761,7 +761,7 @@ export class Security {
     const zones = this.lightGroupFor(z);
     if (!zones) { g.toast('Cette zone n\'est pas reliée à la console.'); return; }
     const on = !g.lighting.isLit(z.id);
-    g.sim.do('sec_light', { zones, on }); g.sfx('switch', null, { volume: 0.5, bus: 'ui' });
+    g.sim.do('sec_light', { zones, on }); g.sfx('switch', null, { volume: 0.35, bus: 'ui' });
   }
   lightGroupFor(z) {
     if (z.shop) { const ctl = this.world.shops[z.shop]; if (ctl && !this.game.isShopUnlocked(z.shop)) return null; return this.shopZones(z.shop); }
@@ -1047,7 +1047,7 @@ export class Security {
   }
   updateEscalatorSound() {
     const g = this.game; const on = g.power.state.escalators && g.power.isOn('gallery');
-    if (on && !this.escLoops.length) for (const x of [-19.5, 19.5]) this.escLoops.push(g.loop('escalator', new THREE.Vector3(x, 2.5, 0), { volume: 0.6, ref: 4 }));
+    if (on && !this.escLoops.length) for (const x of [-19.5, 19.5]) this.escLoops.push(g.loop('escalator', new THREE.Vector3(x, 2.5, 0), { volume: 0.3, ref: 3, maxDist: 30 }));
     if (!on && this.escLoops.length) { for (const l of this.escLoops) l.stop(0.8); this.escLoops = []; }
   }
   // Appelé par le joueur local : les escalators en marche entraînent le joueur

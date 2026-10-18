@@ -235,6 +235,7 @@ export class UI {
       <div class="opts" style="display:none">
         <label>Volume <input type="range" min="0" max="1" step="0.05" data-o="volume" value="${s.volume ?? 0.9}"></label>
         <label>Musique <input type="range" min="0" max="1" step="0.05" data-o="musicVolume" value="${s.musicVolume ?? 0.8}"></label>
+        <label>Voix <input type="range" min="0" max="1" step="0.05" data-o="voiceVolume" value="${s.voiceVolume ?? 1}"></label>
         <label>Sensibilité <input type="range" min="0.2" max="3" step="0.1" data-o="sensitivity" value="${s.sensitivity ?? 1}"></label>
         <label>Champ de vision <input type="range" min="55" max="100" step="1" data-o="fov" value="${s.fov ?? 72}"></label>
         <label>Échelle de rendu <input type="range" min="0.4" max="1" step="0.05" data-o="renderScale" value="${s.renderScale ?? 1}"></label>
@@ -244,7 +245,7 @@ export class UI {
         <label><input type="checkbox" data-o="bodycam" ${s.bodycam !== false ? 'checked' : ''}> Effet caméra-piéton</label>
         <label><input type="checkbox" data-o="screamers" ${s.screamers !== false ? 'checked' : ''}> Screamers</label>
         <label><input type="checkbox" data-o="subtitles" ${s.subtitles !== false ? 'checked' : ''}> Sous-titres</label>
-        <label><input type="checkbox" data-o="voices" ${s.voices !== false ? 'checked' : ''}> Voix de synthèse</label>
+        <label><input type="checkbox" data-o="voices" ${s.voices !== false ? 'checked' : ''}> Babillage des personnages</label>
         <label><input type="checkbox" data-o="invertY" ${s.invertY ? 'checked' : ''}> Inverser l'axe vertical</label>
         <button data-a="back">Retour</button>
       </div>`;

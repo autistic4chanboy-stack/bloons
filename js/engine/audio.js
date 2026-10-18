@@ -619,6 +619,8 @@ const STEP = {
     if (B.v === 1 || B.v === 4) B.osc(t1 + 0.012, B.rr(0.05, 0.1), { w: 'tab', harm: [1, 0.6, 0.4, 0.25, 0.15, 0.08], f: B.rr(900, 1400), f1: B.rr(1400, 2100), att: 0.006, dec: 0.04, jit: 0.03, a: 0.16 });
   },
 };
+// frottement du pantalon et de la veste à chaque pas : doux, à peine audible, il donne la présence du corps
+function swish(B, t, k) { B.nz(t, B.rr(0.09, 0.15), { att: 0.035, dec: 0.045, bp: B.rr(1300, 2100), q: 0.6, a: B.rr(0.035, 0.055) * k, am: [B.rr(16, 28), 0.35] }); }
 // pas simplifié (séquences lointaines, foule)
 function stepLite(B, t, a = 1, hard = true) {
   B.nz(t, 0.016, { dec: 0.004, hp: hard ? 500 : 200, lp: hard ? 5000 : 2500, a: 0.8 * a });
@@ -641,7 +643,7 @@ const def = (name, o) => { SND[name] = o; };
 
 // ── pas ──
 for (const s of ['tile', 'concrete', 'metal', 'carpet', 'wood', 'vent', 'grass', 'heels', 'sneakers'])
-  def('step_' + s, { d: s === 'metal' || s === 'vent' ? 0.7 : 0.32, v: 6, split: 4, ivol: 1, g: s === 'carpet' ? 0.5 : s === 'heels' ? 0.6 : 0.55, rev: 0.8, r: STEP[s] });
+  def('step_' + s, { d: s === 'metal' || s === 'vent' ? 0.7 : 0.32, v: 6, split: 4, ivol: 1, g: s === 'carpet' ? 0.45 : s === 'heels' ? 0.55 : 0.48, rev: 0.8, r(B) { STEP[s](B); if (s !== 'vent') swish(B, 0, B.v >= 4 ? 1 : 0.75); } });
 def('land', { d: 0.4, v: 4, g: 0.75, r(B) {
   B.thump(0.004, { f0: 115, f1: 45, k: 0.02, dec: 0.065, a: 1, drive: 1.6 });
   B.nz(0.004, 0.05, { dec: 0.012, lp: 1500, a: 0.7 }); B.nz(0.004 + B.rr(0.008, 0.025), 0.04, { dec: 0.01, hp: 300, lp: 4000, a: 0.4 });
@@ -702,7 +704,7 @@ def('glass_crack', { d: 0.6, v: 4, sr: 'H', g: 0.6, r(B) {
   for (let i = 0, t = 0.01; i < B.ri(4, 8); i++, t += B.rr(0.01, 0.06)) { B.nz(t, 0.003, { dec: 0.0007, hp: 3000, a: B.rr(0.3, 0.8) }); shard(B, t, 0.06, 3000, 9000, 0.5); }
   B.fric(0.02, 0.18, { rate: (x) => 900 + 3000 * x, jit: 0.5, av: 0.7, res: [[4200, 6, 1], [6800, 8, 0.6]], att: 0.01, a: 0.1 }); // verre qui travaille
 } });
-def('glass_shatter_big', { d: 5, v: 2, sr: 'M', g: 1, rev: 1.6, ref: 4, md: 90, r(B) {
+def('glass_shatter_big', { duck: 0.3, dkT: 2, d: 5, v: 2, sr: 'M', g: 1, rev: 1.6, ref: 4, md: 90, r(B) {
   B.thump(0.005, { f0: 90, f1: 40, k: 0.03, dec: 0.12, a: 0.9, drive: 1.5 });
   B.nz(0.003, 0.6, { att: 0.001, dec: 0.12, hp: 1500, a: 0.9 }); B.nz(0.003, 0.03, { dec: 0.006, a: 0.8 });
   for (const w of [0, 0.18, 0.5, 0.95, 1.5]) { // la vitrine s'effondre par pans successifs
@@ -785,7 +787,7 @@ def('door_rattle', { d: 2.0, v: 3, g: 0.9, rev: 1.2, r(B) { // quelqu'un secoue 
     if (B.ch(0.3)) B.modal(t, [[B.rr(90, 110), 1, 0.06], [B.rr(190, 230), 0.6, 0.04]], { ct: 0.003, a: 0.4 * a });
   }
 } });
-def('shutter_move', { d: 3, loop: true, g: 0.8, rev: 1.1, os: 2.5, r(B) { // rideau métallique qui s'enroule
+def('shutter_move', { cap: 2, d: 3, loop: true, g: 0.8, rev: 1.1, os: 2.5, r(B) { // rideau métallique qui s'enroule
   for (let t = 0; t < B.dur; t += 1 / B.rr(8, 11)) {
     B.modal(t, [[B.rr(380, 520), 1, 0.06], [B.rr(900, 1200), 0.6, 0.05], [B.rr(1700, 2300), 0.4, 0.03], [B.rr(3000, 3800), 0.25, 0.02]], { ct: 0.0008, a: B.rr(0.25, 0.5) });
     B.nz(t, 0.01, { dec: 0.003, hp: 1500, a: 0.15 });
@@ -1043,7 +1045,7 @@ def('squeak', { d: 0.55, v: 3, g: 0.55, r(B) { // jouet couineur : on presse, pu
   B.osc(0.24, 0.22, { w: 'tab', harm: [1, 0.45, 0.3, 0.15], f: f * 1.35, f1: f * 0.85, att: 0.015, dec: 0.12, jit: 0.03, a: 0.35 });
   B.nz(0.24, 0.2, { att: 0.02, dec: 0.1, bp: 2200, q: 1.5, a: 0.06 });
 } });
-def('toy_robot', { d: 4, loop: true, o0: 1, g: 0.6, r(B) {
+def('toy_robot', { cap: 2, d: 4, loop: true, o0: 1, g: 0.6, r(B) {
   for (let t = 0; t < 4; t += 0.5) {
     B.osc(t, 0.3, { w: 'saw', f: 260, f1: 300, lp: 2500, att: 0.02, rel: 0.05, a: 0.16 }); // moteur
     B.fric(t, 0.3, { rate: 55, jit: 0.2, res: [[2500, 4, 1], [4000, 5, 0.5]], att: 0.02, rel: 0.03, a: 0.12 }); // engrenages
@@ -1091,7 +1093,7 @@ def('rattle', { d: 0.9, v: 3, g: 0.5, r(B) { // hochet : perles dans une coque e
   for (const t0 of [0, B.rr(0.25, 0.32), B.rr(0.52, 0.6)]) for (let i = 0, n = B.ri(15, 25); i < n; i++) B.nz(t0 + Math.pow(B.r(), 1.3) * 0.12, 0.002, { dec: 0.0006, hp: 1500, lp: 8000, a: B.rr(0.1, 0.5), tail: 0.004 });
   B.pk(1800, 4, 6).pk(3200, 5, 5);
 } });
-def('spinning_top', { d: 2, loop: true, g: 0.5, r(B) { // toupie ronflante
+def('spinning_top', { cap: 2, d: 2, loop: true, g: 0.5, r(B) { // toupie ronflante
   B.osc(0, 2, { w: 'tab', harm: [1, 0.4, 0.25, 0.12], f: 330, am: [B.per(9), 0.5], a: 0.4 });
   B.fric(0, 2, { rate: 45, jit: 0.3, res: [[1500, 3, 1]], att: 0, rel: 0, a: 0.06 }); // la pointe sur le sol
   B.nz(0, 2, { bp: 900, q: 1.2, a: 0.2, am: [B.per(9), 0.6, 1] });
@@ -1185,7 +1187,7 @@ def('alarm_siren', { d: 4, loop: true, o0: 1, g: 0.9, ref: 6, md: 120, r(B) { //
   B.osc(0, 4, { w: 'sqr', fe: (x) => { const u = (x % 2) / 2; return u < 0.6 ? 600 + 700 * (u / 0.6) : 1300 - 700 * ((u - 0.6) / 0.4); }, a: 0.5 });
   B.lp(4500).pk(1400, 0.8, 5).drive(1.6);
 } });
-def('car_alarm', { d: 12, loop: true, o0: 1, sr: 'L', g: 0.85, ref: 6, md: 140, r(B) { // alarme auto années 90 : six motifs enchaînés
+def('car_alarm', { cap: 1, d: 12, loop: true, o0: 1, sr: 'L', g: 0.85, ref: 6, md: 140, r(B) { // alarme auto années 90 : six motifs enchaînés
   const seg = (x) => { const m = Math.min(5, Math.floor(x / 2)); return [m, x - m * 2]; };
   const fe = (x) => {
     const [m, u] = seg(x);
@@ -1203,7 +1205,7 @@ def('smoke_alarm', { d: 4, loop: true, o0: 1, sr: 'H', g: 0.75, ref: 4, r(B) { /
   for (const t of [0, 1, 2]) B.osc(t, 0.5, { w: 'tab', harm: [1, 0.08, 0.25, 0.03, 0.08], f: 3150, vib: [11, 0.004], att: 0.004, rel: 0.006, a: 0.6 });
   B.pk(3150, 2, 4);
 } });
-def('shop_alarm', { d: 2, loop: true, o0: 1, g: 0.95, ref: 8, md: 120, r(B) { // grosse cloche d'alarme + sirène « yelp »
+def('shop_alarm', { cap: 2, d: 2, loop: true, o0: 1, g: 0.95, ref: 8, md: 120, r(B) { // grosse cloche d'alarme + sirène « yelp »
   const x = new Float32Array(B.n); for (let k = 0; k < 44; k++) x[((Math.round((k / 22 + B.rr(-0.003, 0.003)) * B.sr) % B.n) + B.n) % B.n] += B.rr(0.85, 1);
   B.res(x, [[620, 1, 1.1], [622, 0.4, 1], [1440, 0.6, 0.7], [2635, 0.4, 0.45], [4110, 0.25, 0.3], [5820, 0.15, 0.2]], 1);
   B.osc(0, 2, { w: 'sqr', fe: (t) => 900 + 800 * ((t * 3) % 1), a: 0.08, lp: 5000 });
@@ -1277,7 +1279,7 @@ def('generator_stop', { d: 2.2, sr: 'L', g: 0.9, rev: 1.2, ref: 3, r(B) {
   firing(B, 0, 1.6, (x) => 25 * Math.max(0.12, 1 - x / 1.3), { amp: (x) => Math.max(0, 1 - x / 1.7), miss: (x) => x * 0.25 });
   B.thump(1.55, { f0: 70, f1: 40, dec: 0.12, a: 0.5 }); B.modal(1.6, [[220, 1, 0.15], [530, 0.6, 0.1], [980, 0.4, 0.06]], { ct: 0.001, a: 0.4 }); // dernier soubresaut
 } });
-def('electric_hum', { d: 2, loop: true, sr: 'L', g: 0.55, r(B) { // secteur 50 Hz : magnétostriction (100 Hz) et harmoniques
+def('electric_hum', { cap: 2, d: 2, loop: true, sr: 'L', g: 0.55, r(B) { // secteur 50 Hz : magnétostriction (100 Hz) et harmoniques
   B.osc(0, 2, { w: 'tab', f: 50, harm: [0.55, 1, 0.3, 0.42, 0.12, 0.2, 0.05, 0.09, 0.03, 0.05], a: 0.6, ef: (x) => 1 + 0.12 * Math.sin(TAU * 0.5 * x) });
   B.osc(0, 2, { f: 100.5, a: 0.06 }); // battement lent entre deux transformateurs
   B.nz(0, 2, { c: 'p', lp: 800, a: 0.04 });
@@ -1304,7 +1306,7 @@ def('hvac', { d: 6, loop: true, ch: 2, sr: 'L', g: 0.7, rms: 0.25, r(B) { // sou
   B.osc(0, 6, { w: 'tab', f: 118, harm: [1, 0.5, 0.25], a: 0.04 });
   B.pk(240, 3, 4).pk(520, 4, 3);
 } });
-def('escalator', { d: 4, loop: true, g: 0.7, ref: 4, r(B) {
+def('escalator', { cap: 2, d: 4, loop: true, g: 0.7, ref: 4, r(B) {
   for (let k = 0; k < 5; k++) { // marches qui passent le peigne
     const t = k * 0.8 + B.rr(-0.01, 0.01);
     B.modal(t, [[B.rr(180, 220), 1, 0.08], [B.rr(450, 520), 0.6, 0.06], [B.rr(900, 1100), 0.4, 0.04], [2200, 0.2, 0.02]], { ct: 0.001, a: 0.5 });
@@ -1319,10 +1321,12 @@ def('escalator', { d: 4, loop: true, g: 0.7, ref: 4, r(B) {
 function drops(B, n, t0, t1, lo = 500, hi = 3000, a = 0.3) {
   for (let i = 0; i < n; i++) { const t = B.rr(t0, t1), f = B.rr(lo, hi); B.osc(t, B.rr(0.015, 0.05), { f, f1: f * B.rr(1.3, 1.9), att: 0.001, dec: B.rr(0.006, 0.02), a: B.rr(0.2, 1) * a }); }
 }
-def('fountain', { d: 4, loop: true, g: 0.7, r(B) {
-  B.nz(0, 4, { c: 'p', hp: 200, lp: 6000, a: 0.6, ef: B.rnd(5, 0.7, 1) });
-  drops(B, 180, 0, 4, 600, 3200, 0.35);
-  for (let i = 0; i < 200; i++) B.nz(B.rr(0, 4), 0.003, { dec: 0.001, bp: B.rr(1000, 4000), q: 1, a: B.rr(0.05, 0.25), tail: 0.004 });
+def('fountain', { d: 8, loop: true, sr: 'L', g: 0.6, ref: 2, md: 26, cap: 1, r(B) { // filet d'eau qui retombe dans le bassin : doux, rond, presque pas de souffle aigu
+  B.nz(0, B.dur, { c: 'p', hp: 120, lp: 2000, lq: 0.6, a: 0.5, ef: B.rnd(3, 0.75, 1) });  // nappe d'eau, feutrée
+  B.nz(0, B.dur, { bp: 420, q: 0.8, a: 0.4, ef: B.rnd(6, 0.35, 1) });                  // clapotis grave du bassin
+  drops(B, 90, 0, B.dur, 330, 1300, 0.22);                                              // gouttes rondes, graves
+  for (let i = 0; i < 60; i++) B.nz(B.rr(0, B.dur), 0.004, { dec: 0.0015, bp: B.rr(700, 2000), q: 1.2, a: B.rr(0.03, 0.09), tail: 0.004 }); // éclaboussures légères
+  B.lp(3000);
 } });
 def('elevator_ding', { d: 2.5, g: 0.6, rev: 1.2, r(B) { const f = 1318.5; B.modal(0.002, [[f, 1, 1.3], [f * 1.001, 0.4, 1.2], [f * 2.76, 0.3, 0.5], [f * 5.4, 0.12, 0.2], [f * 0.5, 0.1, 0.8]], { ct: 0.0004, a: 1 }); } });
 def('water_drip', { d: 0.25, v: 5, g: 0.5, rev: 1.4, r(B) {
@@ -1337,7 +1341,7 @@ def('pipe_knock', { d: 1.4, v: 4, sr: 'L', g: 0.75, rev: 1.3, r(B) { // coup de 
 } });
 
 // ── extérieur, météo ──
-def('wind', { graph: (...a) => gWind(...a), param: { strength: 0.5 }, g: 1.8, os: 3 });
+def('wind', { graph: (...a) => gWind(...a), param: { strength: 0.5, deep: 0 }, g: 1.8, os: 3 });
 def('rain', { graph: (...a) => gRain(...a), param: { intensity: 0.5 }, g: 0.9, os: 3 });
 def('_rain_wash', { d: 4, loop: true, ch: 2, r(B) { B.nz(0, 4, { c: 'p', hp: 300, lp: 7500, a: 1, ef: B.rnd(4, 0.85, 1) }); B.nz(0, 4, { c: 'b', lp: 250, a: 0.3 }); } });
 def('_rain_drops', { d: 4, loop: true, ch: 2, r(B) {
@@ -1352,11 +1356,11 @@ def('thunder', { d: 8, v: 3, sr: 'V', g: 1, rev: 0.6, r(B) { // tonnerre lointai
   for (let k = 0, n = B.ri(5, 8); k < n; k++) { const d = B.rr(0.9, 2.4); B.nz(t, d, { att: B.rr(0.04, 0.3), dec: B.rr(0.35, 0.9), c: 'b', lp: B.rr(250, 700), a: B.rr(0.5, 1) * (1 - k * 0.08), ef: B.rnd(12, 0.4, 1), tail: 0.05 }); t += B.rr(0.25, 1.1); }
   B.nz(0, 7.5, { att: 0.4, dec: 2.2, c: 'b', lp: 90, a: 0.7, tail: 0.1 });
 } });
-def('distant_traffic', { d: 8, loop: true, ch: 2, sr: 'V', g: 0.7, r(B) {
-  B.nz(0, 8, { c: 'b', lp: 380, a: 0.7, ef: B.rnd(0.6, 0.6, 1) });
-  for (let i = 0; i < 3; i++) { // voitures qui passent au loin (pneus : petite bosse vers 1,3 kHz)
+def('distant_traffic', { d: 8, loop: true, ch: 2, sr: 'V', g: 0.7, r(B) { // rumeur de circulation lointaine : sourde, grave
+  B.nz(0, 8, { c: 'b', lp: 300, a: 0.7, ef: B.rnd(0.6, 0.6, 1) });
+  for (let i = 0; i < 3; i++) { // voitures qui passent au loin (pneus étouffés par la distance : petite bosse vers 600 Hz)
     const t = B.rr(0, 8), d = B.rr(3, 5);
-    B.nz(t, d, { c: 'p', env: [[0, 0], [d * 0.5, 1], [d, 0]], lp: 1400, hp: 120, pk: [[1300, 0.8, 4]], a: B.rr(0.25, 0.5) });
+    B.nz(t, d, { c: 'p', env: [[0, 0], [d * 0.5, 1], [d, 0]], lp: 800, hp: 90, pk: [[600, 0.8, 3]], a: B.rr(0.2, 0.4) });
   }
 } });
 function bark(B, t, a = 1, k = 1) {
@@ -1383,7 +1387,7 @@ def('owl', { d: 3.2, v: 2, sr: 'L', g: 0.55, rev: 0.6, r(B) { // chouette hulott
 def('city_night', { d: 16, loop: true, ch: 2, sr: 'V', g: 0.6, r(B) { // rumeur de la ville la nuit (les sirènes lointaines : amb_far, rares)
   B.nz(0, B.dur, { lp: 260, lq: 0.6, hp: 24, a: 1, ef: B.rnd(0.35, 0.6, 1) });
   for (let i = 0; i < 4; i++) { const t = B.rr(0, B.dur), d = B.rr(3, 5); B.nz(t, d, { env: [[0, 0], [d / 2, 1], [d, 0]], lp: 800, hp: 110, a: B.rr(0.15, 0.3), tail: 0.05 }); } // voitures au loin
-  B.nz(0, B.dur, { bp: 500, q: 0.5, a: 0.12, ef: B.rnd(0.6, 0.2, 1) }); // vent
+  B.nz(0, B.dur, { bp: 300, q: 0.6, a: 0.09, ef: B.rnd(0.6, 0.2, 1) }); // vent, au loin
 } });
 
 // ── nuit : fond sonore du bâtiment (« pesant », jamais musical, jamais de sursaut) ──
@@ -1400,7 +1404,7 @@ def('_rt_low', { d: 17, loop: true, sr: 'V', r(B) { // grondement ressenti plus 
 } });
 def('_rt_air', { d: 11, loop: true, ch: 2, sr: 'L', r(B) { // souffle des bouches d'air, sifflement ténu des diffuseurs
   B.nz(0, B.dur, { hp: 150, lp: 1700, lq: 0.5, pk: [[380, 1.2, 3]], a: 1, ef: B.rnd(0.25, 0.75, 1) });
-  B.nz(0, B.dur, { hp: 2500, lp: 7000, a: 0.16, ef: B.rnd(0.4, 0.55, 1) });
+  B.nz(0, B.dur, { hp: 2500, lp: 6500, a: 0.07, ef: B.rnd(0.4, 0.55, 1) }); // à peine : un souffle doux, pas un sifflement
 } });
 def('_rt_swell', { d: 10, v: 3, sr: 'V', r(B) { // houle lente : le bâtiment « respire »
   const D = B.rr(6.5, 9), lo = B.v === 2;
@@ -1454,11 +1458,11 @@ def('vent_air', { d: 7, loop: true, ch: 2, sr: 'L', g: 0.5, r(B) { // dans la ga
   B.nz(0, B.dur, { lp: 2200, hp: 60, pk: [[150, 6, 5], [290, 10, 9], [575, 12, 7], [870, 12, 5], [1160, 14, 4]], a: 1, ef: fl });
   B.nz(0, B.dur, { bp: 3200, q: 2, a: 0.05, ef: fl });
 } });
-def('equipment_hum', { d: 6, loop: true, ch: 2, sr: 'L', g: 0.45, r(B) { // poste de sécurité : ventilateurs de l'enregistreur et des moniteurs, transformateur (calme, stable)
-  B.nz(0, B.dur, { hp: 140, lp: 1700, lq: 0.5, a: 1, ef: B.rnd(0.5, 0.92, 1) });
-  B.osc(0, B.dur, { w: 'tab', f: 100, harm: [1, 0.35, 0.5, 0.12, 0.15], a: 0.03 });
+def('equipment_hum', { d: 6, loop: true, ch: 2, sr: 'L', g: 0.45, r(B) { // poste de sécurité : ventilateurs de l'enregistreur et des moniteurs, transformateur (calme, stable, feutré)
+  B.nz(0, B.dur, { hp: 120, lp: 1200, lq: 0.5, a: 1, ef: B.rnd(0.5, 0.92, 1) });
+  B.osc(0, B.dur, { w: 'tab', f: 100, harm: [1, 0.35, 0.5, 0.12, 0.15], a: 0.025 });
   B.nz(0, B.dur, { bp: 50, q: 4, a: 0.5 });
-  B.nz(0, B.dur, { hp: 4000, lp: 9000, a: 0.02 });
+  B.nz(0, B.dur, { hp: 4000, lp: 8000, a: 0.008 });
 } });
 // bruits lointains (ponctuels, positionnés) : variantes nombreuses, filtrés comme entendus de loin ou à travers les dalles
 def('amb_creak', { d: 3.4, v: 6, pk: [0.9, 0.9, 0.6, 0.6, 0.4, 0.4], sr: 'L', g: 0.7, rev: 1.6, ref: 6, md: 90, r(B) { // le bâtiment travaille : charpente qui se tasse, cloison, poutre qui se dilate
@@ -1607,7 +1611,7 @@ def('breath', { d: 4.4, loop: true, sr: 'L', g: 0.6, r(B) { breathCycle(B, 0, 1)
 def('heartbeat', { graph: (...a) => gHeart(...a), param: { bpm: 72 }, g: 0.9, os: 2.5 });
 def('_lub', { d: 0.3, sr: 'V', r(B) { B.thump(0.002, { f0: 70, f1: 42, k: 0.03, dec: 0.06, a: 1, drive: 1.3 }); B.nz(0.002, 0.08, { dec: 0.025, lp: 180, a: 0.5 }); } });
 def('_dub', { d: 0.25, sr: 'V', r(B) { B.thump(0.002, { f0: 95, f1: 55, k: 0.02, dec: 0.045, a: 1, drive: 1.2 }); B.nz(0.002, 0.06, { dec: 0.02, lp: 250, a: 0.4 }); } });
-def('scream', { d: 2.0, v: 3, g: 0.95, rev: 1.4, r(B) {
+def('scream', { duck: 0.35, dkT: 1.5, d: 2.0, v: 3, g: 0.95, rev: 1.4, r(B) {
   const male = B.v === 2, f = male ? B.rr(320, 420) : B.rr(650, 850), D = B.rr(1.3, 1.8), w = B.rnd(9, -1, 1);
   B.voice(0.02, D, {
     f0: (x) => f * (0.7 + 0.3 * Math.min(1, x / 0.18)) * (1 + 0.05 * Math.sin(TAU * 6 * x) + 0.04 * w(x)) * (x > D - 0.4 ? 1 - 0.25 * (x - D + 0.4) / 0.4 : 1),
@@ -1615,7 +1619,7 @@ def('scream', { d: 2.0, v: 3, g: 0.95, rev: 1.4, r(B) {
   });
   B.drive(2.2).hp(150);
 } });
-def('jumpscare', { d: 2.4, v: 2, g: 1, rev: 1.2, r(B) { // accord dissonant brutal + déchirement de bruit + infra
+def('jumpscare', { duck: 0.5, dkT: 2, d: 2.4, v: 2, g: 1, rev: 1.2, r(B) { // accord dissonant brutal + déchirement de bruit + infra
   B.nz(0, 0.7, { att: 0.002, dec: 0.2, hp: 300, a: 0.8 });
   for (const m of [36, 37, 42, 48, 49, 54, 60, 61, 66, 67, 73]) B.osc(0, 2.2, { w: 'saw', f: mtof(m) * B.rr(0.995, 1.005), f1: mtof(m) * 0.97, att: 0.008, dec: 0.7, rel: 0.3, vib: [B.rr(5, 7), 0.006], a: 0.22 });
   B.osc(0, 1.2, { w: 'sqr', f: 73.4, att: 0.01, dec: 0.4, a: 0.3 }); B.osc(0, 1.2, { w: 'sqr', f: 77.8, att: 0.01, dec: 0.4, a: 0.3 }); // cuivres
@@ -1623,13 +1627,13 @@ def('jumpscare', { d: 2.4, v: 2, g: 1, rev: 1.2, r(B) { // accord dissonant brut
   B.fric(0.02, 0.9, { rate: (x) => 700 + 600 * x, jit: 0.05, av: 0.2, res: [[2600, 20, 1], [3900, 25, 0.6]], att: 0.01, dec: 0.4, a: 0.25 }); // crissement
   B.lp(7000).drive(1.6);
 } });
-def('stinger', { d: 3.2, v: 2, sr: 'L', g: 0.85, rev: 1.3, r(B) { // coup d'orchestre dissonant
+def('stinger', { duck: 0.4, dkT: 2.5, d: 3.2, v: 2, sr: 'L', g: 0.85, rev: 1.3, r(B) { // coup d'orchestre dissonant
   for (const m of [43, 44, 50, 55, 56, 62, 63]) B.osc(0, 2.8, { w: 'saw', f: mtof(m) * B.rr(0.996, 1.004), att: 0.03, dec: 1.1, rel: 0.4, vib: [B.rr(4.5, 6.5), 0.008], a: 0.2 });
   for (const m of [31, 32, 38]) { const f = mtof(m); B.modal(0, [1, 2, 3, 4, 5, 6].map((k) => [f * k * (1 + 0.0004 * k * k), 1 / k, 1.6 / (1 + k * 0.3)]), { ct: 0.002, a: 0.4, lf: 4 }); } // cluster de piano grave
   B.nz(0, 3, { att: 0.005, dec: 0.9, c: 'p', lp: 3000, hp: 200, a: 0.25 }); // tam-tam
   B.lp(6000);
 } });
-def('drone', { graph: (...a) => gDrone(...a), param: { tension: 0 }, g: 0.8, os: 4 });
+def('drone', { cap: 1, graph: (...a) => gDrone(...a), param: { tension: 0 }, g: 0.8, os: 4 });
 function rap(B, t, a = 1) { // jointure de doigt sur une porte en bois
   const f = B.rr(140, 180);
   B.nz(t, 0.006, { dec: 0.0015, hp: 300, lp: 4000, a: 0.6 * a });
@@ -1662,7 +1666,7 @@ def('static_burst', { d: 0.8, v: 3, g: 0.55, r(B) { // friture radio / télé
   B.osc(0, d, { w: 'tab', f: 50, harm: [0.3, 0.5, 0.3, 0.2], att: 0.01, rel: 0.05, a: 0.15 });
   B.crush(6, 3);
 } });
-def('low_boom', { d: 3, v: 2, sr: 'V', g: 1, rev: 1.5, r(B) { // impact infra-grave
+def('low_boom', { duck: 0.3, dkT: 2, d: 3, v: 2, sr: 'V', g: 1, rev: 1.5, r(B) { // impact infra-grave
   B.thump(0.002, { f0: 75, f1: 28, k: 0.25, dec: 0.7, a: 1 }); B.nz(0, 2.2, { att: 0.01, dec: 0.5, c: 'b', lp: 150, a: 0.6 });
   B.nz(0, 0.01, { dec: 0.003, lp: 1500, a: 0.2 });
 } });
@@ -1671,7 +1675,7 @@ function duct(B, t, a = 1) { // coup dans une gaine de tôle
   B.modal(t, [[f, 1, 0.18], [f * 1.55, 0.8, 0.15], [f * 2.35, 0.6, 0.12], [f * 3.7, 0.4, 0.09], [f * 5.8, 0.3, 0.07], [f * 9.5, 0.2, 0.05]], { ct: 0.003, a });
   B.thump(t, { f0: 90, f1: 55, dec: 0.04, a: 0.5 * a });
 }
-def('vent_crawl', { d: 4, loop: true, g: 0.75, rev: 1.2, r(B) { // quelque chose rampe dans les conduits
+def('vent_crawl', { cap: 1, d: 4, loop: true, g: 0.75, rev: 1.2, r(B) { // quelque chose rampe dans les conduits
   for (let t = 0.1; t < 4; t += B.rr(0.35, 0.7)) {
     duct(B, t, B.rr(0.4, 0.9));
     if (B.ch(0.5)) B.fric(t + 0.05, B.rr(0.15, 0.35), { rate: B.rr(150, 300), jit: 0.8, res: [[1800, 3, 1], [3000, 4, 0.6]], nz: 0.3, att: 0.03, rel: 0.05, a: 0.12 }); // raclement
@@ -1723,7 +1727,7 @@ def('bird_chirp', { d: 1.1, v: 4, sr: 'H', g: 0.45, rev: 0.8, r(B) {
   let t = 0.02; const f = B.rr(3200, 4800);
   for (let i = 0, n = B.ri(3, 6); i < n; i++) { const d = B.rr(0.04, 0.09), up = B.ch(0.5); B.osc(t, d, { fe: (x) => f * (up ? 0.8 + 0.5 * x / d : 1.3 - 0.5 * x / d), am: [B.rr(30, 60), 0.4], att: 0.004, dec: d * 0.6, a: 0.5 }); t += d + B.rr(0.03, 0.1); }
 } });
-def('fish_bubble', { d: 3, loop: true, g: 0.5, ref: 1.5, r(B) { // aquarium : bulles du diffuseur, pompe à membrane
+def('fish_bubble', { cap: 1, d: 3, loop: true, g: 0.5, ref: 1.5, r(B) { // aquarium : bulles du diffuseur, pompe à membrane
   drops(B, 45, 0, 3, 450, 1800, 0.4);
   for (let i = 0; i < 25; i++) B.nz(B.rr(0, 3), 0.003, { dec: 0.001, hp: 2000, a: B.rr(0.05, 0.15), tail: 0.004 });
   B.osc(0, 3, { w: 'tab', f: 100, harm: [0.4, 0.3, 0.2, 0.1], a: 0.05 });
@@ -1731,7 +1735,7 @@ def('fish_bubble', { d: 3, loop: true, g: 0.5, ref: 1.5, r(B) { // aquarium : bu
 } });
 
 // ── appareils ──
-def('tv_static', { d: 3, loop: true, sr: 'H', g: 0.55, r(B) { // neige d'un téléviseur cathodique
+def('tv_static', { cap: 2, d: 3, loop: true, sr: 'H', g: 0.55, r(B) { // neige d'un téléviseur cathodique
   B.nz(0, 3, { hp: 200, lp: 7000, a: 0.8, ef: B.rnd(8, 0.85, 1) });
   B.osc(0, 3, { w: 'tab', f: 50, harm: [0.2, 0.3, 0.2, 0.15, 0.1], a: 0.08 }); B.osc(0, 3, { f: 15625, a: 0.012 }); // trame, ligne
   B.pk(1500, 1, 3);
@@ -1795,16 +1799,16 @@ def('kettle_whistle', { d: 3, loop: true, g: 0.6, r(B) {
   B.osc(0, 3, { w: 'tab', fe: (x) => 2250 * wb(x), harm: [1, 0.1, 0.05], a: 0.5 }); B.osc(0, 3, { fe: (x) => 2272 * wb(x), a: 0.15 });
   B.nz(0, 3, { bp: 2250, q: 4, a: 0.3 }); B.nz(0, 3, { hp: 3000, a: 0.08 });
 } });
-def('fan', { d: 6, loop: true, sr: 'L', g: 0.6, r(B) {
+def('fan', { cap: 2, d: 6, loop: true, sr: 'L', g: 0.6, r(B) {
   B.osc(0, 6, { w: 'tab', f: 60, harm: [1, 0.5, 0.3, 0.2], a: 0.2 }); B.osc(0, 6, { w: 'tab', f: 100, harm: [0.3, 0.2], a: 0.06 });
   B.nz(0, 6, { c: 'p', lp: 2000, a: 0.5, am: [B.per(60), 0.15], ef: (x) => 0.8 + 0.2 * Math.sin(TAU * x / 6) }); // pales, balayage lent
 } });
-def('fridge_hum', { d: 4, loop: true, sr: 'L', g: 0.5, r(B) {
+def('fridge_hum', { cap: 2, d: 4, loop: true, sr: 'L', g: 0.5, r(B) {
   B.osc(0, 4, { w: 'tab', f: 50, harm: [0.5, 1, 0.3, 0.25, 0.1, 0.1], a: 0.4 }); // compresseur
   B.fric(0, 4, { rate: 100, jit: 0.05, res: [[800, 6, 1]], att: 0, rel: 0, a: 0.03 }); B.nz(0, 4, { c: 'p', lp: 900, a: 0.2 });
   drops(B, 4, 0, 4, 200, 500, 0.05); // gargouillis du fluide
 } });
-def('coffee_machine', { d: 4, loop: true, g: 0.65, r(B) {
+def('coffee_machine', { cap: 2, d: 4, loop: true, g: 0.65, r(B) {
   B.osc(0, 4, { w: 'tab', f: 50, harm: [1, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2], a: 0.4, dr: 1.5 }); // pompe vibrante
   drops(B, 40, 0, 4, 250, 900, 0.2); for (let i = 0; i < 12; i++) { const t = B.rr(0, 4), f = B.rr(1200, 2000); B.osc(t, 0.03, { f, f1: f * 1.5, dec: 0.01, a: 0.15 }); }
   B.nz(0, 4, { hp: 2500, a: 0.15, ef: B.rnd(3, 0.3, 1) }); // vapeur
@@ -1817,7 +1821,7 @@ def('printer', { d: 4, loop: true, o0: 1, g: 0.6, r(B) { // imprimante matriciel
     B.thump(t0 + 1.85, { f0: 200, f1: 120, dec: 0.02, a: 0.4 }); B.modal(t0 + 1.85, [[700, 1, 0.04], [1500, 0.6, 0.03]], { ct: 0.0005, a: 0.3 });
   }
 } });
-def('computer_fan', { d: 4, loop: true, sr: 'L', g: 0.45, r(B) {
+def('computer_fan', { cap: 2, d: 4, loop: true, sr: 'L', g: 0.45, r(B) {
   B.osc(0, 4, { w: 'tab', f: 220, harm: [1, 0.4, 0.2], a: 0.12 }); B.nz(0, 4, { c: 'p', lp: 3000, hp: 100, a: 0.5, ef: (x) => 0.9 + 0.1 * Math.sin(TAU * x / 2) });
   B.osc(0, 4, { f: 1480, a: 0.01 }); // roulement
 } });
@@ -1860,7 +1864,7 @@ def('console_boot', { d: 2.4, g: 0.6, r(B) { // jingle de démarrage (original)
   for (const m of [84, 88, 91]) B.osc(0.45, 1.6, { w: 'tri', f: mtof(m), att: 0.004, dec: 0.6, a: 0.25 });
   B.nz(0.45, 0.5, { att: 0.01, dec: 0.15, bp: (x) => 3000 + 6000 * x, q: 3, a: 0.08 }); // scintillement
 } });
-def('arcade_ambient', { d: 8, loop: true, sr: 'L', g: 0.6, r(B) { // salle d'arcade : bornes en mode démo
+def('arcade_ambient', { cap: 2, d: 8, loop: true, sr: 'L', g: 0.6, r(B) { // salle d'arcade : bornes en mode démo
   for (let m = 0; m < 3; m++) {
     const key = B.ri(57, 69), bt = B.pick([0.1, 0.125, 0.15]), pat = Array.from({ length: 8 }, () => [B.pick([0, 3, 5, 7, 10, 12, 0]) + key, B.pick([1, 1, 2])]);
     for (let t = B.rr(0, 1); t < 8;) t = chip(B, t, pat, { beat: bt, a: 0.08, w: m === 2 ? 'tri' : 'sqr', duty: m ? 0.25 : 0.5 }) + B.rr(0.2, 1.5);
@@ -1870,7 +1874,7 @@ def('arcade_ambient', { d: 8, loop: true, sr: 'L', g: 0.6, r(B) { // salle d'arc
   for (let i = 0; i < 30; i++) B.nz(B.rr(0, 8), 0.004, { dec: 0.001, hp: 1000, lp: 5000, a: B.rr(0.05, 0.15), tail: 0.004 }); // boutons
   B.nz(0, 8, { c: 'p', lp: 600, a: 0.08 });
 } });
-def('crt_whine', { d: 1, loop: true, sr: 'H', g: 0.12, os: 1.5, r(B) { B.osc(0, 1, { f: 14000, a: 0.6 }); B.osc(0, 1, { f: 15625, a: 0.45 }); } }); // sifflement THT, audible
+def('crt_whine', { cap: 1, d: 1, loop: true, sr: 'H', g: 0.12, os: 1.5, r(B) { B.osc(0, 1, { f: 14000, a: 0.6 }); B.osc(0, 1, { f: 15625, a: 0.45 }); } }); // sifflement THT, audible
 def('drill', { d: 2, loop: true, g: 0.75, r(B) {
   B.osc(0, 2, { w: 'tab', f: 420, harm: [1, 0.8, 0.6, 0.5, 0.4, 0.3, 0.3, 0.2, 0.2, 0.15], a: 0.35, ef: B.rnd(3, 0.9, 1) });
   B.nz(0, 2, { bp: 3000, q: 1, a: 0.1, am: [B.per(420), 0.5] }); B.osc(0, 2, { f: 1900, a: 0.05 }); // collecteur, engrenages
@@ -1910,13 +1914,13 @@ def('projector', { d: 2, loop: true, g: 0.55, r(B) { // projecteur de cinéma : 
   for (let k = 0; k < 48; k++) { const t = k / 24; B.nz(t, 0.003, { dec: 0.001, hp: 1500, a: 0.5, tail: 0.004 }); B.modal(t, [[1800, 1, 0.015], [3100, 0.5, 0.01]], { a: 0.2 }); }
   B.nz(0, 2, { bp: 600, q: 1, a: 0.15, am: [48, 0.5] }); B.nz(0, 2, { c: 'p', lp: 2500, a: 0.2 }); B.osc(0, 2, { w: 'tab', f: 100, harm: [0.3, 0.2], a: 0.05 });
 } });
-def('kiddie_ride', { d: 8, loop: true, o0: 1, sr: 'L', g: 0.6, r(B) { // manège à pièces : « Frère Jacques » à l'orgue bon marché
+def('kiddie_ride', { cap: 1, d: 8, loop: true, o0: 1, sr: 'L', g: 0.6, r(B) { // manège à pièces : « Frère Jacques » à l'orgue bon marché
   let t = 0;
   for (const [m, d] of JACQUES) { const L = d * 0.25; B.osc(t, L * 0.85, { w: 'sqr', duty: 0.3, f: mtof(72 + m), att: 0.004, rel: 0.02, vib: [6, 0.006], a: 0.25 }); B.osc(t, L * 0.85, { w: 'tri', f: mtof(60 + m), att: 0.004, rel: 0.02, a: 0.12 }); t += L; }
   for (let k = 0; k < 5; k++) { const tt = k * 1.6; B.thump(tt, { f0: 110, f1: 70, dec: 0.04, a: 0.25 }); B.fric(tt + 0.2, 0.4, { rate: 35, jit: 0.3, res: [[500, 6, 1]], att: 0.05, rel: 0.1, a: 0.06 }); } // la bascule
   B.osc(0, 8, { w: 'tab', f: 50, harm: [0.3, 0.5, 0.2], a: 0.06 });
 } });
-def('claw_machine', { d: 8, loop: true, o0: 1, sr: 'L', g: 0.55, r(B) { // jingle de la pince + moteurs du portique
+def('claw_machine', { cap: 1, d: 8, loop: true, o0: 1, sr: 'L', g: 0.55, r(B) { // jingle de la pince + moteurs du portique
   const pat = [[72, 1], [76, 1], [79, 1], [84, 1], [79, 1], [76, 1], [77, 1], [81, 1], [84, 1], [89, 1], [84, 1], [81, 1], [79, 1], [83, 1], [86, 1], [91, 1]];
   for (let t = 0; t < 7.9;) t = chip(B, t, pat, { beat: 0.125, a: 0.18, duty: 0.25 });
   for (const [t0, d] of [[2, 1.2], [5.4, 1]]) { B.osc(t0, d, { w: 'saw', f: 180, lp: 1200, att: 0.05, rel: 0.1, a: 0.12 }); B.fric(t0, d, { rate: 90, jit: 0.4, res: [[2200, 5, 1]], att: 0.05, rel: 0.1, a: 0.04 }); }
@@ -1961,7 +1965,7 @@ def('battery_insert', { d: 0.75, v: 2, g: 0.55, r(B) {
   B.nz(0.55, 0.004, { dec: 0.001, hp: 1200, lp: 7000, a: 0.6 }); B.thump(0.55, { f0: 500, f1: 300, dec: 0.008, a: 0.25 }); // couvercle clipsé
 } });
 def('flashlight_click', { d: 0.08, v: 3, sr: 'H', g: 0.5, r(B) { B.nz(0, 0.002, { dec: 0.0005, hp: 2500, a: 1 }); B.modal(0, [[B.rr(3300, 3700), 1, 0.008], [B.rr(5400, 5800), 0.5, 0.006]], { ct: 0.0001, a: 0.4 }); B.thump(0, { f0: 600, f1: 400, dec: 0.006, a: 0.25 }); } });
-def('gunshot', { d: 1.4, v: 3, sr: 'H', g: 1, rev: 1.8, ref: 6, md: 150, r(B) { // pistolet en intérieur
+def('gunshot', { duck: 0.3, dkT: 1, d: 1.4, v: 3, sr: 'H', g: 1, rev: 1.8, ref: 6, md: 150, r(B) { // pistolet en intérieur
   B.nz(0, 0.25, { att: 0.0003, dec: 0.035, a: 1 }); B.nz(0, 0.004, { dec: 0.0008, hp: 3000, a: 1 }); // détonation, onde de choc
   B.thump(0, { f0: 180, f1: 60, k: 0.01, dec: 0.06, a: 0.9, drive: 3 });
   tick(B, 0.02, 2500, 0.3); tick(B, 0.035, 1900, 0.3); // culasse
@@ -1984,7 +1988,7 @@ def('car_lock', { d: 0.7, v: 2, g: 0.75, r(B) {
   B.osc(0, 0.07, { w: 'sqr', f: 2400, att: 0.002, rel: 0.005, lp: 5000, a: 0.35 }); if (B.v === 1) B.osc(0.12, 0.07, { w: 'sqr', f: 2400, att: 0.002, rel: 0.005, lp: 5000, a: 0.35 });
   for (let i = 0; i < 4; i++) { const t = 0.15 + i * 0.012 + B.rr(0, 0.006); B.thump(t, { f0: 160, f1: 100, dec: 0.02, a: 0.35 }); tick(B, t, B.rr(1200, 1800), 0.2); } // condamnation centralisée
 } });
-def('clock_tick', { d: 2, loop: true, g: 0.4, r(B) { // tic… tac (échappement + caisse en bois)
+def('clock_tick', { cap: 2, d: 2, loop: true, g: 0.4, r(B) { // tic… tac (échappement + caisse en bois)
   for (const [t, f] of [[0, 1150], [1, 870]]) {
     B.nz(t, 0.002, { dec: 0.0006, hp: 2000, a: 0.8, tail: 0.004 }); B.modal(t, [[f, 1, 0.02], [f * 2.1, 0.5, 0.015], [f * 3.2, 0.3, 0.01]], { ct: 0.0003, a: 0.5 });
     B.nz(t + 0.008, 0.002, { dec: 0.0005, hp: 2500, a: 0.25, tail: 0.004 });
@@ -2209,24 +2213,27 @@ function gDrone(E, out, P, pitch, V, t0) {
   apply(t0, 0.01);
   return K.ctl({ set(k) { if (k === 'tension') apply(E.ctx.currentTime); } });
 }
-// vent : bruit stéréo filtré, rafales (processus aléatoire lissé), sifflement quand il force
+// vent : bruit stéréo filtré, rafales (processus aléatoire lissé), sifflement quand il force.
+// deep 0..1 : vent entendu de loin, dehors la nuit — grondement sourd et grave (passe-bas, bande basse), sans sifflement
 function gWind(E, out, P, pitch, V, t0) {
-  const K = new Kit(E, out, t0), S = () => clamp(num(+P.strength, 0.5), 0, 1);
-  const m = K.g(0); m.connect(out); m.gain.setTargetAtTime(1, t0, 0.5);
+  const K = new Kit(E, out, t0), S = () => clamp(num(+P.strength, 0.5), 0, 1), D = () => clamp(num(+P.deep, 0), 0, 1);
+  const m = K.g(0), lo = K.f('lowpass', 20000, 0.5); K.chain(m, lo, out); m.gain.setTargetAtTime(1, t0, 0.5);
   const nz = K.noise(), pre = K.f('lowpass', 1200); nz.connect(pre);
   const bA = K.f('bandpass', 500, 0.6), gA = K.g(0); K.chain(pre, bA, gA, m);
   const bB = K.f('bandpass', 900, 12), gB = K.g(0); K.chain(nz, bB, gB, m);
   const bC = K.f('lowpass', 140), gC = K.g(0); K.chain(pre, bC, gC, m);
-  let x = 0.4, tgt = 0.5, next = t0, nt = t0;
+  let x = 0.4, tgt = 0.5, next = t0, nt = t0, dl = -1;
   return K.ctl({
+    set(k) { if (k === 'deep') next = Math.min(next, E.ctx.currentTime); },
     tick(now, until) {
       if (next < now) next = now;
       while (next < until) {
-        const s = S(), t = next;
-        if (t >= nt) { tgt = clamp(0.15 + Math.random() * (0.5 + 0.5 * s), 0, 1); nt = t + 1 + Math.random() * (4 - 2.5 * s); }
+        const s = S(), d = D(), t = next;
+        if (d !== dl) { smooth(lo.frequency, 20000 * Math.pow(420 / 20000, d), t, dl < 0 ? 0.01 : 0.6); dl = d; }
+        if (t >= nt) { tgt = clamp(0.15 + Math.random() * (0.5 + 0.5 * s), 0, 1); nt = t + 1 + Math.random() * (4 - 2.5 * s) * (1 + d); }
         x = clamp(x + (tgt - x) * 0.12 + (Math.random() - 0.5) * 0.05 * s, 0, 1);
-        smooth(gA.gain, 6 * (0.3 + 0.7 * s) * (0.35 + 0.65 * x), t, 0.25); smooth(bA.frequency, (250 + 900 * x * (0.5 + s)) * pitch, t, 0.3);
-        smooth(gB.gain, 20 * s * s * x * x, t, 0.3); smooth(bB.frequency, (600 + 1000 * x + 150 * Math.sin(t * 1.7)) * pitch, t, 0.4);
+        smooth(gA.gain, 6 * (0.3 + 0.7 * s) * (0.35 + 0.65 * x) * (1 - 0.4 * d), t, 0.25); smooth(bA.frequency, (250 + 900 * x * (0.5 + s)) * (1 - 0.6 * d) * pitch, t, 0.3);
+        smooth(gB.gain, 20 * s * s * x * x * (1 - d), t, 0.3); smooth(bB.frequency, (600 + 1000 * x + 150 * Math.sin(t * 1.7)) * pitch, t, 0.4);
         smooth(gC.gain, 12 * (0.25 + 0.6 * x) * (0.4 + 0.6 * s), t, 0.3);
         next += 0.15;
       }
@@ -2307,7 +2314,7 @@ function gFire(E, out, P, pitch, V, t0) {
   });
 }
 // foule de galerie marchande : brouhaha (deux lectures décorrélées) + événements épars (rires, talons, caisse…)
-const CROWD_FX = [['laugh', 3], ['step_heels', 6], ['step_sneakers', 3], ['coins', 1], ['cash_register_ding', 1], ['giggle', 0.6], ['baby_cry', 0.3], ['bell_shop', 0.5]];
+const CROWD_FX = [['laugh', 3], ['step_heels', 3], ['step_sneakers', 2], ['coins', 1], ['cash_register_ding', 1], ['giggle', 0.6], ['baby_cry', 0.3], ['bell_shop', 0.5]];
 function gCrowd(E, out, P, pitch, V, t0) {
   const K = new Kit(E, out, t0), D = () => clamp(num(+P.density, 0.5), 0, 1);
   const m = K.g(0); m.connect(out); m.gain.setTargetAtTime(1, t0, 0.8);
@@ -2329,7 +2336,7 @@ function gCrowd(E, out, P, pitch, V, t0) {
           let r = Math.random() * tot, nm = CROWD_FX[0][0];
           for (const [n, w] of CROWD_FX) { r -= w; if (r <= 0) { nm = n; break; } }
           const def = SND[nm];
-          K.shot(E.bufIfReady(nm, (Math.random() * (def.v || 1)) | 0), next, (0.08 + 0.25 * Math.random()) * (def.g || 0.7), (0.95 + Math.random() * 0.1) * pitch, ev, Math.random() * 1.6 - 0.8);
+          K.shot(E.bufIfReady(nm, (Math.random() * (def.v || 1)) | 0), next, (0.06 + 0.18 * Math.random()) * (def.g || 0.7), (0.95 + Math.random() * 0.1) * pitch, ev, Math.random() * 1.6 - 0.8);
         }
         next += (1.5 + Math.random() * 4) / (0.3 + d); // rires, talons, monnaie : un toutes les 1 à 4 s, pas en rafale
       }
@@ -2339,9 +2346,14 @@ function gCrowd(E, out, P, pitch, V, t0) {
 // cœur : « lub-dub », l'intervalle systolique raccourcit quand le rythme s'accélère
 function gHeart(E, out, P, pitch, V, t0) {
   const K = new Kit(E, out, t0), lub = () => E.bufIfReady('_lub') || E.buf('_lub'), dub = () => E.bufIfReady('_dub') || E.buf('_dub');
-  let next = t0 + 0.05;
+  // souffle court et retenu du joueur stressé, sous le cœur, plus présent quand le rythme s'emballe (rien si le souffle
+  // d'essoufflement joue déjà)
+  const gB = K.g(0); K.chain(K.bn('breath', 1.18 * pitch), K.f('lowpass', 2400, 0.6), gB, out);
+  let next = t0 + 0.05, bt = 0;
+  const breath = (t) => { let busy = false; for (const v of E.voices) if (v.name === 'breath' && v.alive && !v.stopping) { busy = true; break; } smooth(gB.gain, busy ? 0 : 0.2 * clamp((num(+P.bpm, 72) - 95) / 60, 0, 1), t, 0.8); };
   return K.ctl({
     tick(now, until) {
+      if (now >= bt) { bt = now + 0.5; breath(now); }
       if (next < now) next = now + 0.02;
       while (next < until) { const T = 60 / clamp(num(+P.bpm, 72), 30, 220) * (1 + (Math.random() - 0.5) * 0.03); K.shot(lub(), next, 1, pitch); K.shot(dub(), next + 0.32 * Math.sqrt(T), 0.65, pitch); next += T; }
     },
@@ -2517,6 +2529,10 @@ const WORLD_2D = { sfx: 1, ambience: 1, voice: 1 }; // bus 2D « diégétiques �
 const SEND_2D = { sfx: 0.16, voice: 0.2 };          // réverbération des sons 2D du joueur (ses propres gestes sonnent dans la pièce)
 const OCC_CUT = [20000, 2500, 900, 400];            // coupure du passe-bas selon le nombre de murs
 const REV = 0.5, MAX_SHOTS = 48, MAX_HRTF = 16, OCC_BUDGET = 10, MEM_LIMIT = 40e6;
+// même son joué par plusieurs sources : au plus CAP_LOOP boucles spatialisées audibles (les plus audibles ; les autres se
+// taisent en fondu et reviennent si l'on s'approche), au plus CAP_SHOT ponctuels simultanés, une seule boucle 2D (def.cap :
+// réglage par son)
+const CAP_LOOP = 3, CAP_SHOT = 4;
 const INSTR = { piano: 1, guitar: 1, xylo: 1, bell: 1, organ: 1, synth: 1, musicbox: 1 };
 const DRUMS = { kick: 1, snare: 1, hat: 1, tom: 1, crash: 1 };
 const DTMF = { 1: [697, 1209], 2: [697, 1336], 3: [697, 1477], A: [697, 1633], 4: [770, 1209], 5: [770, 1336], 6: [770, 1477], B: [770, 1633], 7: [852, 1209], 8: [852, 1336], 9: [852, 1477], C: [852, 1633], '*': [941, 1209], 0: [941, 1336], '#': [941, 1477], D: [941, 1633] };
@@ -2549,7 +2565,7 @@ class Voice {
   constructor(E, name, def, o, mode) {
     const ctx = E.ctx;
     this.E = E; this.name = name; this.def = def; this.mode = mode; this.alive = true; this.stopping = false;
-    this.t0 = ctx.currentTime; this.endAt = 0; this.src = null; this.ctl = null; this.P = null; this.rg = 1; this.culled = false;
+    this.t0 = ctx.currentTime; this.endAt = 0; this.src = null; this.ctl = null; this.P = null; this.rg = 1; this.culled = false; this.capped = false;
     this.bus = E.bus[o.bus] ? o.bus : def.bus && E.bus[def.bus] ? def.bus : 'sfx';
     if (this.bus === 'pa') E.paUse();
     const p = vec(o.pos);
@@ -2594,17 +2610,27 @@ class Voice {
     // le champ réverbéré décroît bien moins vite que le direct ; derrière des murs : plus de réverbération, moins de direct
     const send = culled ? 0 : REV * (this.def.rev ?? 1) * this.ref / (this.ref + 0.15 * Math.max(0, dist - this.ref)) * Math.pow(10, -0.075 * w) * (1 + 0.12 * w);
     this.culled = culled;
-    if (now) { this.f.frequency.value = cut; this.d.gain.value = dry; this.s.gain.value = send; this.lc = cut; this.ld = dry; this.ls = send; return; }
+    // plafond du nombre d'instances (muet, l'audibilité continue d'être calculée) ; boucles des appareils : baissées
+    // pendant qu'un personnage parle (Engine.duck)
+    const mute = this.capped ? 0 : 1, dk = this.mode === 'loop' && this.bus !== 'voice' && this.bus !== 'music' ? this.E.duckK : 1, tc = this.lcap !== this.capped ? 0.15 : 0.08;
+    const dd = dry * mute * dk, ss = send * mute; this.lcap = this.capped;
+    if (now) { this.f.frequency.value = cut; this.d.gain.value = dd; this.s.gain.value = ss; this.lc = cut; this.ld = dd; this.ls = ss; return; }
     if (Math.abs(cut - this.lc) > this.lc * 0.03) { smooth(this.f.frequency, cut, t, 0.08); this.lc = cut; }
-    if (Math.abs(dry - this.ld) > 0.01) { smooth(this.d.gain, dry, t, 0.08); this.ld = dry; }
-    if (Math.abs(send - this.ls) > Math.max(0.004, this.ls * 0.05)) { smooth(this.s.gain, send, t, 0.12); this.ls = send; }
+    if (Math.abs(dd - this.ld) > 0.01 || (dd === 0 && this.ld !== 0)) { smooth(this.d.gain, dd, t, tc); this.ld = dd; }
+    if (Math.abs(ss - this.ls) > Math.max(0.004, this.ls * 0.05) || (ss === 0 && this.ls !== 0)) { smooth(this.s.gain, ss, t, tc + 0.04); this.ls = ss; }
+  }
+  setCapped(on, born) { // trop d'instances de ce son : celle-ci se tait (fondu), sans s'arrêter ; née muette : sans fondu
+    if (this.capped === on || !this.alive) return; this.capped = on;
+    const t = this.E.ctx.currentTime;
+    if (born && on) { if (this.sp) { this.d.gain.value = 0; this.s.gain.value = 0; this.ld = 0; this.ls = 0; this.lcap = true; } else { hold(this.g.gain, t); this.g.gain.setValueAtTime(0, t); } return; }
+    if (!this.sp) smooth(this.g.gain, on ? 0 : this.vol * this.base * this.rg, t, 0.15); else this.place(false);
   }
   startBuf(buf, rate, loop, offset, when) {
     const s = this.E.ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate; s.loop = !!loop;
     s.connect(this.g); s.start(when, offset || 0); this.src = s;
     if (!loop) { s.onended = () => this.end(); this.endAt = when + buf.duration / rate + 0.5; }
   }
-  fadeIn(when, tc = 0.03) { const g = this.g.gain; g.setValueAtTime(0, when); g.setTargetAtTime(this.vol * this.base * this.rg, when, tc); }
+  fadeIn(when, tc = 0.03) { const g = this.g.gain; g.setValueAtTime(0, when); g.setTargetAtTime(this.capped && !this.sp ? 0 : this.vol * this.base * this.rg, when, tc); }
   stopAt(t, fade) { // arrêt programmé (son continu joué en ponctuel, note tenue)
     this.g.gain.setTargetAtTime(0, t, fade / 4);
     const end = t + fade + 0.05;
@@ -2622,7 +2648,7 @@ class Voice {
   setVolume(v, ramp = 0.1) {
     if (!this.alive || this.stopping) return;
     v = Math.max(0, num(+v, this.vol)); if (Math.abs(v - this.vol) < 1e-4) return;
-    this.vol = v; smooth(this.g.gain, v * this.base * this.rg, this.E.ctx.currentTime, Math.max(0.004, num(+ramp, 0.1) / 3));
+    this.vol = v; smooth(this.g.gain, this.capped && !this.sp ? 0 : v * this.base * this.rg, this.E.ctx.currentTime, Math.max(0.004, num(+ramp, 0.1) / 3));
   }
   setParam(k, v) {
     if (!this.alive) return;
@@ -2677,9 +2703,11 @@ class Engine {
     // réverbération : un convolueur par lieu récent (LRU), fondus enchaînés entre lieux
     this.revIn = mkGain(ctx, 1); this.revs = new Map(); this.zone = null; this.active = null;
     this.bus = {};
+    // atténuation passagère de l'ambiance (quelqu'un parle, un événement important) : étage dédié du bus « ambience »
+    this.duckA = mkGain(ctx, 1); this.duckA.connect(this.world); this.duckK = 1; this.duckD = 0; this.duckEnd = 0;
     for (const b of BUSES) {
-      const d2 = mkGain(ctx, 1), sp = mkGain(ctx, 1), rv = mkGain(ctx, 1);
-      d2.connect(WORLD_2D[b] ? this.world : this.master); sp.connect(this.world); rv.connect(this.revIn);
+      const d2 = mkGain(ctx, 1), sp = mkGain(ctx, 1), rv = mkGain(ctx, 1), dst = b === 'ambience' ? this.duckA : this.world;
+      d2.connect(WORLD_2D[b] ? dst : this.master); sp.connect(dst); rv.connect(this.revIn);
       this.bus[b] = { d2, sp, rv };
     }
     this.buildPA();
@@ -2866,7 +2894,15 @@ class Engine {
     const ctx = this.ctx;
     if (!loop && ctx.state !== 'running') return dummy(); // contexte suspendu : pas d'avalanche à la reprise
     const p = vec(o.pos), sp = !!p && o.bus !== 'ui' && o.bus !== 'pa', t = ctx.currentTime;
-    if (sp && !loop) { const L = this.lis; if (Math.hypot(p.x - L.x, p.y - L.y, p.z - L.z) > num(+o.maxDist, def.md ?? 60) * 1.1) return dummy(); } // trop loin : on ne joue même pas
+    let est = -1; // audibilité estimée d'un ponctuel spatialisé (plafond, atténuation de l'ambiance)
+    if (sp && !loop) {
+      const L = this.lis, d = Math.hypot(p.x - L.x, p.y - L.y, p.z - L.z);
+      if (d > num(+o.maxDist, def.md ?? 60) * 1.1) return dummy(); // trop loin : on ne joue même pas
+      const r = Math.max(0.1, num(+o.ref, def.ref ?? 2)); est = Math.max(0, num(+o.volume, 1)) * num(def.g, 0.8) * (d <= r ? 1 : r / (r + (def.roll ?? 1) * (d - r)));
+      const cap = def.cap ?? CAP_SHOT; let n = 0, low = null;
+      for (const x of this.voices) if (x.shot && x.sp && x.name === name && !x.stopping) { n++; if (!low || x.aud < low.aud) low = x; }
+      if (n >= cap) { if (low && est > low.aud * 1.2) low.stop(0.04); else return dummy(); } // trop d'instances : la plus discrète cède, ou celle-ci ne part pas
+    }
     if (!loop) { // anti-doublon (rafales d'impacts physiques)
       const l = this.last.get(name);
       if (l && t - l.t < 0.015 && (!p || !l.p || Math.hypot(p.x - l.p.x, p.y - l.p.y, p.z - l.p.z) < 0.5)) return dummy();
@@ -2911,6 +2947,8 @@ class Engine {
       }
     } catch (e) { warnOnce('play:' + name, 'échec de lecture :', name, e); v.end(); return dummy(); }
     this.voices.add(v); if (v.sp) this.spatial.push(v);
+    if (loop) { const a = []; for (const x of this.voices) if (x.mode === 'loop' && x.name === name && x.sp === v.sp && x.alive && !x.stopping) a.push(x); if (a.length > 1) this.capList(a, v); }
+    if (def.duck && (sp ? est : v.vol * v.base) > 0.25) this.duck(def.duck, def.dkT ?? 1.5); // événement important : l'ambiance s'efface un instant
     if (v.ctl && v.ctl.tick) { try { v.ctl.tick(t, t + 0.3); } catch (e) { /* */ } }
     return new Handle(v);
   }
@@ -2922,17 +2960,37 @@ class Engine {
     v.hr = on; this.hrtf += on ? 1 : -1;
   }
   grantHRTF(v) {
-    if (!v.sp || v.culled || v.aud <= 1e-5) return;
+    if (!v.sp || v.culled || v.capped || v.aud <= 1e-5) return;
     if (this.hrtf < MAX_HRTF) { this.setHR(v, true); return; }
     let low = null; for (const x of this.spatial) if (x.hr && x !== v && (!low || x.aud < low.aud)) low = x;
     if (low && v.aud > low.aud * 1.3) { this.setHR(low, false); this.setHR(v, true); }
   }
   rebalance() {
     const S = this.spatial; if (!S.length) return;
-    const cand = S.filter((v) => v.alive && !v.stopping && !v.culled && v.aud > 1e-5).sort((a, b) => b.aud - a.aud);
+    const cand = S.filter((v) => v.alive && !v.stopping && !v.culled && !v.capped && v.aud > 1e-5).sort((a, b) => b.aud - a.aud);
     const top = new Set(cand.slice(0, MAX_HRTF)), floor = cand.length > MAX_HRTF ? cand[MAX_HRTF - 1].aud : 0;
-    for (const v of S) if (v.hr && !top.has(v) && (!v.alive || v.stopping || v.culled || v.aud < floor * 0.7)) this.setHR(v, false); // hystérésis
+    for (const v of S) if (v.hr && !top.has(v) && (!v.alive || v.stopping || v.culled || v.capped || v.aud < floor * 0.7)) this.setHR(v, false); // hystérésis (muettes : rendues)
     for (const v of cand) { if (this.hrtf >= MAX_HRTF) break; if (top.has(v) && !v.hr) this.setHR(v, true); }
+  }
+  // plafond par son : parmi les boucles d'un même son (spatialisées : def.cap ?? CAP_LOOP ; 2D : une seule), les plus
+  // audibles jouent, les autres se taisent en fondu ; hystérésis pour qu'elles ne s'échangent pas sans cesse
+  capAll() {
+    const G = new Map();
+    for (const v of this.voices) { if (v.mode !== 'loop' || !v.alive || v.stopping) continue; const k = (v.sp ? 's|' : 'd|') + v.name; const a = G.get(k); if (a) a.push(v); else G.set(k, [v]); }
+    for (const a of G.values()) if (a.length > 1 || a[0].capped) this.capList(a);
+  }
+  capList(a, born) {
+    const cap = a[0].sp ? a[0].def.cap ?? CAP_LOOP : 1;
+    if (a.length <= cap) { for (const v of a) v.setCapped(false); return; }
+    const sc = (v) => (v.sp ? v.aud : v.vol * v.base) * (v.capped || v === born ? 1 : 1.3);
+    a.sort((x, y) => sc(y) - sc(x)); a.forEach((v, i) => v.setCapped(i >= cap, v === born));
+  }
+  // atténuation passagère de l'ambiance et des boucles d'appareils (depth 0..0,9 pendant dur s ; les appels se cumulent)
+  duck(depth, dur) {
+    const t = this.ctx.currentTime; depth = clamp(num(+depth, 0.3), 0, 0.9); dur = clamp(num(+dur, 1), 0.05, 30);
+    this.duckEnd = Math.max(this.duckEnd, t + dur);
+    if (this.duckD && depth <= this.duckD) return;
+    this.duckD = depth; this.duckK = 1 - depth; smooth(this.duckA.gain, this.duckK, t, 0.08);
   }
   steal() { // trop de sons ponctuels : on coupe le plus ancien
     let old = null; for (const v of this.voices) if (v.shot && !v.stopping && (!old || v.t0 < old.t0)) old = v;
@@ -3093,6 +3151,8 @@ class Engine {
       for (let i = S.length - 1; i >= 0; i--) { const v = S[i]; if (!v.alive) continue; v.place(false); if (v.vel && v.pt && now - v.pt > 0.25) v.vel *= 0.85; }
       if (now - (this.rbT || 0) > 0.25) { this.rbT = now; this.rebalance(); }
     }
+    const pn = perfNow(); if (pn - (this.capT || 0) > 250) { this.capT = pn; this.capAll(); }
+    if (this.duckD && t >= this.duckEnd) { this.duckD = 0; this.duckK = 1; smooth(this.duckA.gain, 1, t, 0.35); }
     for (const v of this.voices) if (v.endAt && t > v.endAt) v.end();
     this.pump();
   }
@@ -3102,6 +3162,35 @@ class Engine {
     for (const v of this.voices) if (v.alive && v.ctl && v.ctl.tick) { try { v.ctl.tick(t, until); } catch (e) { warnOnce('tick:' + v.name, 'erreur de séquenceur :', v.name, e); } }
   }
   stats() { let loops = 0; for (const v of this.voices) if (!v.shot) loops++; return { voices: this.voices.size, shots: this.shots, loops, spatial: this.spatial.length, hrtf: this.hrtf, cacheMB: +(this.mem / 1e6).toFixed(2), zone: this.active, worker: !!this.worker, queue: this.bg.length + this.inflight.size, state: this.ctx.state, pa: !!(this.pa && this.pa.wet) }; }
+  // ── mesure (réglages, tests) : niveau efficace et crête de chaque bus (direct 2D + spatialisé, avant réverbération),
+  // du maître (avant limiteur) et de la sortie, cumulés entre deux relevés. Branché au premier appel seulement.
+  meter(reset) {
+    const ctx = this.ctx, N = 16384;
+    if (!this.taps) {
+      const T = this.taps = {};
+      const tap = (k, srcs) => {
+        const up = mkGain(ctx, 1); up.channelCount = 2; up.channelCountMode = 'explicit'; up.channelInterpretation = 'speakers'; // mono → deux canaux
+        const sp = ctx.createChannelSplitter(2), A = [ctx.createAnalyser(), ctx.createAnalyser()];
+        for (const s of srcs) s.connect(up);
+        up.connect(sp); A.forEach((a, i) => { a.fftSize = N; sp.connect(a, i); });
+        T[k] = { A, ss: 0, n: 0, pk: 0 };
+      };
+      tap('out', [this.comp]); tap('master', [this.master]);
+      for (const b of BUSES) tap(b, [this.bus[b].d2, this.bus[b].sp]);
+      tap('pa', [this.pa.mix]);
+      this.mbuf = new Float32Array(N); this.mLast = ctx.currentTime;
+      this.mTimer = setInterval(() => { try { this.meterPoll(); } catch (e) { /* */ } }, 150);
+    }
+    this.meterPoll();
+    const db = (x) => (x > 1e-9 ? +(10 * Math.log10(x)).toFixed(1) : -120), out = {};
+    for (const k in this.taps) { const T = this.taps[k]; out[k] = { rms: db(T.n ? T.ss / T.n : 0), peak: db(T.pk * T.pk), s: +(T.n / 2 / this.sr).toFixed(1) }; if (reset) { T.ss = 0; T.n = 0; T.pk = 0; } }
+    return out;
+  }
+  meterPoll() { // seuls les échantillons nouveaux depuis le relevé précédent sont comptés
+    const t = this.ctx.currentTime, N = this.mbuf.length, n = Math.min(N, Math.round((t - this.mLast) * this.sr)); if (n <= 0) return;
+    this.mLast = t; const d = this.mbuf;
+    for (const k in this.taps) { const T = this.taps[k]; for (const a of T.A) { a.getFloatTimeDomainData(d); for (let i = N - n; i < N; i++) { const x = d[i], ax = x < 0 ? -x : x; T.ss += x * x; if (ax > T.pk) T.pk = ax; } T.n += n; } }
+  }
 }
 
 // ───────────────────────────── façade publique ─────────────────────────────
@@ -3135,6 +3224,8 @@ export const Audio = {
   drum(kind, opts) { return E ? safe('drum', () => E.play('_dr_' + (DRUMS[kind] ? kind : 'snare'), opts, false), dummy()) : dummy(); },
   setBusVolume(bus, v) { pending.bus[bus] = v; if (E) safe('bus', () => E.setBusVolume(bus, v)); }, // 'master'|'sfx'|'music'|'ambience'|'voice'|'ui'|'pa'
   setMuffle(amount) { pending.muffle = amount; if (E) safe('muffle', () => E.setMuffle(amount)); },
+  // l'ambiance (bus « ambience ») et les boucles des appareils baissent un instant : depth 0..0,9 (0,35 ≈ -4 dB), dur s
+  duck(depth, dur) { if (E) safe('duck', () => E.duck(depth, dur)); },
   update(dt) { if (E) safe('update', () => E.update(dt)); },
   // pour le module musique : entrée 2D d'un bus, et entrée spatialisée (même traitement que play/loop).
   // output('pa') : entrée de la sonorisation du centre (haut-parleurs du plafond, grand hall vide ; cf. Engine.buildPA),
@@ -3150,6 +3241,9 @@ export const Audio = {
   stats() { return E ? E.stats() : null; },
   voices() { return E ? [...E.voices].map((v) => ({ name: v.name, mode: v.mode, bus: v.bus, d: v.sp ? +v.dist.toFixed(1) : null, aud: v.sp ? +v.aud.toFixed(4) : null, hrtf: !!v.hr, culled: v.culled, walls: v.walls })) : []; },
   render(name, variant = 0) { return E ? safe('render', () => E.buf(String(name), variant), null) : null; },
+  // niveaux mesurés depuis le dernier relevé : { out, master, sfx, music, ambience, voice, ui, pa } → { rms, peak (dBFS), s }
+  // (efficace : moyenne des deux canaux ; reset : remet les cumuls à zéro après lecture)
+  meter(reset = false) { return E ? safe('meter', () => E.meter(reset), null) : null; },
   // derniers échantillons (mono) de la sortie maître avant limiteur, d'un bus 2D, ou de la sortie de la sono ('pa')
   probe(bus = 'master') {
     return E ? safe('probe', () => {

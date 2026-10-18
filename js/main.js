@@ -106,6 +106,7 @@ function optionsMenu() {
     <label><input data-o="autoScale" type="checkbox" ${s.autoScale !== false ? 'checked' : ''}> Résolution dynamique (baisse la définition si le jeu rame)</label>
     <label>Volume général <input data-o="volume" type="range" min="0" max="1" step="0.05" value="${s.volume}"></label>
     <label>Musique <input data-o="musicVolume" type="range" min="0" max="1" step="0.05" value="${s.musicVolume}"></label>
+    <label>Voix des personnages <input data-o="voiceVolume" type="range" min="0" max="1" step="0.05" value="${s.voiceVolume ?? 1}"></label>
     <label>Sensibilité de la souris <input data-o="sensitivity" type="range" min="0.2" max="3" step="0.1" value="${s.sensitivity}"></label>
     <label>Champ de vision <input data-o="fov" type="range" min="55" max="100" step="1" value="${s.fov}"></label>
     <label><input data-o="shadows" type="checkbox" ${s.shadows ? 'checked' : ''}> Ombres de la lampe torche</label>
@@ -114,7 +115,7 @@ function optionsMenu() {
     <label><input data-o="bodycam" type="checkbox" ${s.bodycam !== false ? 'checked' : ''}> Effet caméra-piéton (objectif, incrustation, mouvements)</label>
     <label><input data-o="screamers" type="checkbox" ${s.screamers ? 'checked' : ''}> Screamers (sursauts)</label>
     <label><input data-o="subtitles" type="checkbox" ${s.subtitles ? 'checked' : ''}> Sous-titres</label>
-    <label><input data-o="voices" type="checkbox" ${s.voices ? 'checked' : ''}> Voix de synthèse</label>
+    <label><input data-o="voices" type="checkbox" ${s.voices ? 'checked' : ''}> Babillage des personnages (petites syllabes à la place des voix)</label>
     <label><input data-o="invertY" type="checkbox" ${s.invertY ? 'checked' : ''}> Inverser l'axe vertical</label>
     </div>
     <h3>Sauvegardes (stockées dans ce navigateur)</h3>

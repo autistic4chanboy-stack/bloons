@@ -30,7 +30,10 @@ Audio.setBusVolume(bus, v)          // 'master'|'sfx'|'music'|'ambience'|'voice'
 Audio.output(bus) -> AudioNode      // entrée d'un bus ; 'pa' = haut-parleurs du plafond (mono, saturation douce,
                                     // 250 Hz–5 kHz, cinq haut-parleurs décalés, queue de grand hall ; jamais spatialisé)
 Audio.setMuffle(amount)             // 0..1 filtre passe-bas global (ex : sous l'eau / étourdi / masque)
+Audio.duck(depth, dur)              // l'ambiance et les boucles d'appareils baissent un instant (0..0,9 ; voix, événements)
 Audio.update(dt)                    // met à jour occlusion/positions (appelé chaque frame)
+Audio.meter(reset)                  // niveaux mesurés par bus : { out, master, sfx, music, ambience, voice, ui, pa } →
+                                    // { rms, peak (dBFS), s } depuis le dernier relevé (réglages, tests)
 ```
 Sons spatiaux : PannerNode HRTF, modèle 'inverse', `ref`/`maxDist`. Occlusion : la valeur de `occlusionFn(pos)` pilote un
 BiquadFilter passe-bas par source (0 mur : 20 kHz ; 1 : ~2.5 kHz ; 2 : ~900 Hz ; 3+ : ~400 Hz) et une atténuation
@@ -38,7 +41,25 @@ BiquadFilter passe-bas par source (0 mur : 20 kHz ; 1 : ~2.5 kHz ; 2 : ~900 Hz ;
 (bruit filtré à décroissance exponentielle, early reflections), une par type de zone, crossfade entre zones.
 Le panoramique HRTF (coûteux) est réservé aux 16 sources les plus audibles et réattribué toutes les 0,25 s ; un son proche
 qui démarre prend aussitôt la place de la source HRTF la moins audible (les autres passent en `equalpower`).
-Débogage : `Audio.stats()`, `Audio.voices()` (nom, distance, audibilité, HRTF, hors de portée, murs).
+Plafond par son : d'un même son continu joué par plusieurs sources, seules les plus audibles jouent (spatialisé : `def.cap`,
+3 par défaut ; 2D : une seule), les autres se taisent en fondu et reviennent quand on s'approche ; au plus 4 ponctuels
+spatialisés simultanés d'un même nom (le plus discret cède, ou le nouveau ne part pas). Atténuation passagère (`duck`) :
+pendant une réplique (−3 à −4 dB) et sur les sons marqués `duck` (cri, sursaut, coup de feu…).
+Débogage : `Audio.stats()`, `Audio.voices()` (nom, distance, audibilité, HRTF, hors de portée, murs), `Audio.meter()`.
+
+### Voix des personnages : `js/engine/speech.js`
+```js
+Speech.say(text, { who, volume, pos, walls, channel, style, pitch, rate, fem, seed, interrupt })
+Speech.stop(channel?)   // tout, ou un canal ('phone' quand on raccroche)
+Speech.volume           // réglage « Voix » (0..1) ; settings.voices === false : muet
+```
+Aucune synthèse vocale du navigateur : un babillage « à la Animal Crossing » (une petite syllabe synthétisée par lettre
+prononcée, couleur de voyelle suivant le texte, pauses de ponctuation, intonation de phrase). Profil par personnage selon
+le nom affiché (Gérard grave et bourru, braqueurs graves et rapides, enfants aigus, police/pompiers secs, clients et
+commerçants variés) ; canaux : sono (`pa`), combiné (`phone`, bande étroite), radio, petit haut-parleur (`spk`). Un graphe
+WebAudio par réplique, programmé d'avance ; une réplique à la fois par personnage (file courte), trois au plus.
+`game.say(who, text, opts)` affiche le sous-titre, atténue la voix avec la distance et les murs, et retrouve le
+personnage qui parle (entité la plus proche portant ce nom ou ce rôle) quand la réplique n'a pas de position.
 
 ### Noms de sons (`Audio.play` / `Audio.loop`)
 Pas : `step_tile, step_concrete, step_metal, step_carpet, step_wood, step_vent, step_grass, step_heels, step_sneakers, land`
@@ -53,7 +74,7 @@ Alarmes : `alarm_siren (loop), car_alarm (loop), smoke_alarm (loop), shop_alarm 
 Feu : `fire_crackle (loop, param size 0..1), fire_whoosh, extinguisher (loop), sprinkler (loop), smoke_hiss`
 Électricité/bâtiment : `generator (loop, param rpm 0..1), generator_start, generator_fail, generator_stop, electric_hum (loop, 50 Hz + harmoniques), fluorescent_buzz (loop), neon_flicker, hvac (loop), escalator (loop), fountain (loop), elevator_ding, water_drip, pipe_knock, building_creak`
 Nuit (bâtiment) : `room_tone (loop, params dark/tension/air 0..1), hall_air, glass_roof (params rain/wind/muffle), service_hum, boiler_room, garage_air, vent_air, equipment_hum` (boucles) ; ponctuels lointains : `amb_creak, amb_tick, amb_thud, amb_door, amb_pipe, amb_knock, amb_glass, amb_vent, amb_far` (pilotés par `js/game/ambience.js` selon la zone, l'heure, la nuit et le stress ; aucune musique de fond)
-Extérieur : `wind (loop, param strength), rain (loop, param intensity), thunder, distant_traffic (loop), dog_bark_far, owl, city_night (loop)`
+Extérieur : `wind (loop, params strength, deep 0..1 : grondement grave lointain), rain (loop, param intensity), thunder, distant_traffic (loop), dog_bark_far, owl, city_night (loop)`
 Foule/jour : `crowd (loop, param density), cart_roll (loop), baby_cry, laugh, pa_chime, pa_chime_end`
 Horreur : `whisper, breath (loop), heartbeat (loop, param bpm), scream, jumpscare, stinger, drone (loop, param tension 0..1), creak, knock, knock_triple, scratch, footsteps_distant, footstep_heavy, giggle, music_box_wrong, static_burst, low_boom, metal_screech, vent_crawl (loop), vent_bang, breathing_heavy, door_rattle, thud`
 Animaux : `meow, purr (loop), hiss, cat_run, rat_squeak, parrot, bird_chirp, fish_bubble (loop), dog_whine`
