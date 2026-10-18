@@ -192,7 +192,8 @@ export function buildCheckpoints(world) {
       const h = c.y - c.floor - 0.09;
       b.geometry(roundBoxGeo(0.05, h, 0.05, 0.01, 1), L(trs(0, -0.09 - h / 2, -0.03)), { color: 0x23272b });
       b.geometry(roundBoxGeo(0.22, 0.02, 0.22, 0.008, 1), L(trs(0, -(c.y - c.floor) + 0.01, -0.03)), { color: 0x23272b });
-      world.physics.add(new Box(c.x - 0.06, c.floor, c.z - 0.06, c.x + 0.06, c.y, c.z + 0.06, LAYER.FURN));
+      const ax = Math.abs(c.nz) > 0.5 ? 0.16 : 0.07, az = Math.abs(c.nz) > 0.5 ? 0.07 : 0.16; // poteau, plaque et panneau
+      world.physics.add(new Box(c.x - ax, c.floor, c.z - az, c.x + ax, c.y + 0.22, c.z + az, LAYER.FURN));
     }
     // étiquette (rangée i de la texture)
     const v0 = 1 - (i + 1) * LAB_H / T, v1 = 1 - i * LAB_H / T;
