@@ -327,9 +327,11 @@ float crtJitter(float y, float t, float sd, float p) {
 }
 // visibilité des lignes de balayage (à calculer hors de toute branche : dérivée) : nulle sous ~2 pixels par ligne
 float crtScanVis(float v, float lines) { return lines > 0.0 ? 1.0 - smoothstep(0.3, 0.6, fwidth(v) * lines) : 0.0; }
+float crtBump(float x, float a, float m, float b) { return smoothstep(a, m, x) * (1.0 - smoothstep(m, b, x)); }
 vec3 crtLive(vec3 c, vec2 uv, vec2 cell, float t, float sd, float lines, float vis) {
+  // bande : liseré sombre en tête, partie claire, puis traîne un peu plus sombre (descend d'un écran en ~12 s)
   float ph = fract(uv.y + t * 0.085 + sd);
-  c *= 1.0 + 0.06 * smoothstep(0.02, 0.16, ph) * (1.0 - smoothstep(0.16, 0.42, ph)) - 0.04 * smoothstep(0.0, 0.005, ph) * (1.0 - smoothstep(0.008, 0.03, ph));
+  c *= 1.0 - 0.07 * crtBump(ph, 0.0, 0.006, 0.03) + 0.09 * crtBump(ph, 0.02, 0.12, 0.24) - 0.045 * crtBump(ph, 0.2, 0.32, 0.5);
   c *= 1.0 + 0.014 * sin(t * 1.9 + sd * 6.3) + 0.007 * sin(t * 7.3 + sd * 2.1) + 0.012 * (crtH1(floor(t * 30.0) + sd * 13.0) - 0.5);
   float y = uv.y * lines;
   c *= 1.0 - vis * (0.045 * (0.5 + 0.5 * cos(6.2831853 * y)) - 0.012 * (mod(floor(y) + floor(t * 50.0), 2.0) - 0.5));

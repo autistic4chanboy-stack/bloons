@@ -429,7 +429,7 @@ export class Security {
     const overlay = this.glitchT > 0 && this.glitchFigure ? this.overlayTex : null;
     // changement de caméra (select) : l'image roule et se brouille 0,15 s
     const swap = this.switchFlash > 0 ? Math.min(1, this.switchFlash / 0.15) : 0; this.switchFlash = Math.max(0, (this.switchFlash || 0) - dt);
-    g.renderer.renderCCTV(this.fsRT.texture, { ir, offline: st === 'offline' || st === 'nosignal', noise: this.mode === 'tablet' ? 0.1 : 0.07, glitch: this.glitchT > 0 ? Math.min(1, 0.4 + this.glitchT * 0.2) : (c?.kind === 'rc' ? 0.05 : 0), overlay, brightness: st === 'blocked' ? 0.35 : 1.04, time: g.time, swap, seed: c ? camSeed(c.id) : 0, analog: this.mode !== 'tablet' });
+    g.renderer.renderCCTV(this.fsRT.texture, { ir, offline: st === 'offline' || st === 'nosignal', noise: this.mode === 'tablet' ? 0.1 : 0.07, glitch: this.glitchT > 0 ? Math.min(1, 0.4 + this.glitchT * 0.2) : (c?.kind === 'rc' ? 0.05 : 0), overlay, brightness: st === 'blocked' ? 0.35 : 1.0, time: g.time, swap, seed: c ? camSeed(c.id) : 0, analog: this.mode !== 'tablet' });
     g.world.cull(g.camera.position, [], g.camera, g.settings.quality === 'low' ? 0.8 : 1);
   }
   drawFigure() {

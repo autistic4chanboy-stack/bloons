@@ -223,11 +223,11 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   (le grain ne grésille plus dans les noirs). Plein écran : tout dans `renderCCTV` (`CCTV_LIVE`), avec l'horloge du jeu
   passée par security.js (render() ne tourne pas pendant la vue plein écran : son horloge était figée) et un roulis
   brouillé de 0,15 s au changement de caméra (`switchFlash` → `swap`) ; la tablette est un écran plat (`analog: false` :
-  ni courbure, ni balayage, ni bande, grain seul). Mur d'écrans (cibles 288 × 162, au format des dalles) : la cible de chaque moniteur ne
-  garde que la partie fixe (`CCTV_RT` ; l'alpha signale « pas de signal ») ; le matériau de l'écran (`crtScreen` :
-  `onBeforeCompile` d'un MeshBasicMaterial, un seul programme pour les 15 écrans, une graine chacun) applique la partie
-  vivante à chaque image avec `GLOBAL_UNIFORMS.time` puis repasse en linéaire : le mur vit entre deux rafraîchissements
-  de sa cible, pour quelques opérations par pixel d'écran et aucun appel de rendu en plus.
+  ni courbure, ni balayage, ni bande, grain seul). Mur d'écrans (cibles 288 × 162, au format des dalles 0,78 × 0,44) :
+  la cible de chaque moniteur ne garde que la partie fixe (`CCTV_RT` ; l'alpha signale « pas de signal ») ; le matériau
+  de l'écran (`crtScreen` : `onBeforeCompile` d'un MeshBasicMaterial, un seul programme pour les 15 écrans, une graine
+  chacun) applique la partie vivante à chaque image avec `GLOBAL_UNIFORMS.time` puis repasse en linéaire : le mur vit
+  entre deux rafraîchissements de sa cible, pour quelques opérations par pixel d'écran et aucun appel de rendu en plus.
 - Calques : 0 normal, 1 avatar du joueur local (visible seulement en CCTV), 2 visible seulement sur caméra, 3 seulement
   en infrarouge (`CAM_LAYERS`).
 - Enregistreur : images JPEG (176×132) horodatées, priorité au mouvement ; `whoSaw(actorId)` (preuve de vol, nul si le
