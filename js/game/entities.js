@@ -21,6 +21,7 @@ const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const pick = (a) => a[Math.floor(R() * a.length)];
 const POSES = ['idle', 'walk', 'run', 'crouch', 'sit', 'reach', 'aim', 'tpose', 'dead', 'crawl', 'cheer', 'hunched', 'flashlight', 'm0', 'm1', 'm2', 'm3', 'm4', 'lie', 'float'];
 const HOSTILE = new Set(['bobby', 'mannequin', 'shadow', 'crawler', 'thing', 'robber']);
+const CAT_FOOD = ['cat_food', 'cheese', 'saucisson', 'pet_bowl']; // ce qui attire le chat (posé au sol, gamelles remplies)
 const HEIGHT = { cat: 0.3, rat: 0.08, balloon: 1.6, crawler: 0.6, thing: 2.3, shadow: 2.0, bobby: 1.85, lucie: 1.2 };
 const angDiff = (a, b) => Math.atan2(Math.sin(b - a), Math.cos(b - a));
 const turn = (a, b, k) => a + angDiff(a, b) * Math.min(1, k);
@@ -551,7 +552,9 @@ export class Entities {
     for (const p of this.pending) if (!p.done && g.env.nightMinutes >= p.at && g.story.phase === 'night') { p.done = true; this.activate(p.type, p.action || 'activate', p.opts || {}); }
     this.updateRobbery(dt);
     this.scanT = (this.scanT || 0) - dt;
-    if (this.scanT <= 0) { this.scanT = 1; this.musicBox = g.props.find('music_box', { any: true }).find(p => p.data.on && p.state.where !== 'gone') || null; this.catFood = g.props.find(p => p.state.where === 'world' && ((p.defId === 'cat_food' && p.data.placed) || p.defId === 'cheese' || p.defId === 'saucisson' || (p.defId === 'pet_bowl' && p.data.placed)))[0] || null; this.petBed = g.props.find(p => p.defId === 'pet_bed' && p.state.where === 'world')[0] || null; this.catPlush = g.props.find(p => p.defId === 'cat_plush' && p.state.where === 'world'); this.honey = g.props.find(p => p.defId === 'honey' && (p.state.where === 'world' || p.state.where === 'home')).filter(p => p.state.where === 'world')[0] || null; if (this.robbery && this.robbery.state !== 'planned') this.checkRobberyEnd(); }
+    // une fois par seconde : objets qui attirent les présences (listes indexées par type : plus de parcours des ~20 000
+    // objets du monde, cinq fois de suite)
+    if (this.scanT <= 0) { this.scanT = 1; const P = g.props, inWorld = (p) => p.state.where === 'world'; this.musicBox = P.find('music_box', { any: true }).find(p => p.data.on && p.state.where !== 'gone') || null; this.catFood = P.findDefs(CAT_FOOD, {}, (p) => inWorld(p) && ((p.defId !== 'cat_food' && p.defId !== 'pet_bowl') || p.data.placed))[0] || null; this.petBed = P.find('pet_bed').filter(inWorld)[0] || null; this.catPlush = P.find('cat_plush').filter(inWorld); this.honey = P.find('honey').filter(inWorld)[0] || null; if (this.robbery && this.robbery.state !== 'planned') this.checkRobberyEnd(); }
     for (const e of [...this.list.values()]) {
       if (!this.list.has(e.id)) continue;
       if (e.life > 0) { e.life -= dt; if (e.life <= 0) { this.despawn(e); continue; } }

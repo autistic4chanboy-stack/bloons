@@ -862,14 +862,18 @@ export function buildHumanoid(opts = {}) {
 // 'dead' | 'crawl' | 'cheer' | 'hunched' | 'flashlight' | poses de mannequin 0..4 (nombre). Le bassin se cale sur le
 // pied d'appui (plus de pieds qui flottent), les pieds restent à plat, le buste contre-tourne le bassin.
 const L1 = 0.43, L2 = 0.42, LF = 0.08;
-export function animateHumanoid(h, dt, speed, pose = 'auto', extra = {}) {
+// os remis à zéro à chaque image (liste et fonction hors de animateHumanoid : rien n'est alloué par personnage et par image)
+const ANIM_BONES = ['hips', 'torso', 'neck', 'head', 'handL', 'handR', 'footL', 'footR', 'legL', 'legR', 'kneeL', 'kneeR', 'armL', 'armR', 'elbowL', 'elbowR'];
+const legReach = (a, b) => L1 * Math.cos(a) + 0.005 * Math.sin(a) + L2 * Math.cos(a + b) - 0.01 * Math.sin(a + b) + LF; // os de la cuisse et du tibia (légèrement inclinés au repos)
+const NO_EXTRA = {};
+export function animateHumanoid(h, dt, speed, pose = 'auto', extra = NO_EXTRA) {
   const P = h.userData.parts, A = h.userData.anim;
   const moving = speed > 0.15;
   A.phase += dt * (moving ? 2.2 + speed * 1.6 : 1.2);
   const s = Math.sin(A.phase * 2);
   const amp = moving ? Math.min(1, speed / 3) : 0;
   h.rotation.x = 0;
-  for (const n of ['hips', 'torso', 'neck', 'head', 'handL', 'handR', 'footL', 'footR', 'legL', 'legR', 'kneeL', 'kneeR', 'armL', 'armR', 'elbowL', 'elbowR']) P[n].rotation.set(0, 0, 0);
+  for (let i = 0; i < ANIM_BONES.length; i++) P[ANIM_BONES[i]].rotation.set(0, 0, 0);
   P.hips.position.z = 0;
   const pp = h.userData.propPoses;
   if (pp) P.propR.scale.setScalar(pp(pose) ? 1 : 0.001);
@@ -878,8 +882,7 @@ export function animateHumanoid(h, dt, speed, pose = 'auto', extra = {}) {
   P.legL.rotation.x = s * 0.7 * amp + (crouch ? -1.2 : 0); P.legR.rotation.x = -s * 0.7 * amp + (crouch ? -1.2 : 0);
   P.kneeL.rotation.x = Math.max(0, -s) * 0.9 * amp + (crouch ? 1.9 : 0.04); P.kneeR.rotation.x = Math.max(0, s) * 0.9 * amp + (crouch ? 1.9 : 0.04);
   // bassin à la hauteur de la jambe d'appui (la plus longue verticalement)
-  const reach = (a, b) => L1 * Math.cos(a) + 0.005 * Math.sin(a) + L2 * Math.cos(a + b) - 0.01 * Math.sin(a + b) + LF; // os de la cuisse et du tibia (légèrement inclinés au repos)
-  P.hips.position.y = Math.max(reach(P.legL.rotation.x, P.kneeL.rotation.x), reach(P.legR.rotation.x, P.kneeR.rotation.x)) + 0.02 + (moving ? 0 : Math.sin(A.phase) * 0.003);
+  P.hips.position.y = Math.max(legReach(P.legL.rotation.x, P.kneeL.rotation.x), legReach(P.legR.rotation.x, P.kneeR.rotation.x)) + 0.02 + (moving ? 0 : Math.sin(A.phase) * 0.003);
   P.armL.rotation.x = -s * 0.6 * amp; P.armR.rotation.x = s * 0.6 * amp;
   P.elbowL.rotation.x = -0.25 - amp * 0.3 - Math.max(0, -s) * 0.2 * amp; P.elbowR.rotation.x = -0.25 - amp * 0.3 - Math.max(0, s) * 0.2 * amp;
   P.armL.rotation.z = -0.07 - amp * 0.03; P.armR.rotation.z = 0.07 + amp * 0.03;

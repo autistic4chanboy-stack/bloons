@@ -15,6 +15,7 @@ const CHANNELS = ['channel:news', 'channel:weather', 'channel:cartoon', 'channel
 const CHANNEL_MUSIC = { 'channel:cartoon': 'kiddie', 'channel:music': 'disco', 'channel:shopping': 'muzak', 'channel:weather': 'hold_music', 'channel:news': 'radio_static_voice' };
 
 // ───────────────────────── Gestionnaire d'écrans (canvas partagés) ─────────────────────────
+const _sv = new THREE.Vector3(), byDist = (a, b) => a.dist - b.dist;
 export class ScreenManager {
   constructor(game, mod) {
     this.game = game; this.mod = mod; this.shared = new Map(); this.users = new Map(); this.t = 0;
@@ -37,13 +38,13 @@ export class ScreenManager {
   // met à jour les écrans visibles proches (budget limité)
   update(dt, camPos) {
     this.t += dt;
-    const list = [];
+    const list = this._list || (this._list = []); list.length = 0; // tableau réutilisé (aucune allocation par image)
     for (const e of this.shared.values()) {
       let best = Infinity;
-      for (const u of e.refs) { if (!u.screenMesh || !u.screenVisible()) continue; const d = u.screenMesh.getWorldPosition(new THREE.Vector3()).distanceToSquared(camPos); if (d < best) best = d; }
+      for (const u of e.refs) { if (!u.screenMesh || !u.screenVisible()) continue; const d = u.screenMesh.getWorldPosition(_sv).distanceToSquared(camPos); if (d < best) best = d; }
       e.dist = best; if (best < 900) list.push(e);
     }
-    list.sort((a, b) => a.dist - b.dist);
+    list.sort(byDist);
     for (let i = 0; i < list.length; i++) {
       const e = list[i]; const interval = i < 3 ? 0 : i < 8 ? 0.1 : 0.25;
       if (this.t - e.last < interval) continue;
@@ -278,6 +279,7 @@ class Microwave extends ItemFixture {
 }
 
 class Washer extends ItemFixture {
+  static animatesMesh = true; // corps animé : hors des lots statiques (batchStaticMeshes)
   initState() { return { on: false }; }
   prompt() { return (this.state.on ? 'E : Arrêter' : 'E : Lancer un essorage') + ' — ' + this.name; }
   interact(v, actor, ctx) { if (!this.powered()) return this.toast(actor, 'Pas de courant.'); const held = this.heldProp(ctx); if (held?.defId === 'detergent' && this.state.on) { held.set({ where: 'gone' }); this.g.sim.emit('foam', { pos: this.center.toArray() }); return; } this.set({ on: !this.state.on }); if (this.state.on) this.startTimer(40); }
@@ -480,6 +482,7 @@ class ClawDev extends ArcadeDev {
 }
 
 class Kiddie extends ItemFixture {
+  static animatesMesh = true;
   initState() { return { on: false }; }
   prompt(p) { return this.state.on ? 'Le Bobby-Mobile tourne…' : 'E : Insérer une pièce — ' + this.name; }
   local(v, p) { if (v === 'use' && !this.state.on) { const c = p.inv.findDef('coin') || p.inv.findDef('token'); if (!c) { this.g.toast('Il faut une pièce.'); return true; } this.g.sim.do('consume', { id: c }); this.g.sfx('coin_insert', this.center); } return false; }
@@ -533,6 +536,7 @@ class Projector extends ItemFixture {
       const len = Math.abs(sc.z - pos.z);
       const cone = new THREE.Mesh(new THREE.ConeGeometry(sc.w * 0.5, len, 4, 1, true), new THREE.MeshBasicMaterial({ color: 0x8899bb, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
       cone.position.set(sc.x, (pos.y + sc.y) / 2, (pos.z + sc.z) / 2); cone.rotation.x = (sc.z > pos.z ? -1 : 1) * Math.PI / 2; cone.rotation.y = Math.PI / 4; cone.visible = false;
+      cone.material.forceSinglePass = true; // additif : une seule passe suffit (même image)
       (world.zone(zone)?.group || world.root).add(cone); this.beam = cone;
     }
     world.game.lighting.addSource(this);
@@ -600,6 +604,7 @@ class Hamster extends ItemFixture {
 }
 
 class SpinChair extends ItemFixture {
+  static animatesMesh = true;
   initState() { return { spin: 0 }; }
   prompt() { return 'E : S\'asseoir et tourner'; }
   local(v, p) { p.sit(this.center.clone().add(new THREE.Vector3(0, 0.05, 0)), this.ry, true); return true; }
@@ -817,6 +822,7 @@ class Car extends ItemFixture {
   getLight() { if (!this.state.lights && !this.state.alarm) return null; const on = this.state.lights || Math.sin(performance.now() * 0.012) > 0; if (!on) return null; return { pos: this.wp([0, 0, this.def.s[2] / 2 + 1.5]), color: [1, 0.95, 0.8], intensity: 5, distance: 10, priority: 1.5 }; }
 }
 class MannequinDev extends ItemFixture {
+  static animatesMesh = true; // pivote et disparaît (groupe)
   initState(o) { return { pose: (o.index || 0) % 4, rot: null, away: false }; }
   prompt() { return this.state.away ? null : 'Mannequin'; }
   onState() {

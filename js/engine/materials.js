@@ -185,9 +185,14 @@ const DEFS = {
   cladding: () => ({ m: std(TX.cladding()), rep: 0.4 }),
 };
 
-// Vitres : le blending conserve l'alpha déjà écrit dessous (masque de SSAO des surfaces vues à travers)
+// Vitres : le blending conserve l'alpha déjà écrit dessous (masque de SSAO des surfaces vues à travers).
+// Une seule passe à double face (forceSinglePass) : three.js dessine sinon chaque objet transparent à double face deux
+// fois (faces arrière puis avant), en invalidant le matériau entre les deux (recherche complète du programme, deux fois
+// par vitre et par image). Les vitres sont des plans ou des plaques de 1 à 2 cm dont les deux faces, normale tournée vers
+// la caméra, reçoivent le même éclairage : l'ordre de mélange ne change pas l'image.
 function glassMat(o) {
   const m = new THREE.MeshStandardMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, envMap: ENV.map, ...o });
+  m.forceSinglePass = true;
   m.blending = THREE.CustomBlending; m.blendEquation = THREE.AddEquation;
   m.blendSrc = THREE.SrcAlphaFactor; m.blendDst = THREE.OneMinusSrcAlphaFactor; m.blendSrcAlpha = THREE.ZeroFactor; m.blendDstAlpha = THREE.OneFactor;
   return m;

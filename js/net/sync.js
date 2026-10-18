@@ -51,7 +51,7 @@ export class RemotePlayer {
     this.label = this.label || nameSprite(this.name);
     this.label.position.set(0, 2.15, 0); this.avatar.add(this.label);
     this.beam = this.beam || new THREE.Mesh(new THREE.ConeGeometry(1.2, 7, 16, 1, true).translate(0, -3.5, 0).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xfff1d6, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-    this.beam.frustumCulled = false; g.scene.add(this.beam);
+    this.beam.frustumCulled = false; this.beam.material.forceSinglePass = true; g.scene.add(this.beam); // additif : une passe
     g.scene.add(this.avatar);
   }
   get pos() { return this.posV.set(this.body.pos[0], this.body.pos[1], this.body.pos[2]); }
@@ -105,9 +105,10 @@ export class RemotePlayer {
 export class Sync {
   constructor(game) {
     this.game = game; this.remotes = new Map(); this.sendT = 0; this.stateT = 0; this.joinedToast = new Set();
-    // lampes des autres joueurs : pré-allouées (pas de recompilation des shaders quand quelqu'un rejoint)
+    // lampes des autres joueurs : pré-allouées en partie en ligne (pas de recompilation des shaders quand quelqu'un
+    // rejoint) ; en solo, aucune : chaque projecteur, même éteint, coûte son calcul à chaque pixel de chaque matériau
     this.lights = [];
-    for (let i = 0; i < MAX_REMOTE_LIGHTS; i++) { const l = new THREE.SpotLight(0xfff1d6, 0, 22, 0.42, 0.45, 1.25); l.castShadow = false; game.scene.add(l); game.scene.add(l.target); this.lights.push(l); }
+    if (Net.online) for (let i = 0; i < MAX_REMOTE_LIGHTS; i++) { const l = new THREE.SpotLight(0xfff1d6, 0, 22, 0.42, 0.45, 1.25); l.castShadow = false; game.scene.add(l); game.scene.add(l.target); this.lights.push(l); }
     const S = game.sim;
     S.effect('sstate', (p) => this.applyStoryState(p));
     Net.on('ps', (m) => this.onPlayerState(m));

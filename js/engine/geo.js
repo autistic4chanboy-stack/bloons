@@ -126,7 +126,26 @@ export function concatGeometries(list) {
   for (const e of list) {
     const g = e.geo; const P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, C = g.attributes.color;
     const M = e.matrix; if (M) m3.getNormalMatrix(M);
-    for (let i = 0; i < P.count; i++) {
+    // attributs simples (tableaux flottants non entrelacés, cas des géométries d'articles) : copie directe des tableaux,
+    // mêmes opérations que Vector3.applyMatrix4 / applyMatrix3 + normalize (résultats identiques), sans accesseurs
+    const direct = !P.isInterleavedBufferAttribute && !N.isInterleavedBufferAttribute && !U.isInterleavedBufferAttribute && !P.normalized && !N.normalized && !U.normalized && (!col || (!C.isInterleavedBufferAttribute && !C.normalized));
+    if (direct) {
+      const pa = P.array, na = N.array, ua = U.array, ca = col ? C.array : null, cnt = P.count;
+      if (M) {
+        const me = M.elements, ne = m3.elements;
+        for (let i = 0; i < cnt; i++) {
+          const x = pa[i * 3], y = pa[i * 3 + 1], z = pa[i * 3 + 2], o = (vo + i) * 3;
+          const w = 1 / (me[3] * x + me[7] * y + me[11] * z + me[15]);
+          pos[o] = (me[0] * x + me[4] * y + me[8] * z + me[12]) * w; pos[o + 1] = (me[1] * x + me[5] * y + me[9] * z + me[13]) * w; pos[o + 2] = (me[2] * x + me[6] * y + me[10] * z + me[14]) * w;
+          const a = na[i * 3], b = na[i * 3 + 1], c = na[i * 3 + 2];
+          let nx = ne[0] * a + ne[3] * b + ne[6] * c, ny = ne[1] * a + ne[4] * b + ne[7] * c, nz = ne[2] * a + ne[5] * b + ne[8] * c;
+          const il = 1 / (Math.sqrt(nx * nx + ny * ny + nz * nz) || 1); nx *= il; ny *= il; nz *= il; // = normalize() (divideScalar)
+          nor[o] = nx; nor[o + 1] = ny; nor[o + 2] = nz;
+        }
+      } else { pos.set(pa.subarray(0, cnt * 3), vo * 3); nor.set(na.subarray(0, cnt * 3), vo * 3); }
+      uv.set(ua.subarray(0, cnt * 2), vo * 2);
+      if (col) col.set(ca.subarray(0, cnt * 3), vo * 3);
+    } else for (let i = 0; i < P.count; i++) {
       v.fromBufferAttribute(P, i); n.fromBufferAttribute(N, i);
       if (M) { v.applyMatrix4(M); n.applyMatrix3(m3).normalize(); }
       const o = (vo + i);
@@ -135,7 +154,8 @@ export function concatGeometries(list) {
       uv[o * 2] = U.getX(i); uv[o * 2 + 1] = U.getY(i);
       if (col) { col[o * 3] = C.getX(i); col[o * 3 + 1] = C.getY(i); col[o * 3 + 2] = C.getZ(i); }
     }
-    for (let i = 0; i < g.index.count; i++) idx[io + i] = g.index.getX(i) + vo;
+    const ia = g.index.array, ic = g.index.count;
+    for (let i = 0; i < ic; i++) idx[io + i] = ia[i] + vo;
     ranges.push({ start: vo, count: P.count });
     vo += P.count; io += g.index.count;
   }

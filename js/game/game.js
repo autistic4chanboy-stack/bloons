@@ -13,6 +13,7 @@ import { buildItemGeometry } from '../world/meshes.js';
 import { PropSystem } from '../world/props.js';
 import { DeviceFactory, ScreenManager } from '../world/devices.js';
 import { PowerGrid, Lighting } from '../world/power.js';
+import { batchGlassPanes, batchStaticMeshes } from '../world/fixtures.js';
 import { Sim } from './sim.js';
 import { Net } from '../net/net.js';
 import { Player } from './player.js';
@@ -113,6 +114,8 @@ export class Game {
     const atlasTex = this.atlas.finalize();
     this.mats.atlas = atlasTex;
     for (const [k, m] of this.mats.cache) if (k.startsWith('props|')) { m.map = atlasTex; m.needsUpdate = true; }
+    // lots statiques : vitres (et autocollants) puis appareils et interrupteurs immobiles, un mesh par (zone, matériau)
+    batchGlassPanes(this.world); batchStaticMeshes(this.world);
     progress(0.7, 'Systèmes…');
     await tick();
     this.env = new Environment(this);
@@ -294,7 +297,7 @@ export class Game {
     this.world.cull(cam.position, this.security.cullExtras(), cam, this.settings.quality === 'low' ? 0.8 : 1);
     this.lighting.update(dt, cam.position);
     this.screens.update(dt, cam.position);
-    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion), up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
+    const fwd = _fwd.set(0, 0, -1).applyQuaternion(cam.quaternion), up = _up.set(0, 1, 0).applyQuaternion(cam.quaternion);
     Audio.setListener(cam.position, fwd, up);
     Audio.update(dt);
     this.ui.update(dt);
@@ -305,5 +308,6 @@ export class Game {
   }
 }
 
+const _fwd = new THREE.Vector3(), _up = new THREE.Vector3(); // orientation de l'auditeur (réutilisés à chaque image)
 function tick() { return new Promise(r => setTimeout(r, 0)); }
 function voiceVol(s) { const v = +(s.voiceVolume ?? 1); return isFinite(v) ? Math.max(0, Math.min(1.5, v)) : 1; } // volume du babillage des personnages

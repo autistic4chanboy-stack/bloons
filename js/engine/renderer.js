@@ -473,12 +473,14 @@ export class Renderer {
     const w = window.innerWidth, h = window.innerHeight, q = this.settings.quality;
     // écrans haute densité : définition plafonnée selon la qualité (un écran Retina en ×2 quadruple le travail)
     const dpr = Math.min(window.devicePixelRatio || 1, q === 'high' ? 2 : q === 'low' ? 1 : 1.25);
-    const scale = (this.settings.renderScale ?? 1) * (this.dynScale ?? 1);
-    this.gl.setPixelRatio(1);
-    this.gl.setSize(w, h, false);
+    // qualité basse : scène rendue à 80 % de la définition (le composite remet l'image à la taille de l'écran)
+    const scale = (this.settings.renderScale ?? 1) * (this.dynScale ?? 1) * (q === 'low' ? 0.8 : 1);
+    if (this.gl.getPixelRatio() !== 1) this.gl.setPixelRatio(1); // (setPixelRatio redimensionne toujours le canevas)
     this.gl.domElement.style.width = w + 'px'; this.gl.domElement.style.height = h + 'px';
     const W = Math.max(320, Math.floor(w * dpr * scale)), H = Math.max(200, Math.floor(h * dpr * scale));
-    this.gl.setSize(Math.floor(w * dpr), Math.floor(h * dpr), false);
+    // un seul redimensionnement du canevas (chaque affectation de sa taille réalloue le tampon de dessin)
+    const cw = Math.floor(w * dpr), ch = Math.floor(h * dpr), cv = this.gl.domElement;
+    if (cv.width !== cw || cv.height !== ch) this.gl.setSize(cw, ch, false);
     this.W = W; this.H = H;
     if (this.rts) { for (const k in this.rts) { this.rts[k].depthTexture?.dispose(); this.rts[k].dispose(); } }
     const samples = this.settings.quality === 'high' ? 4 : 0;
@@ -528,9 +530,10 @@ export class Renderer {
     r.render(scene, camera);
     this.stats.calls = r.info.render.calls; this.stats.tris = r.info.render.triangles;
     // objectif « caméra-piéton » (réglage) ou objectif discret
-    const bc = this.bodycam;
-    U.lensK.value = this.lensScale() - 1; U.ca.value = bc ? 0.0052 : 0.0014; U.sharpen.value = bc ? 0.32 : 0.12; U.chroma.value = bc ? 0.85 : 0.4;
-    U.vignette.value = bc ? 0.16 : 0.1; U.vigAmt.value = bc ? 0.56 : 0.45; U.edgeSoft.value = bc ? 1 : 0; U.huntK.value = bc ? 1 : 0;
+    const bc = this.bodycam, low = S.quality === 'low';
+    // qualité basse : ni netteté ni bords mous de l'objectif (8 lectures de texture par pixel en moins)
+    U.lensK.value = this.lensScale() - 1; U.ca.value = bc ? 0.0052 : 0.0014; U.sharpen.value = low ? 0 : bc ? 0.32 : 0.12; U.chroma.value = bc ? 0.85 : 0.4;
+    U.vignette.value = bc ? 0.16 : 0.1; U.vigAmt.value = bc ? 0.56 : 0.45; U.edgeSoft.value = bc && !low ? 1 : 0; U.huntK.value = bc ? 1 : 0;
     // SSAO + faisceau volumétrique (demi-résolution)
     const aoOn = S.quality !== 'low', hi = S.quality === 'high';
     const L = this.beam.light, beamOn = aoOn && this.volumetric && L && L.intensity > 0 && this.beam.strength > 0;
@@ -572,13 +575,15 @@ export class Renderer {
       const B = this.blurMat.uniforms;
       B.tDiffuse.value = rts.bright.texture; B.dir.value.set(1 / rts.b1a.width, 0); this.pass(this.blurMat, rts.b1a);
       B.tDiffuse.value = rts.b1a.texture; B.dir.value.set(0, 1 / rts.b1a.height); this.pass(this.blurMat, rts.b1b);
-      B.tDiffuse.value = rts.b1b.texture; B.dir.value.set(1 / rts.b2a.width, 0); this.pass(this.blurMat, rts.b2a);
-      B.tDiffuse.value = rts.b2a.texture; B.dir.value.set(0, 1 / rts.b2a.height); this.pass(this.blurMat, rts.b2b);
-      B.tDiffuse.value = rts.b2b.texture; B.dir.value.set(2 / rts.b2a.width, 0); this.pass(this.blurMat, rts.b2a);
-      B.tDiffuse.value = rts.b2a.texture; B.dir.value.set(0, 2 / rts.b2a.height); this.pass(this.blurMat, rts.b2b);
+      if (!low) { // qualité basse : un seul niveau de halo (3 passes au lieu de 7)
+        B.tDiffuse.value = rts.b1b.texture; B.dir.value.set(1 / rts.b2a.width, 0); this.pass(this.blurMat, rts.b2a);
+        B.tDiffuse.value = rts.b2a.texture; B.dir.value.set(0, 1 / rts.b2a.height); this.pass(this.blurMat, rts.b2b);
+        B.tDiffuse.value = rts.b2b.texture; B.dir.value.set(2 / rts.b2a.width, 0); this.pass(this.blurMat, rts.b2a);
+        B.tDiffuse.value = rts.b2a.texture; B.dir.value.set(0, 2 / rts.b2a.height); this.pass(this.blurMat, rts.b2b);
+      }
     }
     U.tScene.value = rts.scene.texture;
-    U.tBloom1.value = rts.b1b.texture; U.tBloom2.value = rts.b2b.texture;
+    U.tBloom1.value = rts.b1b.texture; U.tBloom2.value = low ? rts.b1b.texture : rts.b2b.texture;
     U.bloomStrength.value = bloomOn ? (S.bloomStrength ?? 0.55) : 0;
     this.pass(this.compMat, null);
   }
@@ -606,8 +611,8 @@ export class Renderer {
     this.pass(this.cctvMat, null);
   }
 
-  readPixels(target, w, h) {
-    const buf = new Uint8Array(w * h * 4);
+  readPixels(target, w, h, out = null) {
+    const buf = out && out.length >= w * h * 4 ? out : new Uint8Array(w * h * 4);
     this.gl.readRenderTargetPixels(target, 0, 0, w, h, buf);
     return buf;
   }

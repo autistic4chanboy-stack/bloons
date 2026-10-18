@@ -12,6 +12,7 @@ import { Box, LAYER } from '../engine/physics.js';
 import { Net } from '../net/net.js';
 
 const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _s = new THREE.Vector3(1, 1, 1);
+const NONE = [], byOrd = (a, b) => a._ord - b._ord;
 const MAT_SOUND = { plastic: 'hit_plastic', metal: 'hit_metal', wood: 'hit_wood', glass: 'hit_glass', cardboard: 'hit_cardboard', soft: 'hit_soft', paper: 'hit_paper', can: 'hit_can', ceramic: 'hit_ceramic' };
 const BOUNCE = { plastic: 0.45, metal: 0.25, wood: 0.3, glass: 0.2, cardboard: 0.1, soft: 0.15, paper: 0.05, can: 0.35, ceramic: 0.15 };
 
@@ -68,6 +69,7 @@ export class PropSystem {
   constructor(game) {
     this.game = game; this.world = game.world;
     this.list = []; this.byZone = new Map(); this.runtime = new Map();
+    this.byDef = new Map(); this._ord = 0; this._useIds = new Map(); // index par type d'article (find), ordre d'insertion conservé
     this.counter = 0; this.rcounter = 0;
     this.awake = new Set(); this.dynamicGroup = new THREE.Group(); this.world.root.add(this.dynamicGroup);
     this.snapTimer = 0;
@@ -88,7 +90,7 @@ export class PropSystem {
     if (!ITEMS[defId]) { console.warn('[props] inconnu', defId); return null; }
     const id = 'p' + (++this.counter);
     const pr = new Prop(this, id, defId, { x, y, z, ry, zone }, data);
-    this.world.add(pr); this.list.push(pr);
+    this.world.add(pr); this.list.push(pr); this._index(pr);
     if (!this.byZone.has(zone)) this.byZone.set(zone, []);
     this.byZone.get(zone).push(pr);
     return pr;
@@ -112,7 +114,9 @@ export class PropSystem {
         const { geometry, ranges } = concatGeometries(entries.slice(start, end));
         const mesh = new THREE.Mesh(geometry, g.mats.get('props', zone));
         mesh.castShadow = true; mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
-        const merged = { mesh, orig: new Float32Array(geometry.attributes.position.array), dirty: false };
+        // pas de copie des positions d'origine (~50 Mo pour tout le centre) : _showStatic les recalcule depuis la
+        // géométrie de l'article (en cache) et sa place, avec les mêmes opérations que concatGeometries
+        const merged = { mesh, dirty: false };
         for (let i = start; i < end; i++) { props[i].merged = merged; props[i].range = ranges[i - start]; }
         (this.world.zone(zone)?.group || this.world.root).add(mesh);
         start = end;
@@ -125,13 +129,15 @@ export class PropSystem {
     if (!pr.merged || pr._hidden) return;
     const a = pr.merged.mesh.geometry.attributes.position; const arr = a.array; const { start, count } = pr.range;
     for (let i = start; i < start + count; i++) { arr[i * 3] = 0; arr[i * 3 + 1] = -500; arr[i * 3 + 2] = 0; }
-    a.needsUpdate = true; pr._hidden = true;
+    a.addUpdateRange(start * 3, count * 3); a.needsUpdate = true; pr._hidden = true; // envoi de la seule plage modifiée
   }
   _showStatic(pr) {
     if (!pr.merged || !pr._hidden) return;
-    const a = pr.merged.mesh.geometry.attributes.position; const arr = a.array; const o = pr.merged.orig; const { start, count } = pr.range;
-    arr.set(o.subarray(start * 3, (start + count) * 3), start * 3);
-    a.needsUpdate = true; pr._hidden = false;
+    const a = pr.merged.mesh.geometry.attributes.position; const arr = a.array; const { start, count } = pr.range;
+    const P = buildItemGeometry(pr.def, this.game.atlas).attributes.position;
+    _q.setFromEuler(_e.set(0, pr.home.ry || 0, 0)); _m.compose(_v.set(pr.home.x, pr.home.y, pr.home.z), _q, _s);
+    for (let i = 0; i < count; i++) { _v.fromBufferAttribute(P, i).applyMatrix4(_m); const o = (start + i) * 3; arr[o] = _v.x; arr[o + 1] = _v.y; arr[o + 2] = _v.z; }
+    a.addUpdateRange(start * 3, count * 3); a.needsUpdate = true; pr._hidden = false;
   }
   _ensureMesh(pr) {
     if (pr.mesh) return pr.mesh;
@@ -253,7 +259,7 @@ export class PropSystem {
     if (this.world.objects.has(p.id)) { this.get(p.id).applyState(p.state); return; }
     const pr = new Prop(this, p.id, p.def, { x: p.state.pos[0], y: p.state.pos[1], z: p.state.pos[2], ry: 0, zone: null }, p.state.data || {});
     pr.runtime = true; pr.transient = true;
-    this.world.add(pr); this.runtime.set(p.id, pr);
+    this.world.add(pr); this.runtime.set(p.id, pr); this._index(pr);
     pr.state = { ...p.state };
     pr.initial = { where: 'gone', owner: null, pos: p.state.pos, quat: p.state.quat, data: {} };
     this.onPropState(pr, { where: pr.state.where, owner: pr.state.owner }, false);
@@ -263,9 +269,11 @@ export class PropSystem {
     this._removeMesh(pr); if (pr.body) { this.world.physics.removeBody(pr.body); pr.body = null; }
     this.awake.delete(pr);
     if (pr.pickBox) { this.world.pick.remove(pr.pickBox); pr.pickBox = null; }
-    this.world.objects.delete(pr.id); this.runtime.delete(pr.id);
+    this.world.objects.delete(pr.id); this.runtime.delete(pr.id); this._unindex(pr);
     this.game.player?.inv.onPropState(pr);
   }
+  _index(pr) { pr._ord = ++this._ord; let a = this.byDef.get(pr.defId); if (!a) this.byDef.set(pr.defId, a = []); a.push(pr); }
+  _unindex(pr) { const a = this.byDef.get(pr.defId); const i = a ? a.indexOf(pr) : -1; if (i >= 0) a.splice(i, 1); }
   serializeRuntime() { const out = []; for (const pr of this.runtime.values()) if (pr.state.where !== 'gone') out.push({ id: pr.id, def: pr.defId, state: pr.state }); return { list: out, rc: this.rcounter }; }
   deserializeRuntime(d) { for (const e of d.list) this._spawnLocal(e); this.rcounter = Math.max(this.rcounter, d.rc || 0); }
   resetRuntime() { for (const pr of [...this.runtime.values()]) this._destroyRuntime(pr); this.rcounter = 0; }
@@ -395,11 +403,25 @@ export class PropSystem {
 
   // Articles statiques au repos dans une zone
   inZone(zoneId) { return (this.byZone.get(zoneId) || []).filter(p => p.state.where === 'home'); }
-  // Articles d'un type dans le monde (au repos ou posés)
+  // Articles d'un type dans le monde (au repos ou posés). Par identifiant de type : liste indexée (même ordre que le
+  // parcours des objets du monde, sans parcourir les ~20 000 objets) ; par prédicat : parcours complet.
   find(defIdOrFn, opts = {}) {
-    const f = typeof defIdOrFn === 'function' ? defIdOrFn : (p) => p.defId === defIdOrFn;
     const out = [];
+    if (typeof defIdOrFn !== 'function') { for (const o of this.byDef.get(defIdOrFn) || NONE) if (opts.any || o.state.where === 'home' || o.state.where === 'world') out.push(o); return out; }
+    const f = defIdOrFn;
     for (const o of this.world.objects.values()) if (o.kind === 'prop' && f(o) && (opts.any || o.state.where === 'home' || o.state.where === 'world')) out.push(o);
     return out;
+  }
+  // Articles de plusieurs types (ordre du monde), filtrés comme find ; un prédicat facultatif en plus
+  findDefs(defIds, opts = {}, f = null) {
+    const out = [];
+    for (const id of defIds) for (const o of this.byDef.get(id) || NONE) if ((opts.any || o.state.where === 'home' || o.state.where === 'world') && (!f || f(o))) out.push(o);
+    if (defIds.length > 1) out.sort(byOrd);
+    return out;
+  }
+  // Articles d'un usage (def.use), ordre du monde
+  findUse(use, opts = {}) {
+    let ids = this._useIds.get(use); if (!ids) this._useIds.set(use, ids = Object.keys(ITEMS).filter((k) => ITEMS[k].use === use));
+    return this.findDefs(ids, opts);
   }
 }

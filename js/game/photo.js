@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { Net } from '../net/net.js';
 import { CAM_LAYERS } from './security.js';
+import { GLOBAL_UNIFORMS } from '../engine/materials.js';
 
 const FS_VERT = 'varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 // développement « argentique » : tonemapping doux, dominante chaude, vignettage, grain, sortie sRGB
@@ -25,11 +26,24 @@ export class PhotoSystem {
   constructor(game) {
     this.game = game;
     this.cam = new THREE.PerspectiveCamera(60, 4 / 3, 0.05, 120); this.cam.rotation.order = 'YXZ';
-    this.flash = new THREE.PointLight(0xfff6ea, 0, 16, 1.6); game.scene.add(this.flash);
+    this._flashSave = null; // flash : emprunte un emplacement du pool de lumières le temps de la prise de vue (flashOn)
     this.devMat = new THREE.ShaderMaterial({ vertexShader: FS_VERT, fragmentShader: DEV_FRAG, depthTest: false, depthWrite: false, uniforms: { tSrc: { value: null }, time: { value: 0 }, warm: { value: 1 }, exposure: { value: 1.2 } } });
     this.rtScene = null; this.rtOut = null; this.size = [0, 0];
     this.rear = null; this.rearTimer = null;
     game.sim.action('flashstun', (p) => game.entities.flashStun?.(new THREE.Vector3(...p.pos), new THREE.Vector3(...p.dir)));
+  }
+  // Le flash n'éclaire que la prise de vue (rendu synchrone) : plutôt qu'une PointLight éteinte en permanence dans la
+  // scène (chaque lumière, même à 0, coûte son calcul à chaque pixel de chaque matériau), on emprunte le dernier
+  // emplacement du pool, sans masque de zone, puis on le rend tel quel
+  flashOn(pos, intensity) {
+    const pool = this.game.lighting.pool, k = pool.length - 1, L = pool[k], PM = GLOBAL_UNIFORMS.poolMin.value[k];
+    if (!this._flashSave) this._flashSave = { pos: L.position.clone(), color: L.color.clone(), intensity: L.intensity, distance: L.distance, w: PM.w };
+    L.position.copy(pos); L.color.setHex(0xfff6ea); L.intensity = intensity; L.distance = 16; PM.w = 0;
+  }
+  flashOff() {
+    const s = this._flashSave; if (!s) return; this._flashSave = null;
+    const pool = this.game.lighting.pool, k = pool.length - 1, L = pool[k];
+    L.position.copy(s.pos); L.color.copy(s.color); L.intensity = s.intensity; L.distance = s.distance; GLOBAL_UNIFORMS.poolMin.value[k].w = s.w;
   }
   targets(w, h) {
     if (this.size[0] !== w || this.size[1] !== h) {
@@ -66,7 +80,7 @@ export class PhotoSystem {
     const dir = p.forward();
     g.sfx('camera_shutter', null, { volume: 0.7, bus: 'ui' });
     if (flash) {
-      this.flash.position.copy(cam.position).addScaledVector(dir, 0.2); this.flash.intensity = 60;
+      this.flashOn(cam.position.clone().addScaledVector(dir, 0.2), 60);
       g.sfx('photo_flash', null, { volume: 0.6, bus: 'ui' });
       g.renderer.fx.flash.value = 0.85; setTimeout(() => { g.renderer.fx.flash.value = 0; }, 90);
       g.sim.do('flashstun', { pos: cam.position.toArray(), dir: dir.toArray() });
@@ -75,7 +89,7 @@ export class PhotoSystem {
     let photo;
     try { photo = this.shoot(cam.position, p.yaw, p.pitch, 320, 240, { spirits: true, fov: 62, exposure: flash ? 1.0 : 1.4 }); }
     catch (e) { console.warn('[photo]', e); }
-    this.flash.intensity = 0;
+    this.flashOff();
     if (!photo) return;
     // y a-t-il une présence « invisible » dans le cadre ?
     let ghost = null;
@@ -113,14 +127,14 @@ export class PhotoSystem {
     let i = 0;
     const shot = () => {
       g.sfx('photo_flash', dev.center, { volume: 0.5 }); g.particles.flash(dev.wp(dev.meta?.flash || [0, 0.5, 0]));
-      this.flash.position.copy(camPos); this.flash.intensity = 30;
+      this.flashOn(camPos, 30);
       try {
         // avatar du joueur visible (calque 1) : l'objectif est devant son visage
         const cv = this.shoot(camPos, yaw + Math.PI, -0.02, W, H, { self: true, spirits: true, fov: 55, exposure: 1.1, warm: 0.4 });
         if (i === ghostFrame) this.drawGhost(cv);
         frames.push(cv);
       } catch (e) { console.warn('[photomaton]', e); }
-      this.flash.intensity = 0;
+      this.flashOff();
       i++;
       if (i < 4) setTimeout(shot, 1100);
       else {
