@@ -4,11 +4,13 @@
 //  → [qualité moyenne/haute] passe demi-résolution : SSAO (normales reconstruites depuis la profondeur, 12–16
 //    échantillons en spirale) + faisceau volumétrique de la lampe torche (marche dans le cône, ombres de la lampe),
 //    puis flou bilatéral 2 passes
-//  → mesure de luminance 32×18 pondérée au centre → adaptation lente sur GPU (cible 1×1, pas de lecture CPU)
+//  → mesure de luminance 32×18 pondérée au centre → adaptation lente sur GPU (cible 1×1, pas de lecture CPU ; elle
+//    déclenche aussi la « chasse » de la mise au point de la caméra-piéton)
 //  → bloom (seuil exprimé après exposition)
-//  → composite : objectif de caméra-piéton (barillet normalisé + champ élargi, aberration chromatique sur les bords,
-//    netteté légère), SSAO sur la seule part ambiante, AgX + étalonnage (balance des blancs, look), vignette, bruit de
-//    capteur luma/chroma (plus fort quand le gain monte), effets de stress et « lunettes », sortie sRGB.
+//  → composite : objectif de caméra-piéton (barillet normalisé + champ élargi, aberration chromatique et flou sur les
+//    bords, netteté légère, flou bref de mise au point), SSAO sur la seule part ambiante, AgX + étalonnage (balance des
+//    blancs, look), vignette, bruit de capteur luma/chroma (plus fort quand le gain monte), effets de stress et
+//    « lunettes », sortie sRGB.
 // renderTo() (CCTV, photos) : rendu brut sans post-traitement. renderCCTV() : écran de vidéosurveillance plein écran.
 import * as THREE from 'three';
 import { noiseTexture, setMaxAnisotropy } from './textures.js';
@@ -62,16 +64,24 @@ void main() {
   vec2 d = (vUv - 0.5) * vec2(1.4, 1.8); float w = exp(-dot(d, d) * 1.6) + 0.12;
   gl_FragColor = vec4(s / 16.0 * w, w, 0.0, 1.0);
 }`;
-// Adaptation (cible 1×1) : vers une scène plus claire, rapide ; vers l'obscurité, lente
+// Adaptation (cible 1×1) : vers une scène plus claire, rapide ; vers l'obscurité, lente.
+// G : « chasse » de l'autofocus (caméra-piéton) : la scène devient d'un coup bien plus claire que le niveau adapté
+// (2 à 3,4 diaphragmes) → impulsion entretenue 0,25 s au plus, qui retombe ensuite ; B : délai avant la suivante (18 s :
+// l'effet reste rare)
 const ADAPT_FRAG = /* glsl */`
 uniform sampler2D tLum, tPrev; uniform float dt, upRate, downRate, reset; varying vec2 vUv;
 void main() {
   float sl = 0.0, sw = 0.0;
   for (int y = 0; y < 18; y++) for (int x = 0; x < 32; x++) { vec2 v = texelFetch(tLum, ivec2(x, y), 0).rg; sl += v.r; sw += v.g; }
-  float target = sl / max(sw, 1e-5), prev = texture2D(tPrev, vec2(0.5)).r;
+  vec3 pv = texture2D(tPrev, vec2(0.5)).rgb; float target = sl / max(sw, 1e-5), prev = pv.r;
   float v = reset > 0.5 ? target : mix(prev, target, 1.0 - exp(-dt * (target > prev ? upRate : downRate)));
   if (!(v > -30.0 && v < 30.0)) v = -2.0;
-  gl_FragColor = vec4(v, 0.0, 0.0, 1.0);
+  float tr = (pv.b <= 0.0 || pv.b > 17.75) ? smoothstep(2.0, 3.4, target - prev) : 0.0;
+  float h = reset > 0.5 ? 0.0 : max(pv.g * exp(-dt * 5.0), tr);
+  if (!(h >= 0.01 && h <= 1.0)) h = 0.0;
+  float cd = pv.b <= 0.0 && tr > 0.5 ? 18.0 : max(0.0, pv.b - dt);
+  if (!(cd < 100.0)) cd = 0.0;
+  gl_FragColor = vec4(v, h, cd, 1.0);
 }`;
 
 // Demi-résolution : R = occlusion ambiante, G = profondeur linéaire (m), B = diffusion du faisceau de la lampe
@@ -157,6 +167,7 @@ uniform float time, bloomStrength, grain, vignette, ca, stress, fade, flash, dam
 uniform float glassesMode; // 0 aucun, 1 vision nocturne, 2 anaglyphe 3D, 3 lunettes de soleil, 4 VR, 5 UV
 uniform float nvGain; uniform vec2 resolution; uniform float desat; uniform vec3 tint; uniform float scanline;
 uniform float lensK, aspect, sharpen, chroma, aoOn, aoStrength, camNear, camFar, lookPower, lookSat, debugView;
+uniform float vigAmt, edgeSoft, huntK;
 uniform vec2 aoRes; uniform vec3 beamColor, wb;
 ${EXPO}
 varying vec2 vUv;
@@ -228,6 +239,19 @@ void main() {
     float lc = dot(cS.rgb, LUMA), sc = lc / (1.0 + lc), sn = ln / (1.0 + ln), st = clamp(sc + sharpen * (sc - sn), 0.0, 0.995);
     col *= (st / (1.0 - st) + 1e-6) / max(lc, 1e-6);
   }
+  // caméra-piéton : bords de l'objectif plus mous (flou radial + tangentiel qui croît vers les coins)…
+  if (edgeSoft > 0.0 && r2 > 0.3) {
+    float s = edgeSoft * smoothstep(0.3, 1.0, r2); vec2 d = normalize(p + 1e-5) * 0.0024 * s, t = vec2(-d.y, d.x) * 0.7;
+    vec3 b = texture2D(tScene, uv + d).rgb + texture2D(tScene, uv - d).rgb + texture2D(tScene, uv + t).rgb + texture2D(tScene, uv - t).rgb;
+    col = mix(col, b * 0.25, s * 0.8);
+  }
+  // … et « chasse » de la mise au point quand la scène s'éclaire d'un coup (impulsion de l'adaptation : tExpo.g)
+  float hunt = huntK * texture2D(tExpo, vec2(0.5)).g;
+  if (hunt > 0.0) {
+    float rr = hunt * (0.0045 + 0.003 * sin(time * 15.0)); vec3 b = vec3(0.0);
+    for (int i = 0; i < 8; i++) { float a = float(i) * 2.3999632 + 0.4, k = rr * sqrt((float(i) + 0.5) / 8.0); b += texture2D(tScene, uv + vec2(cos(a), sin(a) * aspect) * k).rgb; }
+    col = mix(col, b * 0.125, min(1.0, hunt * 1.4));
+  }
   // flou (somnolence)
   if (sleepy > 0.0) {
     vec3 b = vec3(0.0); float s = sleepy * 0.006;
@@ -242,7 +266,7 @@ void main() {
     col += beamColor * a.b;
     if (debugView > 0.5) { float v = debugView < 1.5 ? a.r : debugView < 2.5 ? cS.a : debugView < 3.5 ? a.b * 4.0 : a.g / 30.0; gl_FragColor = vec4(vec3(v), 1.0); return; }
   }
-  float gain = autoGain();
+  float gain = autoGain() * (1.0 + hunt * 0.1 * sin(time * 9.0)); // l'exposition pompe un peu pendant la chasse
   vec3 bloom = texture2D(tBloom1, uv).rgb * 0.6 + texture2D(tBloom2, uv).rgb * 0.8; // déjà exposé (seuil après exposition)
   if (glassesMode == 1.0) {
     float l = dot(col, vec3(0.299, 0.587, 0.114));
@@ -268,7 +292,7 @@ void main() {
   vec2 cc = vUv - 0.5;
   float vig = smoothstep(0.85, 0.25, length(cc * vec2(1.0, 0.9)) * (1.0 + vignette));
   float pulse = heartbeat * stress;
-  col *= mix(1.0, vig, 0.45 + stress * 0.35);
+  col *= mix(1.0, vig, vigAmt + stress * 0.35);
   col = mix(col, col * vec3(1.0, 0.35, 0.3), pulse * (1.0 - vig) * 0.8);
   // dégâts
   col = mix(col, vec3(0.5, 0.0, 0.0), damage * (1.0 - vig * 0.6));
@@ -285,20 +309,61 @@ void main() {
   gl_FragColor = vec4(outc, 1.0);
 }`;
 
-// Shader « écran CCTV » : utilisé pour la vue plein écran et les moniteurs du poste.
+// Tube cathodique « vivant », partagé par la vue plein écran (CCTV_FRAG, CCTV_LIVE) et l'affichage des moniteurs du
+// poste (security.js : l'image de la cible n'est refaite qu'à son tour, le tube l'anime à chaque image) : bande de
+// défilement lente (plus claire, liseré sombre en tête), respiration et scintillement de la luminosité, entrelacement,
+// lignes de balayage légères (effacées quand elles deviennent plus fines qu'un pixel), grain fin animé, décrochages
+// horizontaux rares et brefs. Couleur en espace perceptuel (gamma 2,2 : un grain ajouté en linéaire grésillerait fort
+// dans les noirs après l'encodage). t : temps (s) ; sd : graine (chaque moniteur dérive à sa façon) ; cell : grain (px).
+export const CRT_LIVE = /* glsl */`
+float crtH1(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
+float crtH2(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+// décrochage (fraction de la largeur) : une bande de lignes glisse 0,2 s, en moyenne un créneau sur 1 / (1 - p)
+float crtJitter(float y, float t, float sd, float p) {
+  float slot = floor(t * 5.0);
+  if (crtH1(slot + sd * 37.0) < p) return 0.0;
+  float y0 = crtH1(slot * 1.7 + sd * 3.1), hb = 0.03 + 0.1 * crtH1(slot * 2.3 + sd), env = sin(fract(t * 5.0) * 3.14159);
+  return env * ((1.0 - smoothstep(hb * 0.4, hb, abs(y - y0))) * (0.006 + 0.016 * crtH1(floor(y * 240.0) * 0.37 + slot)) + 0.002);
+}
+// visibilité des lignes de balayage (à calculer hors de toute branche : dérivée) : nulle sous ~2 pixels par ligne
+float crtScanVis(float v, float lines) { return lines > 0.0 ? 1.0 - smoothstep(0.3, 0.6, fwidth(v) * lines) : 0.0; }
+float crtBump(float x, float a, float m, float b) { return smoothstep(a, m, x) * (1.0 - smoothstep(m, b, x)); }
+vec3 crtLive(vec3 c, vec2 uv, vec2 cell, float t, float sd, float lines, float vis) {
+  // bande : liseré sombre en tête, partie claire, puis traîne un peu plus sombre (descend d'un écran en ~12 s)
+  float ph = fract(uv.y + t * 0.085 + sd);
+  c *= 1.0 - 0.07 * crtBump(ph, 0.0, 0.006, 0.03) + 0.09 * crtBump(ph, 0.02, 0.12, 0.24) - 0.045 * crtBump(ph, 0.2, 0.32, 0.5);
+  c *= 1.0 + 0.014 * sin(t * 1.9 + sd * 6.3) + 0.007 * sin(t * 7.3 + sd * 2.1) + 0.012 * (crtH1(floor(t * 30.0) + sd * 13.0) - 0.5);
+  float y = uv.y * lines;
+  c *= 1.0 - vis * (0.045 * (0.5 + 0.5 * cos(6.2831853 * y)) - 0.012 * (mod(floor(y) + floor(t * 50.0), 2.0) - 0.5));
+  return c + (crtH2(floor(cell) + fract(t * 7.0) * 917.0) - 0.5) * 0.05 * (1.2 - 0.8 * dot(c, vec3(0.333)));
+}`;
+// Shader « écran CCTV » : vue plein écran (CCTV_LIVE : tube animé ici), image des moniteurs du poste (CCTV_RT : partie
+// fixe seulement, l'écran du moniteur anime le tube et repasse en linéaire ; l'alpha porte la neige « pas de signal »)
+// et images de l'enregistreur. Sortie perceptuelle (sRGB). Partie fixe : courbure et coins arrondis adoucis, parasites
+// (glitch), tonemapping, infrarouge, grain du capteur (plus fort dans les ombres), neige, vignettage doux, incrustation.
 export const CCTV_FRAG = /* glsl */`
 uniform sampler2D tCam; uniform sampler2D tNoise; uniform sampler2D tOverlay; uniform float time, ir, noiseAmt, offline, glitch, hasOverlay, curvature, brightness;
-uniform vec2 resolution;
+uniform float swap, lines, seed, analog; uniform vec2 resolution;
 varying vec2 vUv;
-float rand(vec2 co) { return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453); }
+${CRT_LIVE}
 vec3 toSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
 void main() {
-  vec2 uv = vUv;
-  vec2 cc = uv - 0.5; uv = 0.5 + cc * (1.0 + curvature * dot(cc, cc));
-  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-  float line = floor(uv.y * resolution.y);
-  float jitter = (rand(vec2(line, floor(time * 30.0))) - 0.5) * 0.004 * (1.0 + glitch * 20.0);
-  if (glitch > 0.0 && rand(vec2(floor(time * 12.0), line * 0.1)) < glitch * 0.3) jitter += (rand(vec2(line)) - 0.5) * 0.1;
+  float t = time, vis = crtScanVis(vUv.y, lines);
+  vec2 cc = vUv - 0.5, uv = 0.5 + cc * (1.0 + curvature * dot(cc, cc));
+  float mask = 1.0;
+  if (curvature > 0.0) { vec2 e = max(abs(uv - 0.5) - 0.465, 0.0); mask = 1.0 - smoothstep(0.029, 0.035, length(e)); }
+  if (mask <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+#ifdef CCTV_LIVE
+  if (analog > 0.5) {
+    uv.y = fract(uv.y + swap * swap * 0.55); // changement de caméra : l'image roule un instant
+    uv.x += crtJitter(uv.y, t, seed, 0.9833);
+  }
+#endif
+  float line = floor(uv.y * resolution.y), jitter = 0.0;
+  if (glitch > 0.0) {
+    jitter = (crtH2(vec2(line, floor(t * 30.0))) - 0.5) * 0.004 * (1.0 + glitch * 20.0);
+    if (crtH2(vec2(floor(t * 12.0), line * 0.1)) < glitch * 0.3) jitter += (crtH1(line * 0.731) - 0.5) * 0.1;
+  }
   vec3 c = texture2D(tCam, vec2(uv.x + jitter, uv.y)).rgb;
   float l = dot(c, vec3(0.299, 0.587, 0.114));
   // tonemapping simple
@@ -306,17 +371,22 @@ void main() {
   l = l / (1.0 + l);
   if (ir > 0.5) { c = vec3(l * 0.85, l * 1.0, l * 0.9) * 1.35; }
   else { c = mix(c, vec3(l), 0.35); }
-  c *= brightness;
-  float n = rand(uv * resolution + time * 60.0);
-  c += (n - 0.5) * noiseAmt;
-  c *= 0.82 + 0.18 * sin(uv.y * resolution.y * 3.14159);
-  float roll = smoothstep(0.0, 0.02, abs(fract(uv.y - time * 0.07) - 0.5) - 0.48);
-  c *= 0.9 + 0.1 * roll;
-  if (offline > 0.5) c = vec3(n * 0.5);
-  float vig = smoothstep(0.9, 0.3, length(cc));
-  c *= mix(0.6, 1.0, vig);
+  // suite en espace perceptuel : grain du capteur (plus marqué dans les ombres), neige, vignettage doux
+  c = toSRGB(clamp(c * brightness, 0.0, 1.0));
+  float n = crtH2(floor(uv * resolution) + fract(t * 13.0) * 431.0);
+  c += (n - 0.5) * noiseAmt * (0.7 + 0.6 * (1.0 - l));
+  if (offline > 0.5) c = vec3(n * 0.6);
+  c *= mix(0.86, 1.0, 1.0 - smoothstep(0.32, 0.95, length(cc * vec2(1.0, 0.94)))) * mask;
+#ifdef CCTV_LIVE
+  if (analog > 0.5) c = crtLive(c, uv, gl_FragCoord.xy, t, seed, lines, vis);
+  else c += (crtH2(gl_FragCoord.xy + fract(t * 7.0) * 917.0) - 0.5) * 0.03; // écran plat (tablette) : grain seul
+  if (swap > 0.0) c = mix(c, vec3(crtH2(gl_FragCoord.xy + fract(t * 7.0) * 311.0) * 0.7 + 0.1), swap * 0.6);
+#endif
   if (hasOverlay > 0.5) { vec4 o = texture2D(tOverlay, vUv); c = mix(c, o.rgb, o.a); }
-  gl_FragColor = vec4(toSRGB(clamp(c, 0.0, 1.0)), 1.0);
+  gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+#ifdef CCTV_RT
+  gl_FragColor.a = offline > 0.5 ? 0.0 : 1.0;
+#endif
 }`;
 
 const _v = new THREE.Vector3(), _d = new THREE.Vector3(), _m = new THREE.Matrix4();
@@ -369,12 +439,13 @@ export class Renderer {
       lensK: { value: 0.04 }, aspect: { value: 16 / 9 }, sharpen: { value: 0.15 }, chroma: { value: 0.5 }, aoOn: { value: 0 }, aoStrength: { value: 1 },
       camNear: { value: 0.05 }, camFar: { value: 700 }, lookPower: { value: 1.1 }, lookSat: { value: 1.05 }, aoRes: { value: new THREE.Vector2(1, 1) },
       beamColor: { value: new THREE.Color(0, 0, 0) }, wb: { value: new THREE.Vector3(1, 1, 1) },
+      vigAmt: { value: 0.45 }, edgeSoft: { value: 0 }, huntK: { value: 0 }, // caméra-piéton : vignette, bords mous, chasse de la mise au point
       debugView: { value: 0 }, // diagnostic : 1 SSAO, 2 part directe (alpha), 3 faisceau, 4 profondeur
       ...E,
     });
     this.cctvMat = new THREE.ShaderMaterial({
-      vertexShader: FS_VERT, fragmentShader: CCTV_FRAG, depthTest: false, depthWrite: false,
-      uniforms: { tCam: { value: null }, tNoise: { value: noise }, tOverlay: { value: null }, hasOverlay: { value: 0 }, time: { value: 0 }, ir: { value: 1 }, noiseAmt: { value: 0.12 }, offline: { value: 0 }, glitch: { value: 0 }, curvature: { value: 0.12 }, brightness: { value: 1.1 }, resolution: { value: new THREE.Vector2(640, 400) } },
+      vertexShader: FS_VERT, fragmentShader: CCTV_FRAG, depthTest: false, depthWrite: false, defines: { CCTV_LIVE: 1 },
+      uniforms: { tCam: { value: null }, tNoise: { value: noise }, tOverlay: { value: null }, hasOverlay: { value: 0 }, time: { value: 0 }, ir: { value: 1 }, noiseAmt: { value: 0.12 }, offline: { value: 0 }, glitch: { value: 0 }, curvature: { value: 0.12 }, brightness: { value: 1.1 }, resolution: { value: new THREE.Vector2(640, 400) }, swap: { value: 0 }, lines: { value: 240 }, seed: { value: 0 }, analog: { value: 1 } },
     });
     this.copyMat = new THREE.MeshBasicMaterial();
     this.beam = { light: null, strength: 0 }; // lampe torche du joueur (faisceau volumétrique en post-traitement)
@@ -389,7 +460,7 @@ export class Renderer {
   get volumetric() { return this.settings.quality !== 'low' && this.settings.volumetric !== false; }
   get bodycam() { return this.settings.bodycam !== false; }
   // Agrandissement du centre de l'image par le barillet : la caméra doit élargir son champ d'autant (tan(fov/2) × k)
-  lensScale() { return 1 + (this.bodycam ? 0.2 : 0.04); }
+  lensScale() { return 1 + (this.bodycam ? 0.27 : 0.04); }
   setBeam(light, strength) { this.beam.light = light; this.beam.strength = strength; }
   // Après une téléportation (début de nuit, réapparition) : l'exposition se recale immédiatement
   resetAdaptation() { this._aeReset = 2; }
@@ -458,7 +529,8 @@ export class Renderer {
     this.stats.calls = r.info.render.calls; this.stats.tris = r.info.render.triangles;
     // objectif « caméra-piéton » (réglage) ou objectif discret
     const bc = this.bodycam;
-    U.lensK.value = this.lensScale() - 1; U.ca.value = bc ? 0.0042 : 0.0014; U.sharpen.value = bc ? 0.32 : 0.12; U.chroma.value = bc ? 0.85 : 0.4;
+    U.lensK.value = this.lensScale() - 1; U.ca.value = bc ? 0.0052 : 0.0014; U.sharpen.value = bc ? 0.32 : 0.12; U.chroma.value = bc ? 0.85 : 0.4;
+    U.vignette.value = bc ? 0.16 : 0.1; U.vigAmt.value = bc ? 0.56 : 0.45; U.edgeSoft.value = bc ? 1 : 0; U.huntK.value = bc ? 1 : 0;
     // SSAO + faisceau volumétrique (demi-résolution)
     const aoOn = S.quality !== 'low', hi = S.quality === 'high';
     const L = this.beam.light, beamOn = aoOn && this.volumetric && L && L.intensity > 0 && this.beam.strength > 0;
@@ -519,14 +591,18 @@ export class Renderer {
     this.gl.setRenderTarget(null);
   }
 
-  // Affiche une texture de caméra en plein écran avec le shader CCTV
+  // Affiche une texture de caméra en plein écran avec le shader CCTV (tube animé). opts.time : horloge du tube (la vue
+  // plein écran remplace render(), dont l'horloge _time ne tourne plus) ; opts.swap : 1 → 0 après un changement de
+  // caméra ; opts.seed : dérive propre à la caméra ; opts.analog === false : écran plat (tablette), sans tube
   renderCCTV(texture, opts = {}) {
-    const U = this.cctvMat.uniforms;
-    U.tCam.value = texture; U.time.value = this._time;
-    U.ir.value = opts.ir ? 1 : 0; U.noiseAmt.value = opts.noise ?? 0.1; U.offline.value = opts.offline ? 1 : 0; U.glitch.value = opts.glitch || 0;
-    U.tOverlay.value = opts.overlay || null; U.hasOverlay.value = opts.overlay ? 1 : 0; U.curvature.value = 0.1;
+    const U = this.cctvMat.uniforms, analog = opts.analog !== false;
+    if (opts.time === undefined) this._time += opts.dt ?? 1 / 60;
+    U.tCam.value = texture; U.time.value = opts.time ?? this._time;
+    U.ir.value = opts.ir ? 1 : 0; U.noiseAmt.value = opts.noise ?? 0.08; U.offline.value = opts.offline ? 1 : 0; U.glitch.value = opts.glitch || 0;
+    U.tOverlay.value = opts.overlay || null; U.hasOverlay.value = opts.overlay ? 1 : 0; U.curvature.value = analog ? 0.06 : 0; U.analog.value = analog ? 1 : 0;
     U.resolution.value.set(texture?.image?.width || 640, texture?.image?.height || 400);
-    U.brightness.value = opts.brightness ?? 1.1;
+    U.brightness.value = opts.brightness ?? 1.05; U.swap.value = opts.swap || 0; U.seed.value = opts.seed || 0;
+    U.lines.value = Math.max(120, Math.round(this.gl.domElement.height / 3)); // ~3 pixels par ligne de balayage
     this.pass(this.cctvMat, null);
   }
 

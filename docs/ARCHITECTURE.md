@@ -163,6 +163,20 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   normale ; envoyées au GPU dès leur création (copies CPU libérées). Ce qui doit luire dans le noir (LED, écrans,
   façades de distributeurs) reste en MeshBasicMaterial ; les dalles lumineuses et enseignes de zone (`zone.panelMat`,
   `zone.signMats`) s'éteignent sans courant mais réagissent à la lampe torche.
+- Caméra-piéton (réglage « Effet caméra-piéton », `settings.bodycam`, `Renderer.bodycam`). Objectif (composite) :
+  barillet normalisé `lensK` 0,27 (le centre est agrandi de 1,27 : `lensScale()`, et `player.updateCamera` élargit le
+  champ d'autant, le centre garde le champ des options), aberration chromatique latérale `ca` 0,0052 × r² (nulle au
+  centre), bords plus mous (`edgeSoft` : flou radial et tangentiel au-delà de r² = 0,3), vignette plus marquée
+  (`vignette` 0,16, `vigAmt` 0,56), netteté 0,32, bruit chroma 0,85. « Chasse » de la mise au point : l'adaptation
+  (`ADAPT_FRAG`) écrit dans le canal G de sa cible 1×1 une impulsion quand la scène devient d'un coup 2 à 3,4
+  diaphragmes plus claire que le niveau adapté (sortie d'un local noir, lampe allumée face à un mur) ; entretenue
+  0,25 s au plus puis retombante, 18 s de délai avant la suivante (canal B) ; le composite en tire un flou à 8 prises
+  dont le rayon oscille, et l'exposition pompe de ±10 %. Mouvement (`player.updateCamera`) : rebond de poitrine en
+  pointe à la pose du pied (5,6 cm × vitesse/5), petit hochement à l'impact, balancement latéral 2,6 cm, roulis
+  0,014 rad, respiration à l'arrêt ; ressorts de rotation peu amortis (ω = 22 rad/s, ζ = 0,42 : retard pendant le
+  mouvement de souris, ~20 % de dépassement quand il s'arrête). Incrustation (`ui.updateOSD`, `.nb-osd`) : point REC
+  clignotant, batterie (pleine le jour, de 100 à 25 % entre 22 h et 6 h), date et heure à la seconde, agent et
+  coordonnées GPS d'après la position. Réglage coupé : objectif discret (K 0,04), sans ressorts, chasse ni incrustation.
 
 ## Monde : construction (`js/world/`)
 - `mall.js` : architecture (galeries, vide central coupé de passerelles, verrière à deux pans, aile administrative,
@@ -222,7 +236,11 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
 - `elevator.js` : ascenseur panoramique. L'hôte décide (appels, file d'attente, trajets : état `{floor, to, moving,
   doors}`), chaque client anime la cabine et déplace son propre joueur s'il est dedans.
 - `fixtures.js` : portes, rideaux, vitres, interrupteurs, panneaux lisibles, sièges, contenants, casiers, grilles,
-  cachettes, `PushButton` (bouton générique : `press(game, actor, btn)` exécuté sur l'hôte).
+  cachettes, `PushButton` (bouton générique : `press(game, actor, btn)` exécuté sur l'hôte). Casier : caisson réellement
+  creux (faces intérieures assombries vers le fond, chants autour de l'ouverture, tablette, tringle, patère), porte
+  doublée d'un raidisseur ; le contenu est posé dedans, dans le lot du caisson (refait quand on prend un objet). Un objet
+  ouvrable doit avoir ses faces intérieures : le matériau est à simple face, une boîte « ouverte devant » sans
+  intérieur se voit au travers.
 - Portique antivol : chaque client surveille son joueur local ; s'il franchit le seuil avec un article dont la zone
   d'origine est le magasin (ou sa réserve), il envoie `interact {verb: 'trip'}` ; l'hôte incrémente l'état `ring`
   (bips + bandeau rouge chez tout le monde) et fait du bruit (`game.noise`, 0,75) pour les présences.
@@ -233,6 +251,20 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   autres joueurs en mode spectateur). `camTransform(c)`, `camStatus(c)` (`ok` | `offline` | `blocked`), `sees(c, pos)`.
 - Modes : `enterDesk()`, `enterTablet()`, `enterSpectator()`, `exitMode()` ; `fullscreen` vrai quand une caméra occupe
   l'écran (`renderFullscreen`), sinon le mur d'écrans est rendu en tournant (`renderMonitors`, 1 à 2 caméras par image).
+- Tube cathodique (`CCTV_FRAG` et `CRT_LIVE`, renderer.js). Partie fixe : courbure (0,06 plein écran, 0,05 moniteurs)
+  et coins arrondis adoucis, parasites (`glitch`), tonemapping, infrarouge, grain du capteur par texel de caméra (plus
+  marqué dans les ombres), neige « pas de signal », vignettage doux, incrustation. Partie vivante : bande de défilement
+  lente (~12 s par passage) à liseré sombre en tête, respiration et scintillement de ±2 %, entrelacement, lignes de
+  balayage à 4,5 % effacées dès qu'elles passent sous le pixel (`fwidth`), grain fin animé, décrochages horizontaux
+  rares et brefs (créneaux de 0,2 s : un sur 60 en plein écran, un sur 125 par moniteur). Couleurs en espace perceptuel
+  (le grain ne grésille plus dans les noirs). Plein écran : tout dans `renderCCTV` (`CCTV_LIVE`), avec l'horloge du jeu
+  passée par security.js (render() ne tourne pas pendant la vue plein écran : son horloge était figée) et un roulis
+  brouillé de 0,15 s au changement de caméra (`switchFlash` → `swap`) ; la tablette est un écran plat (`analog: false` :
+  ni courbure, ni balayage, ni bande, grain seul). Mur d'écrans (cibles 288 × 162, au format des dalles 0,78 × 0,44) :
+  la cible de chaque moniteur ne garde que la partie fixe (`CCTV_RT` ; l'alpha signale « pas de signal ») ; le matériau
+  de l'écran (`crtScreen` : `onBeforeCompile` d'un MeshBasicMaterial, un seul programme pour les 15 écrans, une graine
+  chacun) applique la partie vivante à chaque image avec `GLOBAL_UNIFORMS.time` puis repasse en linéaire : le mur vit
+  entre deux rafraîchissements de sa cible, pour quelques opérations par pixel d'écran et aucun appel de rendu en plus.
 - Calques : 0 normal, 1 avatar du joueur local (visible seulement en CCTV), 2 visible seulement sur caméra, 3 seulement
   en infrarouge (`CAM_LAYERS`).
 - Enregistreur : images JPEG (176×132) horodatées, priorité au mouvement ; `whoSaw(actorId)` (preuve de vol, nul si le

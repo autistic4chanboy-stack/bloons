@@ -11,20 +11,34 @@ import * as THREE from 'three';
 import { Net } from '../net/net.js';
 import { WorldObject } from '../world/world.js';
 import { Box, LAYER } from '../engine/physics.js';
-import { CCTV_FRAG } from '../engine/renderer.js';
+import { CCTV_FRAG, CRT_LIVE } from '../engine/renderer.js';
 import { GLOBAL_UNIFORMS } from '../engine/materials.js';
 import { quickGeometry } from '../world/meshes.js';
 import { SHOPS, AREAS } from '../data/shops.js';
 import { CIRCUITS } from '../world/power.js';
 
 const FS_VERT = 'varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
-// variante « linéaire » pour les écrans dans la scène (le composite final convertit déjà en sRGB)
-const LIN_FRAG = CCTV_FRAG.replace('gl_FragColor = vec4(toSRGB(clamp(c, 0.0, 1.0)), 1.0);', 'gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// graine stable d'une caméra (dérive de son tube : phase de la bande, scintillement, décrochages)
+const camSeed = (id) => { let h = 7; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 9973; return h / 9973; };
+// Écran d'un moniteur du mur : l'image de sa cible (partie fixe, perceptuelle, refaite à son tour : 4 à 8 fois par
+// seconde) passe à chaque image par le tube animé (CRT_LIVE, horloge du jeu), puis repasse en linéaire ; neige animée là
+// où la cible signale « pas de signal » (alpha nul). Un seul programme pour les 15 écrans, chacun avec sa graine.
+function crtScreen(mat, seed) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.crtT = GLOBAL_UNIFORMS.time; sh.uniforms.crtSeed = { value: seed };
+    sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform float crtT, crtSeed;\n' + CRT_LIVE + '\nvoid main() {').replace('#include <map_fragment>', `
+      vec4 crtS = texture2D(map, vMapUv + vec2(crtJitter(vMapUv.y, crtT, crtSeed, 0.992), 0.0));
+      vec3 crtC = crtLive(crtS.rgb, vMapUv, vMapUv * vec2(${(MON_W * 0.7).toFixed(1)}, ${(MON_H * 0.7).toFixed(1)}), crtT, crtSeed, 150.0, crtScanVis(vMapUv.y, 150.0));
+      crtC = clamp(crtC + (1.0 - crtS.a) * (crtH2(floor(vMapUv * vec2(${MON_W}.0, ${MON_H}.0)) + fract(crtT * 11.0) * 577.0) - 0.5) * 0.24, 0.0, 1.0);
+      diffuseColor.rgb *= crtC * crtC * (crtC * 0.3 + 0.7); // ≈ décodage sRGB`);
+  };
+  mat.customProgramCacheKey = () => 'crt_screen';
+}
 // Calques : 0 = normal, 1 = avatar du joueur local (vu seulement par les caméras), 2 = visible seulement
 // sur les caméras, 3 = visible seulement en infrarouge.
 export const CAM_LAYERS = { avatar: 1, cam: 2, ir: 3 };
-const MON_COLS = 5, MON_ROWS = 3, MON_W = 256, MON_H = 192;
+const MON_COLS = 5, MON_ROWS = 3, MON_W = 288, MON_H = 162; // image au format des dalles (0,78 × 0,44 : plus d'étirement)
 const CAP_W = 176, CAP_H = 132;
 const MAX_FRAMES = 900;
 const DESK_SEAT = new THREE.Vector3(-71.75, 0, 0);
@@ -79,8 +93,9 @@ export class Security {
     this.cctvCam = new THREE.PerspectiveCamera(70, 4 / 3, 0.05, 160); this.cctvCam.rotation.order = 'YXZ';
     this.irLight = new THREE.AmbientLight(0xffffff, 0); g.scene.add(this.irLight);
     const noise = g.renderer.cctvMat.uniforms.tNoise.value;
-    const mkMat = (frag) => new THREE.ShaderMaterial({ vertexShader: FS_VERT, fragmentShader: frag, depthTest: false, depthWrite: false, uniforms: { tCam: { value: null }, tNoise: { value: noise }, tOverlay: { value: null }, hasOverlay: { value: 0 }, time: { value: 0 }, ir: { value: 0 }, noiseAmt: { value: 0.12 }, offline: { value: 0 }, glitch: { value: 0 }, curvature: { value: 0.0 }, brightness: { value: 1.1 }, resolution: { value: new THREE.Vector2(MON_W, MON_H) } } });
-    this.monMat = mkMat(LIN_FRAG); this.capMat = mkMat(CCTV_FRAG);
+    // moniteurs : partie fixe du tube seulement (l'écran anime le reste, crtScreen) ; enregistreur : image sRGB
+    const mkMat = (defines) => new THREE.ShaderMaterial({ vertexShader: FS_VERT, fragmentShader: CCTV_FRAG, defines, depthTest: false, depthWrite: false, uniforms: { tCam: { value: null }, tNoise: { value: noise }, tOverlay: { value: null }, hasOverlay: { value: 0 }, time: { value: 0 }, ir: { value: 0 }, noiseAmt: { value: 0.12 }, offline: { value: 0 }, glitch: { value: 0 }, curvature: { value: 0.0 }, brightness: { value: 1.1 }, resolution: { value: new THREE.Vector2(MON_W, MON_H) }, swap: { value: 0 }, lines: { value: 0 }, seed: { value: 0 }, analog: { value: 1 } } });
+    this.monMat = mkMat({ CCTV_RT: 1 }); this.capMat = mkMat({});
     this.camRT = g.renderer.makeRT(MON_W, MON_H, { depthBuffer: true });
     this.capRT = new THREE.WebGLRenderTarget(CAP_W, CAP_H, { type: THREE.UnsignedByteType, depthBuffer: false });
     this.capScene = g.renderer.makeRT(CAP_W, CAP_H, { depthBuffer: true });
@@ -129,7 +144,7 @@ export class Security {
     g.world.physics.add(new Box(-75.95, 0.9, -2.6, -75.38, 2.65, 2.6, LAYER.FURN));
     for (let r = 0; r < MON_ROWS; r++) for (let c = 0; c < MON_COLS; c++) {
       const rt = new THREE.WebGLRenderTarget(MON_W, MON_H, { type: THREE.UnsignedByteType, depthBuffer: false });
-      const mat = new THREE.MeshBasicMaterial({ map: rt.texture, color: 0x000000 });
+      const mat = new THREE.MeshBasicMaterial({ map: rt.texture, color: 0x000000 }); crtScreen(mat, ((r * MON_COLS + c) * 0.618034) % 1);
       const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.44), mat);
       scr.rotation.y = Math.PI / 2; scr.position.set(-75.392, 1.25 + r * 0.53, -2.0 + c * 1.0);
       zone.group.add(scr);
@@ -333,7 +348,7 @@ export class Security {
   cctvPass(mat, src, target, w, h, opts) {
     const U = mat.uniforms;
     U.tCam.value = src; U.time.value = this.game.time; U.ir.value = opts.ir ? 1 : 0; U.noiseAmt.value = opts.noise ?? 0.1; U.offline.value = opts.offline ? 1 : 0;
-    U.glitch.value = opts.glitch || 0; U.tOverlay.value = opts.overlay || null; U.hasOverlay.value = opts.overlay ? 1 : 0; U.curvature.value = opts.curvature ?? 0.06;
+    U.glitch.value = opts.glitch || 0; U.tOverlay.value = opts.overlay || null; U.hasOverlay.value = opts.overlay ? 1 : 0; U.curvature.value = opts.curvature ?? 0.05;
     U.brightness.value = opts.brightness ?? 1.15; U.resolution.value.set(w, h);
     this.game.renderer.pass(mat, target);
     this.game.renderer.gl.setRenderTarget(null);
@@ -375,7 +390,8 @@ export class Security {
     let ir = false;
     if (st === 'ok') { ir = this.renderCam(c, this.camRT, MON_W, MON_H); }
     else this.clearRT(this.camRT, st === 'blocked' ? 0.015 : 0);
-    this.cctvPass(this.monMat, this.camRT.texture, m.rt, MON_W, MON_H, { ir, offline: st === 'offline' || st === 'nosignal', noise: 0.13, glitch: this.glitchT > 0 ? 0.6 : 0, overlay: m.ot, brightness: st === 'blocked' ? 0.4 : 1.2 });
+    // grain léger dans l'image fixe : l'écran ajoute le sien, animé (crtScreen)
+    this.cctvPass(this.monMat, this.camRT.texture, m.rt, MON_W, MON_H, { ir, offline: st === 'offline' || st === 'nosignal', noise: 0.06, glitch: this.glitchT > 0 ? 0.6 : 0, overlay: m.ot, brightness: st === 'blocked' ? 0.4 : 1.08 });
     if (st === 'ok' && c) this.maybeCapture(c, this.camRT.texture, ir);
   }
   drawMonOverlay(m, c, st) {
@@ -411,7 +427,9 @@ export class Security {
     if (st === 'ok' && c) this.maybeCapture(c, this.fsRT.texture, ir);
     if (st === 'dead') { R.setRenderTarget(null); R.setClearColor(0x000000, 1); R.clear(); return; }
     const overlay = this.glitchT > 0 && this.glitchFigure ? this.overlayTex : null;
-    g.renderer.renderCCTV(this.fsRT.texture, { ir, offline: st === 'offline' || st === 'nosignal', noise: this.mode === 'tablet' ? 0.14 : 0.1, glitch: this.glitchT > 0 ? Math.min(1, 0.4 + this.glitchT * 0.2) : (c?.kind === 'rc' ? 0.05 : 0), overlay, brightness: st === 'blocked' ? 0.35 : 1.12 });
+    // changement de caméra (select) : l'image roule et se brouille 0,15 s
+    const swap = this.switchFlash > 0 ? Math.min(1, this.switchFlash / 0.15) : 0; this.switchFlash = Math.max(0, (this.switchFlash || 0) - dt);
+    g.renderer.renderCCTV(this.fsRT.texture, { ir, offline: st === 'offline' || st === 'nosignal', noise: this.mode === 'tablet' ? 0.1 : 0.07, glitch: this.glitchT > 0 ? Math.min(1, 0.4 + this.glitchT * 0.2) : (c?.kind === 'rc' ? 0.05 : 0), overlay, brightness: st === 'blocked' ? 0.35 : 1.0, time: g.time, swap, seed: c ? camSeed(c.id) : 0, analog: this.mode !== 'tablet' });
     g.world.cull(g.camera.position, [], g.camera, g.settings.quality === 'low' ? 0.8 : 1);
   }
   drawFigure() {
