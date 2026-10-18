@@ -182,7 +182,7 @@ export function buildMall(world) {
   A.disc(0, 0, 3, 0, 1.1, 12);
   // Arbres en jardinière, bancs, poubelles (jardinières de l'atrium hors des voies z = ±6 et des traversées x = ±9)
   for (const [x, z] of [[-10.5, -4.4], [10.5, -4.4], [-10.5, 4.4], [10.5, 4.4], [-40, 0], [40, 0], [-56, 0], [56, 0]]) planter(A, x < -24 ? 'gallery0_w' : x > 24 ? 'gallery0_e' : 'atrium', x, z, rng);
-  for (const [x, z, ry] of [[-30, -2.5, 0], [-30, 2.5, Math.PI], [30, -2.5, 0], [30, 2.5, Math.PI], [-48, -2.5, 0], [48, 2.5, Math.PI], [-5, -6.8, 0], [5, 6.8, Math.PI]]) {
+  for (const [x, z, ry] of [[-30, -2.5, 0], [-30, 2.5, Math.PI], [30, -2.5, 0], [30, 2.5, Math.PI], [-48, -2.5, 0], [48, 2.5, Math.PI], [-5, -6.8, 0], [-5, 6.8, Math.PI]]) { // (le banc de x = 5 était dans le piano)
     const zn = x < -24 ? 'gallery0_w' : x > 24 ? 'gallery0_e' : 'atrium';
     dev('mall_bench', zn, x, 0.225, z, ry);
   }

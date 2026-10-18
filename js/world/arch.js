@@ -168,7 +168,7 @@ export class Arch {
   // suspendu si yc (hauteur du plafond) est donné : deux tiges filetées
   exitBox(zone, x, y, z, ry, yc = null) {
     const nx = Math.round(Math.sin(ry)), nz = Math.round(Math.cos(ry)), tx = nz, tz = -nx, o = { collide: false, flat: true };
-    const a = [x - nx * 0.05 - tx * 0.33, z - nz * 0.05 - tz * 0.33], b = [x - nx * 0.003 + tx * 0.33, z - nz * 0.003 + tz * 0.33];
+    const a = [x - nx * 0.05 - tx * 0.33, z - nz * 0.05 - tz * 0.33], b = [x - nx * 0.006 + tx * 0.33, z - nz * 0.006 + tz * 0.33]; // 6 mm derrière le plan (pas de scintillement de loin)
     const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), z0 = Math.min(a[1], b[1]), z1 = Math.max(a[1], b[1]);
     this.box(zone, 'furniture', x0, y - 0.14, z0, x1, y + 0.14, z1, { ...o, color: 0xf2f2ee });
     this.box(zone, 'furniture', x0 - 0.002, y - 0.142, z0 - 0.002, x1 + 0.002, y - 0.125, z1 + 0.002, { ...o, color: 0x2e7d32 });

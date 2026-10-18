@@ -198,7 +198,7 @@ export function buildDecor(world, A, dev, rng) {
   for (const [x0, x1] of [[-65.6, -24], [-24, 24], [24, 65.6]]) for (const s of [-1, 1]) for (const [yc, f] of [[4.6, 0], [10, 1]]) {
     const zn = galZone((x0 + x1) / 2, f), z = s * 7.62;
     A.box(zn, 'furniture', x0, yc - 0.006, z - 0.06, x1, yc, z + 0.06, { collide: false, color: 0xf0f0ee, flat: true });
-    for (const dz of [-0.022, 0.022]) A.box(zn, 'furniture', x0 + 0.02, yc - 0.0065, z + dz - 0.009, x1 - 0.02, yc - 0.005, z + dz + 0.009, { collide: false, color: 0x1b1c1d, flat: true });
+    for (const dz of [-0.022, 0.022]) A.box(zn, 'furniture', x0 + 0.02, yc - 0.0085, z + dz - 0.009, x1 - 0.02, yc - 0.005, z + dz + 0.009, { collide: false, color: 0x1b1c1d, flat: true }); // fentes 2,5 mm sous la face (0,5 mm scintillait)
   }
   // ── joints de dilatation au sol (profilés aluminium en travers des galeries, RDC et étage) ──
   for (const x of [-42, -18, 18, 42]) {
@@ -262,7 +262,7 @@ export function buildDecor(world, A, dev, rng) {
   const wayTex = (lines) => canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#1a237e'; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; x.font = '700 30px Arial'; x.textBaseline = 'middle'; lines.forEach((l, i) => x.fillText(l, 18, 34 + i * 58)); });
   const hang = (zone, x, y, z, lines) => { // caisson double face (une géométrie), tiges filetées et platines au plafond
     const wm = new THREE.MeshBasicMaterial({ map: wayTex(lines) }); world.zone(zone).signMats.push(wm);
-    const m = new THREE.Mesh(twoSided(new THREE.PlaneGeometry(2.0, 0.5), 0.031), wm); m.position.set(x, y - 0.55, z); add(zone, m);
+    const m = new THREE.Mesh(twoSided(new THREE.PlaneGeometry(2.0, 0.5), 0.035), wm); m.position.set(x, y - 0.55, z); add(zone, m); // 5 mm devant le caisson (1 mm scintillait de loin)
     A.rbox(zone, 'steel_dark', x, y - 0.55, z, 0.06, 0.54, 2.04, 0.012);
     for (const sz of [-1, 1]) { A.tube(zone, 'steel_dark', V(x, y - 0.28, z + sz * 0.8), V(x, y, z + sz * 0.8), 0.006, 0xffffff, { segs: 6, open: true }); A.lathe(zone, 'steel_dark', [[0, -0.006], [0.035, -0.006], [0.035, 0]], 10, x, y, z + sz * 0.8); }
   };

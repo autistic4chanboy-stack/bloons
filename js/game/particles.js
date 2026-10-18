@@ -160,7 +160,8 @@ export class Particles {
     }
     for (const dev of this.fountains) {
       const top = dev.wp(dev.meta.water || [0, 0.9, 0]);
-      for (let i = 0; i < 6; i++) { const a = Math.random() * 6.28; this.water.emit(top, new THREE.Vector3(Math.cos(a) * 1.4, 3 + Math.random(), Math.sin(a) * 1.4), new THREE.Color(0.6, 0.75, 0.85), 6, 1.0); }
+      // gouttes de quelques centimètres (taille 6 : chaque goutte couvrait des mètres, les jets formaient un dôme opaque)
+      for (let i = 0; i < 6; i++) { const a = Math.random() * 6.28; this.water.emit(top, new THREE.Vector3(Math.cos(a) * 1.4, 3 + Math.random(), Math.sin(a) * 1.4), new THREE.Color(0.6, 0.75, 0.85), 0.25, 1.0); }
     }
     this.motes.material.uniforms.time.value = this.game.time;
     // pluie quand on est dehors
