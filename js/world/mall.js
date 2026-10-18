@@ -270,6 +270,7 @@ export function buildMall(world) {
 
   // Aile ouest (couloir) : mur extérieur x = -80 avec porte de l'entrepôt
   A.wallZ('westwing0', 'block_dark', -25, 25, -80.2, 0, 4.6, 0.4, [{ a: -14, b: -11.4, y0: 0, y1: 3 }]);
+  A.floor('westwing0', 'concrete_floor', -80.4, -14, -80, -11.4, 0, 0.6, { faces: 'Y' }); // seuil de la double porte (le sol s'arrêtait de part et d'autre du mur : fente de 40 cm)
   door('wh_a', { zone: 'warehouse', x: -80.2, y: 0, z: -13.35, axis: 'z', width: 1.3, height: 2.9, mat: 'metal', name: 'Entrepôt', gate: 'warehouse', hinge: 'a', swing: -1, window: true });
   door('wh_b', { zone: 'warehouse', x: -80.2, y: 0, z: -12.05, axis: 'z', width: 1.3, height: 2.9, mat: 'metal', name: 'Entrepôt', gate: 'warehouse', hinge: 'b', swing: -1, window: true });
   // robinets d'incendie armés (aile ouest, RDC et étage) : coffret rouge vitré, dévidoir et tuyau enroulé, vanne
@@ -1785,9 +1786,10 @@ function buildNav(world, doors) {
   for (let x = -60; x <= 60; x += 12) { L(`gar${x}_-6`, `gar${x}_6`); if (x > -60) { L(`gar${x - 12}_-6`, `gar${x}_-6`); L(`gar${x - 12}_6`, `gar${x}_6`); } }
   N('gar_w', -64, -4.5, 9.6, 'garage'); L('gar_w', 'gar-60_6'); L('gar_w', 'boilr', { door: doors.boiler_g.id });
   N('gar_gate', 63.5, -4.5, -4.5, 'garage'); L('gar_gate', 'gar60_-6');
+  N('ramp00', 66.3, -4.456, -4.5, 'ramp'); // pied de la rampe, juste après le rideau (on ne monte qu'une fois sur la pente)
   N('ramp0', 68, -4.21, -4.5, 'ramp'); N('ramp1', 82, -2.5, -4.5, 'ramp'); N('ramp2', 96, -0.2, -4.5, 'ramp', ['outside']);
   N('ramp05', 79.5, -2.53, -4.5, 'ramp'); // au droit de la façade : sur la pente (on ne s'y enfonce plus)
-  L('gar_gate', 'ramp0', { shutter: true }); L('ramp0', 'ramp05'); L('ramp05', 'ramp1'); L('ramp1', 'ramp2');
+  L('gar_gate', 'ramp00', { shutter: true }); L('ramp00', 'ramp0'); L('ramp0', 'ramp05'); L('ramp05', 'ramp1'); L('ramp1', 'ramp2');
   // escalier est : même principe que l'escalier ouest (noyau x 69,1 … 70,9, z 10,5 … 19,5)
   for (const [y, k] of [[-4.5, 'B'], [0, '0'], [5, '1']]) { N(`stE${k}`, 77.6, y, 9.2, 'stairsE'); N(`stE${k}s`, 77, y, 20.5, 'stairsE'); L(`stE${k}`, `stE${k}s`); }
   const seMid = (a, b, y0, y1) => {
