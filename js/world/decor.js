@@ -165,7 +165,7 @@ export function buildDecor(world, A, dev, rng) {
       for (let i = 0; i < n; i++) for (let q = 0; q < 4; q++) A.lathe(zn, 'aluminium', [[0.293, 0], [0.3, 0.004], [0.3, hs - 0.01], [0.293, hs - 0.006]], 7, x, y0 + 0.255 + i * hs, z, 0xffffff, { phi0: Math.PI / 4 + q * Math.PI / 2 + 0.008, phiLen: Math.PI / 2 - 0.016 });
       A.lathe(zn, 'aluminium', [[0.293, -0.145], [0.31, -0.14], [0.318, -0.128], [0.318, -0.03], [0.326, -0.022], [0.326, 0]], 24, x, yc, z); // bague haute
       A.lathe(zn, 'aluminium', [[0.326, -0.008], [0.38, -0.008], [0.385, -0.004], [0.385, 0]], 24, x, yc, z);                        // rosace
-      world.physics.add(new Box(x - 0.31, y0, z - 0.31, x + 0.31, y1, z + 0.31, LAYER.WALL));
+      A.disc(x, z, 0.31, y0, y1, 2, LAYER.WALL); // fût rond : collision en croix (débord de 7 cm au plus, contre 13 cm pour un carré)
     }
   }
   // ── incrustations de granit au sol (RDC) ──
@@ -198,7 +198,7 @@ export function buildDecor(world, A, dev, rng) {
   for (const [x0, x1] of [[-65.6, -24], [-24, 24], [24, 65.6]]) for (const s of [-1, 1]) for (const [yc, f] of [[4.6, 0], [10, 1]]) {
     const zn = galZone((x0 + x1) / 2, f), z = s * 7.62;
     A.box(zn, 'furniture', x0, yc - 0.006, z - 0.06, x1, yc, z + 0.06, { collide: false, color: 0xf0f0ee, flat: true });
-    for (const dz of [-0.022, 0.022]) A.box(zn, 'furniture', x0 + 0.02, yc - 0.0065, z + dz - 0.009, x1 - 0.02, yc - 0.005, z + dz + 0.009, { collide: false, color: 0x1b1c1d, flat: true });
+    for (const dz of [-0.022, 0.022]) A.box(zn, 'furniture', x0 + 0.02, yc - 0.0085, z + dz - 0.009, x1 - 0.02, yc - 0.005, z + dz + 0.009, { collide: false, color: 0x1b1c1d, flat: true }); // fentes 2,5 mm sous la face (0,5 mm scintillait)
   }
   // ── joints de dilatation au sol (profilés aluminium en travers des galeries, RDC et étage) ──
   for (const x of [-42, -18, 18, 42]) {
@@ -214,12 +214,14 @@ export function buildDecor(world, A, dev, rng) {
   ];
   // toile recto-verso (une seule géométrie : un appel de rendu), barres lestées haute et basse, suspentes inox
   const bgeo = twoSided(new THREE.PlaneGeometry(1.6, 3.2), 0.004);
-  [-56, -36, -10, 10, 36, 56].forEach((x, i) => {
+  // (sous les tirants des fermes de la verrière, tous les 4 m : x = ±10 n'avait pas de ferme, les suspentes y
+  // s'arrêtaient dans le vide ; elles montent jusqu'au tirant, dessous à 11,13)
+  [-56, -36, -12, 12, 36, 56].forEach((x, i) => {
     const b = banners[i % banners.length]; const zn = galZone(x, 1);
     const bm = new THREE.MeshStandardMaterial({ map: bannerTex(b[0], b[1], b[2], b[3]), roughness: 0.9 });
     const m = new THREE.Mesh(bgeo, bm); m.position.set(x, 8.5, 0); add(zn, m);
     for (const y of [10.12, 6.88]) A.tube(zn, 'steel_dark', V(x, y, -0.84), V(x, y, 0.84), 0.016, 0xffffff, { segs: 10 });
-    for (const sz of [-1, 1]) { A.tube(zn, 'aluminium', V(x, 10.135, sz * 0.78), V(x, 11.1, sz * 0.78), 0.0025, 0xffffff, { segs: 4, open: true }); A.lathe(zn, 'aluminium', [[0, 0], [0.012, 0], [0.012, 0.03], [0, 0.03]], 8, x, 10.13, sz * 0.78); }
+    for (const sz of [-1, 1]) { A.tube(zn, 'aluminium', V(x, 10.135, sz * 0.78), V(x, 11.13, sz * 0.78), 0.0025, 0xffffff, { segs: 4, open: true }); A.lathe(zn, 'aluminium', [[0, 0], [0.012, 0], [0.012, 0.03], [0, 0.03]], 8, x, 10.13, sz * 0.78); }
   });
   // ── totems publicitaires lumineux (double face) : caisson inox arrondi sur socle de granit, cadres d'affiche
   //    noirs sous verre, bandeau lumineux en tête ──
@@ -228,7 +230,7 @@ export function buildDecor(world, A, dev, rng) {
     const c = Math.cos(ry), s = Math.sin(ry), P = (lx, ly, lz) => [x + lx * c + lz * s, y + ly, z - lx * s + lz * c];
     A.rbox(zone, 'aluminium', ...P(0, 1.1, 0), 1.25, 2.0, 0.32, 0.04, 0xffffff, { ry, n: 2 });
     A.rbox(zone, 'granite', ...P(0, 0.05, 0), 1.31, 0.1, 0.38, 0.012, 0xffffff, { ry });
-    A.rbox(zone, 'furniture', ...P(0, 2.07, 0), 1.18, 0.05, 0.26, 0.015, 0xf3f1ea, { ry });
+    A.rbox(zone, 'furniture', ...P(0, 2.125, 0), 1.18, 0.05, 0.26, 0.015, 0xf3f1ea, { ry }); // bandeau posé sur le caisson (il était enfermé dedans)
     for (const sz of [-1, 1]) {
       for (const [lx, ly, w, h] of [[0, 1.89, 1.1, 0.045], [0, 0.42, 1.1, 0.045], [-0.528, 1.155, 0.044, 1.47], [0.528, 1.155, 0.044, 1.47]]) A.rbox(zone, 'furniture', ...P(lx, ly, sz * 0.162), w, h, 0.012, 0.004, 0x151515, { ry });
     }
@@ -262,7 +264,7 @@ export function buildDecor(world, A, dev, rng) {
   const wayTex = (lines) => canvasTex(512, 128, (x, w, h) => { x.fillStyle = '#1a237e'; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; x.font = '700 30px Arial'; x.textBaseline = 'middle'; lines.forEach((l, i) => x.fillText(l, 18, 34 + i * 58)); });
   const hang = (zone, x, y, z, lines) => { // caisson double face (une géométrie), tiges filetées et platines au plafond
     const wm = new THREE.MeshBasicMaterial({ map: wayTex(lines) }); world.zone(zone).signMats.push(wm);
-    const m = new THREE.Mesh(twoSided(new THREE.PlaneGeometry(2.0, 0.5), 0.031), wm); m.position.set(x, y - 0.55, z); add(zone, m);
+    const m = new THREE.Mesh(twoSided(new THREE.PlaneGeometry(2.0, 0.5), 0.035), wm); m.position.set(x, y - 0.55, z); add(zone, m); // 5 mm devant le caisson (1 mm scintillait de loin)
     A.rbox(zone, 'steel_dark', x, y - 0.55, z, 0.06, 0.54, 2.04, 0.012);
     for (const sz of [-1, 1]) { A.tube(zone, 'steel_dark', V(x, y - 0.28, z + sz * 0.8), V(x, y, z + sz * 0.8), 0.006, 0xffffff, { segs: 6, open: true }); A.lathe(zone, 'steel_dark', [[0, -0.006], [0.035, -0.006], [0.035, 0]], 10, x, y, z + sz * 0.8); }
   };
@@ -276,14 +278,17 @@ export function buildDecor(world, A, dev, rng) {
   }
   // ── mobilier de galerie : poubelles de tri, extincteurs, cabines, manèges ──
   for (const [x, z, f] of [[-44, 3.2, 0], [44, -3.2, 0], [-52, -3.2, 0], [52, 3.2, 0], [-41, 5.2, 1], [41, -5.2, 1], [-58, -5.2, 1], [58, 5.2, 1]]) dev('mall_bin', galZone(x, f), x, (f ? 5 : 0) + 0.5, z, z > 0 ? Math.PI : 0);
-  for (const [x, y, z, ry, zn] of [[-24.4, 1.0, 7.6, -Math.PI / 2, 'gallery0_w'], [24.4, 1.0, -7.6, Math.PI / 2, 'gallery0_e'], [-24.4, 6.0, -7.6, -Math.PI / 2, 'gallery1_w'], [24.4, 6.0, 7.6, Math.PI / 2, 'gallery1_e']]) dev('extinguisher_box', zn, x, y, z, ry);
+  // armoires à extincteur sur un support réel (elles flottaient devant les vitrines) : habillage de l'about haut des
+  // escalators au RDC, mur ouest et colonne (patte de fixation) à l'étage ; façade (+z local) vers le passage
+  for (const [x, y, z, ry, zn] of [[-24.137, 1.0, 1.5, -Math.PI / 2, 'gallery0_w'], [24.137, 1.0, -1.5, Math.PI / 2, 'gallery0_e'], [-65.725, 6.0, -7.2, Math.PI / 2, 'gallery1_w'], [36, 6.0, -4.855, Math.PI, 'gallery1_e']]) dev('extinguisher_box', zn, x, y, z, ry);
+  A.rbox('gallery1_e', 'steel_dark', 36, 6.0, -4.705, 0.12, 0.4, 0.05, 0.008); // patte de fixation sur le fût de la colonne
   dev('mall_payphone', 'gallery0_w', -65.45, 1.1, -3.6, Math.PI / 2); dev('mall_payphone', 'gallery0_w', -65.45, 1.1, -4.8, Math.PI / 2);
   dev('mall_payphone', 'gallery1_w', -65.45, 6.1, -5.6, Math.PI / 2);
   dev('mall_kiddie_car', 'gallery0_w', -48.5, 0.6, 2.2, Math.PI / 2); dev('mall_kiddie_horse', 'gallery0_e', 48.5, 0.6, -2.2, -Math.PI / 2);
-  dev('massage_chair', 'gallery1_w', -60, 5.6, 5.6, Math.PI);
+  dev('massage_chair', 'gallery1_w', -60, 5.6, 7.2, Math.PI); // devant la vitrine, hors de la voie z = 6
   dev('vending', 'gallery1_e', 63.0, 5.9, 7.45, Math.PI); dev('vending', 'gallery0_w', -63.2, 0.9, -7.45, 0);
   dev('atm', 'gallery0_e', 63.0, 0.95, -7.65, 0);
-  dev('photobooth', 'entrance', 68.6, 1.0, 7.25, Math.PI);
+  dev('photobooth', 'entrance', 68.6, 1.0, 7.14, Math.PI); // dos à 1 cm du mur nord (il y entrait de 10 cm)
   // ── kiosques garnis au centre des galeries (sous le vide) ──
   // kiosque : comptoir sur socle en retrait (bandeau de couleur, joints de panneaux, plateau de bois aux arêtes adoucies),
   // présentoir à rainures (tablettes sur consoles, nez de tablette), quatre poteaux ronds sur platines, auvent caissonné
@@ -298,12 +303,13 @@ export function buildDecor(world, A, dev, rng) {
     F(-1.45, 0, 1.2, 1.45, 0.1, 1.5, 0x222222); F(-1.5, 0.1, 1.15, 1.5, 1.9, 1.5, 0xf2efe8); F(-1.53, 1.9, 1.12, 1.53, 1.96, 1.52, color); // présentoir
     for (let y = 1.02; y < 1.86; y += 0.1) F(-1.44, y, 1.145, 1.44, y + 0.012, 1.15, 0xb9b5ad);
     for (const yy of [1.25, 1.6]) {
+      world.physics.add(new Box(cx - 1.45, yy - 0.045, 0.795, cx + 1.45, yy, 1.15, LAYER.FURN)); // tablette en saillie du présentoir (dessus libre : la marchandise y est posée)
       F(-1.45, yy - 0.02, 0.8, 1.45, yy, 1.15, 0xbdbdbd, true); F(-1.45, yy - 0.045, 0.795, 1.45, yy + 0.012, 0.81, color);
       for (const u of [-1.35, 0, 1.35]) F(u - 0.008, yy - 0.16, 1.0, u + 0.008, yy - 0.02, 1.15, 0x8d9297, true);
     }
     for (const [px, pz] of [[-1.7, -1.4], [1.7, -1.4], [-1.7, 1.6], [1.7, 1.6]]) {
       world.physics.add(new Box(cx + px - 0.04, 0, pz - 0.04, cx + px + 0.04, 2.7, pz + 0.04, LAYER.FURN));
-      A.tube(zn, 'steel_dark', V(cx + px, 0.012, pz), V(cx + px, 2.7, pz), 0.04, 0xffffff, { segs: 12, open: true });
+      A.tube(zn, 'steel_dark', V(cx + px, 0.012, pz), V(cx + px, 2.81, pz), 0.04, 0xffffff, { segs: 12, open: true }); // jusque sous l'auvent (il flottait 11 cm au-dessus)
       A.lathe(zn, 'steel_dark', [[0, 0], [0.09, 0], [0.09, 0.012], [0.05, 0.016], [0, 0.016]], 12, cx + px, 0, pz);
     }
     A.rbox(zn, 'furniture', cx, 2.85, 0.1, 3.72, 0.08, 3.32, 0.02, color);                                                   // auvent
@@ -343,7 +349,7 @@ export function buildDecor(world, A, dev, rng) {
   // ── entretien : panneaux « sol glissant », chariots de ménage ──
   dev('mall_wetsign', 'atrium', 2.6, 0.31, -2.4, 0.4, { prop: true }); dev('mall_wetsign', 'gallery1_e', 55, 5.31, -6.5, 1.2, { prop: true });
   dev('mall_wetsign', 'service_n0', -20, 0.31, 23.2, 0.2, { prop: true });
-  dev('mall_cleancart', 'service_n0', -14, 0.5, 23.6, Math.PI / 2, { prop: true }); dev('mall_cleancart', 'gallery1_e', 60.5, 5.5, -6.6, 0.3, { prop: true });
+  dev('mall_cleancart', 'service_n0', -14, 0.5, 23.6, Math.PI / 2, { prop: true }); dev('mall_cleancart', 'gallery1_e', 63.4, 5.5, -7.1, 0.2, { prop: true }); // garé contre le mur des toilettes, porte dégagée
 
   // ── piano en libre-service dans l'atrium (devant la boulangerie, hors des passages) ──
   dev('piano', 'atrium', 5.2, 0.625, 6.95, Math.PI);
@@ -352,11 +358,13 @@ export function buildDecor(world, A, dev, rng) {
   A.rbox('atrium', 'furniture', 5.2, 0.495, 6.125, 0.56, 0.05, 0.31, 0.022, 0x5d1f1f, { n: 2 });
   for (const [dx, dz] of [[-0.26, -0.135], [0.26, -0.135], [-0.26, 0.135], [0.26, 0.135]]) A.lathe('atrium', 'furniture', [[0, 0], [0.018, 0], [0.022, 0.06], [0.016, 0.15], [0.024, 0.3], [0.02, 0.41], [0, 0.41]], 10, 5.2 + dx, 0, 6.125 + dz, 0x141414);
   for (const dz of [-0.135, 0.135]) A.box('atrium', 'furniture', 4.95, 0.12, 6.125 + dz - 0.01, 5.45, 0.14, 6.125 + dz + 0.01, { collide: false, color: 0x141414, flat: true });
+  world.physics.add(new Box(4.9, 0, 5.95, 5.5, 0.52, 6.3, LAYER.FURN)); // banquette (trop haute pour qu'on l'enjambe)
   // panneau sur pied : platine ronde, mât, cadre aluminium
   A.lathe('atrium', 'steel_dark', [[0, 0], [0.16, 0], [0.16, 0.012], [0.12, 0.02], [0, 0.02]], 16, 6.44, 0, 6.9);
   A.tube('atrium', 'aluminium', V(6.44, 0.02, 6.9), V(6.44, 1.1, 6.9), 0.016, 0xffffff, { segs: 10, open: true });
   A.furn('atrium', 6.2, 1.1, 6.86, 6.68, 1.45, 6.94, 0xf4f1ea, { collide: false });
   for (const [a, b, c, d] of [[6.19, 1.09, 6.69, 1.105], [6.19, 1.445, 6.69, 1.46], [6.19, 1.09, 6.205, 1.46], [6.675, 1.09, 6.69, 1.46]]) A.box('atrium', 'aluminium', a, b, 6.855, c, d, 6.945, { collide: false });
+  world.physics.add(new Box(6.18, 0, 6.84, 6.7, 1.47, 6.96, LAYER.FURN)); // mât et cadre du panneau
   world.add(new Readable(world, world.newId('read'), { zone: 'atrium', name: 'Panneau du piano', title: 'Piano en libre-service', box: [6.18, 1.05, 6.82, 6.7, 1.48, 6.98],
     text: 'Offert par l\'association des commerçants d\'Hélios.\nJouez ce que vous voulez !\n\n(Merci de ne pas poser de boissons sur le piano.)\n\nAu feutre, dans un coin : « il joue tout seul quand le centre est fermé. Toujours la même comptine. »' }));
 

@@ -121,7 +121,7 @@ function buildShop(world, A, dev, s, rng) {
     const d = new Door(world, world.newId('door'), { zone: id, x: cx, y, z: zF, axis: 'x', width: ew, mat: 'wood', lock: s.door === 'locked' ? 'keys' : s.door === 'keys' ? 'keys' : 'none', locked: s.door !== 'open', name: s.name, swing: sg, window: s.door === 'open', label: s.id === 'toilettes' ? 'WC' : null, shop: id });
     world.add(d); ctl.frontDoor = d;
     const plq = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.3), new THREE.MeshBasicMaterial({ map: signTexture(s.name, s.color, { h: 100, fontSize: 56, font: 'Arial' }) }));
-    plq.position.set(cx, y + 2.6, zF - sg * 0.16); plq.rotation.y = faceFront; world.zone(galleryZone).group.add(plq); zone.signMats.push(plq.material);
+    plq.position.set(cx, y + 2.6, zF - sg * 0.165); plq.rotation.y = faceFront; world.zone(galleryZone).group.add(plq); zone.signMats.push(plq.material); // 6 mm devant la plaque (1 mm scintillait de loin)
     doorCasing(new Pen(A, id).at(cx, y, zF, 0), ew, 2.2, 0.3, 0x5d4632, { lining: 0 });                      // chambranles
     const pq = new Pen(A, galleryZone).at(cx, y + 2.6, zF - sg * 0.15, faceFront);                                   // plaque
     pq.box(FU, -0.82, -0.17, -0.002, 0.82, 0.17, 0.009, 0x2a2c30, 'xXyYZ');

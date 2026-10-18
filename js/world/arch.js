@@ -46,6 +46,14 @@ export class Arch {
     if (o.collide !== false) { col = this.world.physics.add(new Box(lx, ly, lz, hx, hy, hz, o.layer ?? LAYER.WALL, o.data || null)); this.boxes++; }
     return col;
   }
+  // Collision d'un objet rond (colonne, bassin) de rayon R centré en (x, z) : k boîtes centrées emboîtées (bandes
+  // d'égal z²) qui couvrent tout le disque ; débord maximal ≈ R / (2k) aux coins, au lieu de 0,41 R pour un carré
+  disc(x, z, R, y0, y1, k = 2, layer = LAYER.FURN) {
+    for (let j = 1; j <= k; j++) {
+      const hz = R * Math.sqrt(j / k), hx = R * Math.sqrt(1 - (j - 1) / k);
+      this.world.physics.add(new Box(x - hx, y0, z - hz, x + hx, y1, z + hz, layer)); this.boxes++;
+    }
+  }
   // Mobilier coloré (couleurs par sommet)
   furn(zone, x0, y0, z0, x1, y1, z1, color, o = {}) {
     return this.box(zone, o.metal ? 'furniture_metal' : 'furniture', x0, y0, z0, x1, y1, z1, { ...o, color, layer: o.layer ?? LAYER.FURN, flat: true });
@@ -160,7 +168,7 @@ export class Arch {
   // suspendu si yc (hauteur du plafond) est donné : deux tiges filetées
   exitBox(zone, x, y, z, ry, yc = null) {
     const nx = Math.round(Math.sin(ry)), nz = Math.round(Math.cos(ry)), tx = nz, tz = -nx, o = { collide: false, flat: true };
-    const a = [x - nx * 0.05 - tx * 0.33, z - nz * 0.05 - tz * 0.33], b = [x - nx * 0.003 + tx * 0.33, z - nz * 0.003 + tz * 0.33];
+    const a = [x - nx * 0.05 - tx * 0.33, z - nz * 0.05 - tz * 0.33], b = [x - nx * 0.006 + tx * 0.33, z - nz * 0.006 + tz * 0.33]; // 6 mm derrière le plan (pas de scintillement de loin)
     const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), z0 = Math.min(a[1], b[1]), z1 = Math.max(a[1], b[1]);
     this.box(zone, 'furniture', x0, y - 0.14, z0, x1, y + 0.14, z1, { ...o, color: 0xf2f2ee });
     this.box(zone, 'furniture', x0 - 0.002, y - 0.142, z0 - 0.002, x1 + 0.002, y - 0.125, z1 + 0.002, { ...o, color: 0x2e7d32 });

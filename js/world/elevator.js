@@ -47,20 +47,24 @@ export class Elevator extends WorldObject {
     A.rbox(zt, 'steel_dark', cx, top + 0.175, (z0 + z1) / 2, x1 - x0 + 0.16, 0.35, z1 - z0 + 0.16, 0.03, 0xffffff, { n: 2 });
     A.rbox(zt, 'steel_dark', cx, top + 0.37, (z0 + z1) / 2, x1 - x0 + 0.24, 0.04, z1 - z0 + 0.24, 0.015);
     for (let k = 0; k < 6; k++) A.box(zt, 'furniture', cx - 0.5, top + 0.08 + k * 0.035, z1 + 0.08, cx + 0.5, top + 0.095 + k * 0.035, z1 + 0.085, { collide: false, color: 0x15181a, flat: true });
-    // côté portes : vitrage au-dessus des portes à chaque niveau, panneaux pleins autour
-    for (const y of F) {
-      const zn = levelZone(y + 1);
+    // côté portes : vitrage au-dessus des portes à chaque niveau (jusqu'au palier suivant : pas de jour entre deux
+    // niveaux), panneaux pleins autour
+    const bx = cx + dw / 2 + 0.3; // boîte d'appel : sur le panneau plein à droite de la baie (accessible depuis chaque palier)
+    this.callX = bx;
+    F.forEach((y, i) => {
+      const zn = levelZone(y + 1), yt = Math.min(i + 1 < F.length ? F[i + 1] : top, top);
       A.box(zn, 'steel_dark', x0, y + 2.2, zDoor - 0.03, x1, y + 2.35, zDoor + 0.03, { collide: false });
-      A.box(zn, 'glass', x0, y + 2.35, zDoor - 0.01, x1, Math.min(y + 4.5, top), zDoor + 0.01, { collide: false });
+      A.box(zn, 'glass', x0, y + 2.35, zDoor - 0.01, x1, yt, zDoor + 0.01, { collide: false });
       A.box(zn, 'steel', x0, y, zDoor - 0.03, cx - dw / 2, y + 2.2, zDoor + 0.03); A.box(zn, 'steel', cx + dw / 2, y, zDoor - 0.03, x1, y + 2.2, zDoor + 0.03);
-      world.physics.add(new Box(x0, y + 2.2, zDoor - 0.04, x1, Math.min(y + 4.5, top), zDoor + 0.04, LAYER.GLASS));
-      A.box(zn, 'granite', x0 - 0.05, y, zDoor, x1 + 0.05, y + 0.012, zDoor + 0.35, { collide: false }); // seuil
-      // chambranle inox autour de la baie, rail de guidage au sol, plaque de la boîte à boutons d'appel
+      world.physics.add(new Box(x0, y + 2.2, zDoor - 0.04, x1, yt, zDoor + 0.04, LAYER.GLASS));
+      // seuil de granit : couvre le jour entre la gaine et le nez de dalle (rien ne tombe dans l'interstice)
+      A.box(zn, 'granite', x0 - 0.05, y, zDoor, x1 + 0.05, y + 0.012, zDoor + 0.35, { layer: LAYER.FURN });
+      // chambranle inox autour de la baie, rail de guidage au sol, boîte à boutons d'appel sur le panneau
       for (const sx of [-1, 1]) A.rbox(zn, 'steel', cx + sx * (dw / 2 + 0.03), y + 1.11, zDoor + 0.045, 0.06, 2.22, 0.03, 0.008);
       A.rbox(zn, 'steel', cx, y + 2.22, zDoor + 0.045, dw + 0.12, 0.05, 0.03, 0.008);
       A.box(zn, 'steel_dark', cx - dw / 2, y + 0.012, zDoor + 0.04, cx + dw / 2, y + 0.018, zDoor + 0.11, { collide: false });
-      A.rbox(zn, 'steel', x1 + 0.22, y + 1.15, zDoor + 0.06, 0.1, 0.18, 0.03, 0.008); A.box(zn, 'steel', x1 + 0.06, y + 1.13, zDoor + 0.05, x1 + 0.17, y + 1.17, zDoor + 0.07, { collide: false }); // boîte d'appel sur console
-    }
+      A.rbox(zn, 'steel', bx, y + 1.15, zDoor + 0.045, 0.1, 0.18, 0.03, 0.008);
+    });
     // ── portes palières (deux vantaux vitrés coulissants par niveau : verre + cadre inox en une géométrie) ──
     const glassMat = g.mats.get('glass'), frameMat = g.mats.get('steel', 'gallery0_w'), uvs = frameMat.userData.texRepeat ?? 0.6;
     // cadre d'un vantail s : traverses haute et basse, montant de rive (contre le dormant) et montant de jonction à joint
@@ -123,8 +127,8 @@ export class Elevator extends WorldObject {
     this.cw = cw; this.cd = cd;
     // ── boutons : appels aux paliers, boutons de cabine ──
     this.buttons = [];
-    F.forEach((y, i) => { const b = new ElevatorButton(world, world.newId('elevbtn'), { elevator: this, floor: i, label: 'Appel ascenseur', zone: levelZone(y + 1), x: x1 + 0.22, y: y + 1.15, z: zDoor + 0.12 }); world.add(b); this.buttons.push(b);
-      const led = new THREE.Mesh(new THREE.CircleGeometry(0.025, 10), new THREE.MeshBasicMaterial({ color: 0xffb300 })); led.position.set(x1 + 0.22, y + 1.15, zDoor + 0.077); (world.zone(levelZone(y + 1))?.group || world.root).add(led); });
+    F.forEach((y, i) => { const b = new ElevatorButton(world, world.newId('elevbtn'), { elevator: this, floor: i, label: 'Appel ascenseur', zone: levelZone(y + 1), x: bx, y: y + 1.15, z: zDoor + 0.12 }); world.add(b); this.buttons.push(b);
+      const led = new THREE.Mesh(new THREE.CircleGeometry(0.025, 10), new THREE.MeshBasicMaterial({ color: 0xffb300 })); led.position.set(bx, y + 1.15, zDoor + 0.0615); (world.zone(levelZone(y + 1))?.group || world.root).add(led); });
     this.cabButtons = F.map((y, i) => { const b = new ElevatorButton(world, world.newId('elevcab'), { elevator: this, floor: i, cab: true, label: 'Cabine', zone: 'gallery0_w', x: 0, y: 0, z: 0 }); world.add(b); return b; });
     this.init({ floor: 1, to: 1, moving: 0, doors: 0 });
     this.y = F[1]; this.animT = 0; this.doorOpen = 0; this.idle = 0; this.queue = [];
