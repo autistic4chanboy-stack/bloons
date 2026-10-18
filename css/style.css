@@ -201,13 +201,13 @@ input.code { text-transform: uppercase; letter-spacing: 0.3em; }
 .dossier .d-n { display: flex; gap: 3px; margin: 7px 0 5px; }
 .dossier .d-n i { flex: 1; height: 7px; border: 1px solid rgba(60, 45, 25, 0.55); }
 .dossier .d-n i.done { background: #4a3b22; } .dossier .d-n i.cur { background: var(--amber2); border-color: #8a4a00; }
-.dossier > footer { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: auto; padding: 10px; }
-.dossier > footer button { font-size: 12px; }
+.dossier > footer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; margin-top: auto; padding: 10px; }
+.dossier > footer button { min-width: 0; font-size: 12px; }
 .dossier > footer .primary { grid-column: 1 / -1; }
 .dossier { container-type: inline-size; }
 .dossier > footer i { display: none; font-style: normal; }
-@container (max-width: 250px) { /* chemise étroite : Recommencer et Supprimer en pictogrammes à côté de Continuer */
-  .dossier > footer { grid-template-columns: 1fr auto auto; }
+@container (max-width: 300px) { /* chemise étroite : Recommencer et Supprimer en pictogrammes à côté de Continuer */
+  .dossier > footer { grid-template-columns: minmax(0, 1fr) auto auto; }
   .dossier > footer .primary { grid-column: auto; }
   .dossier > footer { padding: 8px; gap: 5px; } .dossier > footer button { font-size: 11.5px; padding-right: 0.7em; }
   .dossier > footer .ghost, .dossier > footer .danger { min-width: 30px; padding: 0 0.6em; }
