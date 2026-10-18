@@ -288,7 +288,7 @@ export function buildDecor(world, A, dev, rng) {
   dev('massage_chair', 'gallery1_w', -60, 5.6, 7.2, Math.PI); // devant la vitrine, hors de la voie z = 6
   dev('vending', 'gallery1_e', 63.0, 5.9, 7.45, Math.PI); dev('vending', 'gallery0_w', -63.2, 0.9, -7.45, 0);
   dev('atm', 'gallery0_e', 63.0, 0.95, -7.65, 0);
-  dev('photobooth', 'entrance', 68.6, 1.0, 7.25, Math.PI);
+  dev('photobooth', 'entrance', 68.6, 1.0, 7.14, Math.PI); // dos à 1 cm du mur nord (il y entrait de 10 cm)
   // ── kiosques garnis au centre des galeries (sous le vide) ──
   // kiosque : comptoir sur socle en retrait (bandeau de couleur, joints de panneaux, plateau de bois aux arêtes adoucies),
   // présentoir à rainures (tablettes sur consoles, nez de tablette), quatre poteaux ronds sur platines, auvent caissonné
