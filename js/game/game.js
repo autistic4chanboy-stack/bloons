@@ -137,7 +137,19 @@ export class Game {
     progress(0.85, 'Compilation des shaders…');
     await tick();
     this.world.resetAll();
-    this.renderer.gl.compile(this.scene, this.camera);
+    // tous les shaders compilés pendant le chargement, y compris ceux des zones masquées par le découpage et des objets
+    // qui n'apparaissent que plus tard (jeu de nuit, voitures de l'autre phase…) : sinon ils se compilent en pleine
+    // partie, au premier regard, et l'image se fige un instant
+    { const hid = []; this.scene.traverse((o) => { if (!o.visible) { hid.push(o); o.visible = true; } });
+      // …et un rendu de préchauffage (cible minuscule, sans élimination hors champ) : géométries et textures partent au
+      // GPU pendant le chargement, pas au premier regard sur une zone (à-coup en entrant dans un nouvel endroit)
+      const R = this.renderer.gl, culled = [], rt = new THREE.WebGLRenderTarget(16, 16);
+      try {
+        R.compile(this.scene, this.camera);
+        this.scene.traverse((o) => { if ((o.isMesh || o.isPoints || o.isLine) && o.frustumCulled) { culled.push(o); o.frustumCulled = false; } });
+        const prev = R.getRenderTarget(); R.setRenderTarget(rt); R.render(this.scene, this.camera); R.setRenderTarget(prev);
+      } catch (e) { console.warn('[préchauffage]', e); }
+      finally { for (const o of hid) o.visible = false; for (const o of culled) o.frustumCulled = true; rt.dispose(); } }
     progress(1, 'Prêt.');
     this.registerActions();
     registerBehaviorActions(this);

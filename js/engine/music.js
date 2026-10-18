@@ -2703,7 +2703,7 @@ export function MusicEngine(host) {
 // ═════════════════════════════════════════ FIL PRINCIPAL ═════════════════════════════════════════
 const STYLE_NAMES = ['lofi', 'muzak', 'jazz', 'disco', 'rock', 'classical', 'synthwave', 'funk', 'chanson', 'reggae', 'metal', 'ambient', 'creepy_vinyl',
   'music_box', 'music_box_wrong', 'arcade', 'kiddie', 'cinema_score', 'piano_bar', 'radio_static_voice', 'hold_music', 'national_anthem_parody', 'xmas'];
-const E_SR = 32000, E_CHUNK = 6400, LOOKAHEAD = 0.8, LOOKAHEAD_HIDDEN = 2.2, PUMP_MS = 60;
+const E_SR = 32000, E_CHUNK = 6400, LOOKAHEAD = 1.6, LOOKAHEAD_HIDDEN = 2.4, PUMP_MS = 60; // 1,6 s d'avance : un à-coup du jeu ne coupe pas la musique
 const SPEAKER_NAMES = new Set(['radio', 'tv', 'pa', 'phone', 'toy', 'cinema', 'headphones', 'hifi', 'box', 'none']);
 const RADIO_STYLES = new Set(['lofi', 'chanson', 'jazz', 'rock', 'classical', 'radio_static_voice']);
 const clampM = (x, a, b) => (x < a ? a : x > b ? b : x);

@@ -112,6 +112,29 @@ const PATCH_OUT = /* glsl */`
 	gl_FragColor = vec4( totalDiffuse + totalSpecular / max( diffuseColor.a, 0.05 ) + totalEmissiveRadiance, diffuseColor.a );
 #endif`;
 
+// Tableaux globaux (ouvertures, pool de lumières : 46 vec4) : three.js les renverrait au GPU à chaque changement de
+// matériau, soit des centaines de fois par image (17 % du fil principal au profileur). Marqués needsUpdate = false, ils
+// ne sont envoyés qu'une fois par programme et par version : syncGlobals() (une fois par image, avant le rendu) compare
+// les valeurs à la dernière version envoyée ; le crochet onBeforeRender des matériaux rouvre l'envoi pour un programme
+// qui n'a pas encore cette version (ou un matériau recompilé).
+const GARR = ['apA', 'apB', 'apC', 'apD', 'apL', 'apE', 'apHoles', 'poolMin', 'poolMax'];
+let GV = 1;
+const GSNAP = new Float32Array(46 * 4);
+for (const k of GARR) GLOBAL_UNIFORMS[k].needsUpdate = false;
+export function syncGlobals() {
+  let i = 0, ch = false;
+  for (const k of GARR) { const a = GLOBAL_UNIFORMS[k].value; for (let j = 0; j < a.length; j++, i += 4) { const v = a[j]; if (Math.abs(GSNAP[i] - v.x) > 1e-4 || Math.abs(GSNAP[i + 1] - v.y) > 1e-4 || Math.abs(GSNAP[i + 2] - v.z) > 1e-4 || Math.abs(GSNAP[i + 3] - v.w) > 1e-4) { ch = true; break; } } if (ch) break; }
+  if (!ch) return;
+  i = 0; for (const k of GARR) for (const v of GLOBAL_UNIFORMS[k].value) { GSNAP[i++] = v.x; GSNAP[i++] = v.y; GSNAP[i++] = v.z; GSNAP[i++] = v.w; }
+  GV++;
+}
+function globalsBeforeRender(renderer) {
+  const mp = renderer.properties.get(this), pr = mp.currentProgram;
+  const fresh = !pr || pr.__gv !== GV || mp.__gmv !== this.version;
+  for (let i = 0; i < GARR.length; i++) GLOBAL_UNIFORMS[GARR[i]].needsUpdate = fresh;
+  if (fresh && pr) { pr.__gv = GV; mp.__gmv = this.version; }
+}
+
 export function patchZone(mat, zoneU) {
   const packed = !!mat.userData.packed, packedMetal = !!mat.userData.packedMetal;
   mat.onBeforeCompile = (sh) => {
@@ -128,6 +151,7 @@ export function patchZone(mat, zoneU) {
   };
   const key = 'zl5' + (packed ? 'p' : '') + (packedMetal ? 'm' : '');
   mat.customProgramCacheKey = () => key;
+  mat.onBeforeRender = globalsBeforeRender;
   return mat;
 }
 

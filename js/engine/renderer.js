@@ -14,7 +14,7 @@
 // renderTo() (CCTV, photos) : rendu brut sans post-traitement. renderCCTV() : écran de vidéosurveillance plein écran.
 import * as THREE from 'three';
 import { noiseTexture, setMaxAnisotropy } from './textures.js';
-import { initEnvironment, GLOBAL_UNIFORMS } from './materials.js';
+import { initEnvironment, GLOBAL_UNIFORMS, syncGlobals } from './materials.js';
 
 const FS_VERT = /* glsl */`
 varying vec2 vUv;
@@ -396,6 +396,9 @@ export class Renderer {
     this.settings = settings;
     this.gl = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: false, powerPreference: 'high-performance', stencil: false, preserveDrawingBuffer: false });
     const r = this.gl;
+    // vérification des erreurs de shaders (lecture synchrone des journaux de compilation : un arrêt du fil principal à
+    // chaque programme) seulement en mode débogage (?debug)
+    r.debug.checkShaderErrors = typeof location !== 'undefined' && /[?&]debug\b/.test(location.search);
     r.outputColorSpace = THREE.LinearSRGBColorSpace; // la conversion sRGB est faite dans le composite
     r.toneMapping = THREE.NoToneMapping;
     r.shadowMap.enabled = true;
@@ -522,6 +525,7 @@ export class Renderer {
   // Rendu principal de la scène + post-traitement
   render(scene, camera, dt) {
     this._time += dt;
+    syncGlobals(); // tableaux d'uniformes globaux : une nouvelle version seulement s'ils ont changé
     this.adapt(dt);
     const r = this.gl, rts = this.rts, U = this.compMat.uniforms, S = this.settings;
     U.time.value = this._time;

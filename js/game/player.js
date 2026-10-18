@@ -476,7 +476,13 @@ export class Player {
     const lighter = this.flashKind === 'lighter';
     sl.intensity = I * (lighter ? 1 : FLASH_GAIN); sl.angle = kindDef.angle; sl.distance = kindDef.range || 1; sl.color.set(kindDef.color); sl.penumbra = lighter ? 1 : 0.32;
     sl.map = lighter ? _white : this.cookie; // flamme : lumière uniforme, sans masque de réflecteur
-    sl.castShadow = g.settings.shadows !== false; sl.shadow.autoUpdate = I > 0;
+    sl.castShadow = g.settings.shadows !== false;
+    // carte d'ombre de la lampe : recalculée 30 fois par seconde au plus, sauf geste brusque (rotation > 4°, pas de 15 cm)
+    // qui la met à jour aussitôt (pas de retard visible) : moitié moins de passes d'ombre à 60 img/s
+    const sp = this._shP || (this._shP = { p: new THREE.Vector3(1e9, 0, 0), d: new THREE.Vector3(), t: 0 });
+    sp.t += dt; let shUp = false;
+    if (I > 0 && (sp.t >= 1 / 30 || sp.p.distanceToSquared(this.flashPos) > 0.0225 || sp.d.dot(this.flashDir) < 0.9976)) { shUp = true; sp.t = 0; sp.p.copy(this.flashPos); sp.d.copy(this.flashDir); }
+    sl.shadow.autoUpdate = false; if (shUp) sl.shadow.needsUpdate = true;
     // faisceau : volumétrique en post-traitement si disponible, sinon cône additif
     const vol = g.renderer.volumetric, beamOn = I > 0 && g.settings.volumetric !== false && !lighter;
     g.renderer.setBeam(sl, beamOn ? (g.isDay ? 0.3 : 1) : 0);

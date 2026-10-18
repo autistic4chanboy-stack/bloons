@@ -2528,7 +2528,7 @@ const PA_DRY = 0.35, PA_WET = 0.4; // calibrés : même sonie que le bus musique
 const WORLD_2D = { sfx: 1, ambience: 1, voice: 1 }; // bus 2D « diégétiques » soumis à l'étouffement (musique 2D et UI y échappent : baladeur, interface)
 const SEND_2D = { sfx: 0.16, voice: 0.2 };          // réverbération des sons 2D du joueur (ses propres gestes sonnent dans la pièce)
 const OCC_CUT = [20000, 2500, 900, 400];            // coupure du passe-bas selon le nombre de murs
-const REV = 0.5, MAX_SHOTS = 48, MAX_HRTF = 16, OCC_BUDGET = 10, MEM_LIMIT = 40e6;
+const REV = 0.5, MAX_SHOTS = 48, MAX_HRTF = 6, OCC_BUDGET = 10, MEM_LIMIT = 40e6;
 // même son joué par plusieurs sources : au plus CAP_LOOP boucles spatialisées audibles (les plus audibles ; les autres se
 // taisent en fondu et reviennent si l'on s'approche), au plus CAP_SHOT ponctuels simultanés, une seule boucle 2D (def.cap :
 // réglage par son)
@@ -2688,7 +2688,9 @@ class Handle {
 class Engine {
   constructor(opts) {
     const AC = window.AudioContext || window.webkitAudioContext;
-    const ctx = this.ctx = opts.context || new AC({ latencyHint: 'interactive' });
+    // tampon de sortie « équilibré » plutôt qu'« interactif » : quelques ms de latence en plus, mais le fil audio ne
+    // manque plus d'échantillons (craquements) quand la machine est chargée
+    const ctx = this.ctx = opts.context || new AC({ latencyHint: 'balanced' });
     this.sr = ctx.sampleRate;
     this.voices = new Set(); this.spatial = []; this.rr = 0; this.budget = OCC_BUDGET; this.occFn = null; this.occCache = new Map(); this.occQ = [];
     this.cache = new Map(); this.mem = 0; this.hrtf = 0; this.shots = 0; this.last = new Map(); this.lastK = new Map(); this.bg = []; this.queued = new Set(); this.bgBusy = false; this.waiters = new Map(); this.inflight = new Map(); this.wseq = 0; this.worker = null;
@@ -2952,26 +2954,19 @@ class Engine {
     if (v.ctl && v.ctl.tick) { try { v.ctl.tick(t, t + 0.3); } catch (e) { /* */ } }
     return new Handle(v);
   }
-  // HRTF (coûteux pour le processeur) : réservé aux MAX_HRTF sources les plus audibles, réattribué en continu.
-  // Un son proche qui démarre (pas d'une présence…) prend aussitôt la place de la source HRTF la moins audible.
+  // HRTF (coûteux pour le fil audio) : réservé aux sons ponctuels audibles (pas, impacts, présences), au plus MAX_HRTF
+  // à la fois, choisi à la naissance de la voix et gardé jusqu'à sa fin. Jamais de bascule de modèle sur une voix qui
+  // joue : changer panningModel en cours de lecture fait claquer le son (saut de retard et de phase).
   setHR(v, on) {
     if (v.hr === on) return;
     try { v.p.panningModel = on ? 'HRTF' : 'equalpower'; } catch (e) { return; }
     v.hr = on; this.hrtf += on ? 1 : -1;
   }
   grantHRTF(v) {
-    if (!v.sp || v.culled || v.capped || v.aud <= 1e-5) return;
-    if (this.hrtf < MAX_HRTF) { this.setHR(v, true); return; }
-    let low = null; for (const x of this.spatial) if (x.hr && x !== v && (!low || x.aud < low.aud)) low = x;
-    if (low && v.aud > low.aud * 1.3) { this.setHR(low, false); this.setHR(v, true); }
+    if (!v.sp || v.mode !== 'shot' || v.culled || v.capped || v.aud <= 1e-4 || this.hrtf >= MAX_HRTF) return;
+    this.setHR(v, true);
   }
-  rebalance() {
-    const S = this.spatial; if (!S.length) return;
-    const cand = S.filter((v) => v.alive && !v.stopping && !v.culled && !v.capped && v.aud > 1e-5).sort((a, b) => b.aud - a.aud);
-    const top = new Set(cand.slice(0, MAX_HRTF)), floor = cand.length > MAX_HRTF ? cand[MAX_HRTF - 1].aud : 0;
-    for (const v of S) if (v.hr && !top.has(v) && (!v.alive || v.stopping || v.culled || v.capped || v.aud < floor * 0.7)) this.setHR(v, false); // hystérésis (muettes : rendues)
-    for (const v of cand) { if (this.hrtf >= MAX_HRTF) break; if (top.has(v) && !v.hr) this.setHR(v, true); }
-  }
+  freeHRTF(v) { if (v.hr) { v.hr = false; this.hrtf--; } } // fin de voix : la place se libère sans toucher au panner
   // plafond par son : parmi les boucles d'un même son (spatialisées : def.cap ?? CAP_LOOP ; 2D : une seule), les plus
   // audibles jouent, les autres se taisent en fondu ; hystérésis pour qu'elles ne s'échangent pas sans cesse
   capAll() {
@@ -2997,7 +2992,7 @@ class Engine {
     if (old) old.stop(0.03);
   }
   remove(v) {
-    this.voices.delete(v);
+    this.voices.delete(v); this.freeHRTF(v);
     if (v.sp) { const i = this.spatial.indexOf(v); if (i >= 0) this.spatial.splice(i, 1); }
     if (v.shot) { this.shots--; v.shot = false; }
   }
@@ -3149,7 +3144,7 @@ class Engine {
       this.rr = (this.rr + k) % n;
       const now = perfNow() / 1000;
       for (let i = S.length - 1; i >= 0; i--) { const v = S[i]; if (!v.alive) continue; v.place(false); if (v.vel && v.pt && now - v.pt > 0.25) v.vel *= 0.85; }
-      if (now - (this.rbT || 0) > 0.25) { this.rbT = now; this.rebalance(); }
+
     }
     const pn = perfNow(); if (pn - (this.capT || 0) > 250) { this.capT = pn; this.capAll(); }
     if (this.duckD && t >= this.duckEnd) { this.duckD = 0; this.duckK = 1; smooth(this.duckA.gain, 1, t, 0.35); }

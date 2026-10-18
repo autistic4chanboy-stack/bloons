@@ -113,7 +113,9 @@ export class PropSystem {
         if (end === start) end++;
         const { geometry, ranges } = concatGeometries(entries.slice(start, end));
         const mesh = new THREE.Mesh(geometry, g.mats.get('props', zone));
-        mesh.castShadow = true; mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
+        // les lots d'articles en rayon (3,9 M sommets) ne projettent d'ombre à la lampe qu'en qualité haute : les meubles
+        // et rayonnages, eux, en projettent toujours (l'essentiel de l'ombre), et la passe d'ombre devient légère
+        mesh.castShadow = g.settings.quality === 'high'; mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
         // pas de copie des positions d'origine (~50 Mo pour tout le centre) : _showStatic les recalcule depuis la
         // géométrie de l'article (en cache) et sa place, avec les mêmes opérations que concatGeometries
         const merged = { mesh, dirty: false };
