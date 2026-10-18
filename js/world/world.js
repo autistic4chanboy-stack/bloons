@@ -225,6 +225,7 @@ export class World {
     // depuis un magasin, les murs mitoyens cachent les voisins du même côté ; une réserve ne se voit que de près
     const cz = this.zoneAt(pos.x, pos.y, pos.z), shop = cz && cz.shop ? cz : null;
     for (const z of this.zones) {
+      if (z.visibleAt) { z.group.visible = z.visibleAt(pos, lv, near, cz, range); continue; } // règle propre à la zone (abords extérieurs)
       if (z.alwaysVisible) { z.group.visible = lv !== 0 || near[1]; continue; }
       let seen = false; for (const k of z.levels) if (near[k]) { seen = true; break; }
       if (seen && z.shop && shop && z.shop !== shop.shop && z.side === shop.side && z.levels[0] === shop.levels[0]) seen = false;

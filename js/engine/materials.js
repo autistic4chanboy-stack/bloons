@@ -178,6 +178,11 @@ const DEFS = {
   rubber: () => ({ m: std(TX.rubber(0x2c2e30)), rep: 1.5 }),
   office_carpet: () => ({ m: std(TX.officeCarpet(0x4a5262), { env: 0.3 }), rep: 0.5 }),
   cleats: () => ({ m: std(TX.stepCleats()), rep: 2 }), // marches et tôles de palier des escalators (nervures selon u)
+  // extérieur (parvis, abords, façades latérales)
+  paving: () => ({ m: std(TX.paving()), rep: 0.625 }),
+  grass: () => ({ m: std(TX.grass(), { env: 0.2 }), rep: 0.5 }),
+  hedge: () => ({ m: std(TX.hedge(), { env: 0.2 }), rep: 1 }),
+  cladding: () => ({ m: std(TX.cladding()), rep: 0.4 }),
 };
 
 // Vitres : le blending conserve l'alpha déjà écrit dessous (masque de SSAO des surfaces vues à travers)

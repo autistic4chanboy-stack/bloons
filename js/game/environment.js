@@ -129,7 +129,7 @@ export class Environment {
         else { a.dir.copy(this.moonDir); a.col.setRGB(0.5, 0.62, 0.95).multiplyScalar(0.12 * night * clouds); }
       } else {
         a.dir.set(a.axis === 'x' ? a.out : 0, 0.42, a.axis === 'z' ? a.out : 0).normalize();
-        a.col.setRGB(1, 0.6, 0.28).multiplyScalar(0.07 * night);
+        a.col.setRGB(1, 0.6, 0.28).multiplyScalar(0.07 * night * (this.game.world.streetLight ?? 1)); // lampadaires éteints (panne) : plus de lumière par la façade
       }
       const b = a.bars || [0, 0, 0, 0.08];
       G.apL.value[i].set(a.dir.x, a.dir.y, a.dir.z, b[3] || 0.08); G.apE.value[i].set(a.col.r, a.col.g, a.col.b, b[2] || 0);
