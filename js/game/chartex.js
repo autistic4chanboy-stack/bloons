@@ -37,7 +37,7 @@ class Page {
     const R = ENV.renderer;
     if (!this.live || !R) { this.tex.needsUpdate = true; return; }
     try { R.copyTextureToTexture(this.tex, this.tex, new THREE.Box2(new THREE.Vector2(t.x, t.y), new THREE.Vector2(t.x + t.w, t.y + t.h)), new THREE.Vector2(t.x, t.y)); }
-    catch (e) { this.tex.needsUpdate = true; }
+    catch { this.tex.needsUpdate = true; }
   }
   // premier emplacement libre de w × h texels (multiples de 16), ou null
   alloc(w, h) {
@@ -147,6 +147,7 @@ export function headV(y) { return y >= HEAD.y1 ? (HEAD.y0 - y) / (HEAD.y0 - HEAD
 const thOfU = (u) => { const a = Math.abs(u - 32) / 32; return Math.sign(u - 32) * (a <= 0.62 ? Math.asin(a / 0.62) : Math.PI / 2 + (a - 0.62) / 0.38 * Math.PI / 2); };
 const yOfV = (v) => (v < 12 ? HEAD.y0 - v / 12 * (HEAD.y0 - HEAD.y1) : HEAD.y1 - (v - 12) / 52 * (HEAD.y1 - HEAD.y2));
 const ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const lerpN = (a, b, t) => a + (b - a) * t;
 
 // f : {skin, hair, brow, eye, lip, f (femme), c (enfant), age, beard, mustache, glasses, makeup {shadow, liner, blush},
 //      scalp ('hair' | 'buzz' | 'bald' | 'none' | 'fringe' | 'part'), ghostly, clown, balaclava, hood, gaunt, plastic, seed}
@@ -156,7 +157,8 @@ export function paintHead(P, f, L) {
   const S = f.plastic ? 0xe6dfd0 : f.gaunt ? f.skin : f.ghostly ? mix(f.skin, 0xb8c0c8, 0.35) : f.skin;
   const R = (x, y) => hash2(x, y, f.seed || 0);
   const ex = Math.round(headU(L.eyeTh) - 32), ey = Math.round(headV(L.eyeY)), by = Math.round(headV(L.browY)), ny = Math.round(headV(L.noseY));
-  const my = Math.round(headV(L.mouthY)), mw = Math.max(2, Math.round(headU(L.mouthTh) - 32)), cy = Math.round(headV(L.chinY));
+  const V = (k) => hash2(f.seed || 0, k, 17); // variantes du visage selon la graine
+  const my = Math.round(headV(L.mouthY)), mw = Math.max(2, Math.round(headU(L.mouthTh) - 32) + (V(1) < 0.3 ? -1 : V(1) > 0.8 ? 1 : 0)), cy = Math.round(headV(L.chinY));
   const hl = (th) => { // hauteur de la naissance des cheveux selon l'angle
     const a = Math.abs(th), H = L.hair;
     return a < 0.75 ? H[0] + (f.scalp === 'fringe' ? 0 : 0.01 * ss(0.3, 0.75, a)) : a < 1.25 ? H[0] + (H[1] - H[0]) * ss(0.75, 1.25, a) : a < 1.75 ? H[1] + (H[2] - H[1]) * ss(1.25, 1.75, a) : H[2] + (H[3] - H[2]) * ss(1.75, 2.4, a);
@@ -235,8 +237,12 @@ export function paintHead(P, f, L) {
     const bc = f.brow;
     if (f.ghostly) { for (let d = -half; d <= half; d++) P.blend(col(d), by + (d > 1 ? 1 : 0), bc, 0.5); }
     else if (f.f || f.c) { for (let d = -half; d <= half; d++) put(col(d), by + (d === half ? 1 : 0) - (d >= -1 && d <= 1 ? 1 : 0), d === half ? mix(bc, S, 0.4) : bc); }
-    else { for (let d = -half - 1; d <= half; d++) { put(col(d), by, bc); if (d < half - 1) put(col(d), by + 1, d === -half - 1 ? mix(bc, S, 0.4) : mul(bc, 1.1)); } }
+    else if (V(2) < 0.3) { for (let d = -half; d <= half; d++) put(col(d), by + (d < -1 ? 1 : 0), d === half ? mix(bc, S, 0.35) : bc); } // sourcils fins et froncés
+    else { for (let d = -half - 1; d <= half; d++) { put(col(d), by, bc); if (d < half - 1) put(col(d), by + 1, d === -half - 1 ? mix(bc, S, 0.4) : mul(bc, 1.1)); } if (V(2) > 0.75) for (let d = -half; d <= 0; d++) put(col(d), by - 1, mix(bc, S, 0.3)); }
+    if (!f.c && V(3) < 0.3) for (let d = -2; d <= 1; d++) at(col(d), ey + 3, 0.88); // cernes
   });
+  if (V(4) < 0.18) { const u = Math.round(32 + (V(5) - 0.5) * 22), v = Math.round(lerpN(ny, cy, V(6))); at(u, v, 0.68); } // grain de beauté
+  if (f.hair === 0xb5651d || (V(7) < 0.1 && !f.ghostly)) for (let k = 0; k < 22; k++) { const u = Math.round(32 + (hash2(k, 1, f.seed || 0) - 0.5) * 24), v = Math.round(ey + 2 + hash2(k, 2, f.seed || 0) * 8); if (Math.abs(u - 31.5) > 1.5 || v > ey + 4) P.blend(u, v, 0x8a5a3a, 0.35); } // taches de rousseur
   // nez : arête claire côté lumière, ailes et narines sombres, ombre portée sur la lèvre
   for (let v = ey; v < ny - 1; v++) { at(32, v, 1.05); at(31, v, 0.95); at(30, v, 0.92 + (v < ey + 3 ? 0.04 : 0)); }
   at(31, ny, 1.06); at(32, ny, 1.09); at(30, ny - 1, 0.86); at(33, ny - 1, 0.9); at(30, ny, 0.84);
