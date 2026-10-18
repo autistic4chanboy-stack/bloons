@@ -1084,7 +1084,9 @@ function buildStairsE(world, A, door) {
   A.wallZ(zn, 'block', 10.5, 22, 73.7, -4.5, 10, 0.2);
   A.wallZ(zn, 'block_dark', 8, 22, 80.2, -4.5, 10, 0.4);
   A.wallX(zn, 'block', 66, 80, 22, -4.5, 0, 0.2);
-  A.wallX(zn, 'block', 66, 80, 22, 0, 10, 0.2, [{ a: 76.4, b: 77.6, y0: 0, y1: 2.2 }, { a: 76.4, b: 77.6, y0: 5, y1: 7.2 }]);
+  // un mur par niveau : deux ouvertures superposées dans le même mur, cutOpenings rebouchait la première (les portes vers
+  // les couloirs de service nord étaient murées, au RDC comme à l'étage)
+  A.wallX(zn, 'block', 66, 80, 22, 0, 5, 0.2, [{ a: 76.4, b: 77.6, y0: 0, y1: 2.2 }]); A.wallX(zn, 'block', 66, 80, 22, 5, 10, 0.2, [{ a: 76.4, b: 77.6, y0: 5, y1: 7.2 }]);
   A.wallX(zn, 'block', 66, 80, 8, -4.5, 0, 0.3);
   // parements de parpaing : côté ouest (mur du parking en bas, enduit du magasin voisin au-dessus avec une fente au droit
   // de la dalle de l'étage et la rive en retrait de la dalle du parking : un seul nu à x = 66,32, découpé autour de
@@ -1315,7 +1317,13 @@ function buildGarage(world, A, door, dev, rng) {
   gate.name = 'Rideau de la rampe du parking';
   gate.applyVisual(); world.add(gate);
   // rampe vers l'extérieur
-  A.stairs('ramp', 'asphalt', 66, -7, 'x+', 5, 32, 4.5, yb, 32, { solid: true, base: yb - 0.4 });
+  // collisions : 32 marches de 1 m (14 cm de contremarche), inchangées ; sous la façade (x 66 … 80), la chaussée visible
+  // est une pente lisse posée sur la ligne des marches (on voyait un escalier) ; au-delà, marches visibles inchangées
+  const RS = 4.5 / 32;
+  A.stairs('ramp', 'asphalt', 66, -7, 'x+', 5, 14, 14 * RS, yb, 14, { solid: true, base: yb - 0.4, visible: false });
+  A.stairs('ramp', 'asphalt', 80, -7, 'x+', 5, 18, 18 * RS, yb + 14 * RS, 18, { solid: true, base: yb - 0.4 });
+  { const k = 14.5 * RS / 14, c = Math.cos(Math.atan(k)), s = Math.sin(Math.atan(k)), t = 0.3; // dalle de 30 cm d'épaisseur sous la pente
+    A.beam('ramp', 'asphalt', V3(66 + s * t / 2, yb - c * t / 2, -4.5), V3(80 + s * t / 2, yb + 14 * k - c * t / 2, -4.5), 5.0, t); }
   // murs de la trémie : sous le hall ils s'arrêtent à la dalle (ils traversaient le sol du hall d'entrée sur 1 m,
   // au travers du distributeur et du DAB) ; dehors, ils forment le parapet de 1 m au-dessus du trottoir
   for (const zw of [-7.2, -1.8]) { A.wallX('ramp', 'concrete_dark', 66, 80.3, zw, yb, -0.6, 0.4); A.wallX('ramp', 'concrete_dark', 80.3, 98, zw, yb, 1, 0.4); }
@@ -1336,16 +1344,17 @@ function buildGarage(world, A, door, dev, rng) {
   { const a = Math.PI / 3, p0 = V3(63.5, yb + 1.0, -7.5), d = V3(0, Math.sin(a), Math.cos(a));
     for (let k = 0; k < 8; k++) A.beam(zn, 'furniture', p0.clone().addScaledVector(d, k * 0.4), p0.clone().addScaledVector(d, (k + 1) * 0.4), 0.06, 0.09, k % 2 ? 0xf2f2f2 : 0xd32f2f);
     world.physics.add(new Box(63.46, yb + 1.0, -7.5, 63.54, yb + 2.0, -6.92, LAYER.FURN)); } // bas de la lisse (à hauteur de tête)
-  // caisse automatique (façade vers l'allée) : socle, caisson laqué, auvent incliné, écran, clavier, fentes, bandeau
-  world.physics.add(new Box(60, yb, 2, 61, yb + 1.6, 2.6, LAYER.FURN)); world.physics.add(new Box(59.97, yb + 1.45, 1.86, 61.03, yb + 1.66, 2.62, LAYER.FURN)); // auvent incliné
-  A.furn(zn, 60.05, yb, 2.05, 60.95, yb + 0.1, 2.55, 0x1a1a1a, { collide: false });
-  A.rbox(zn, 'furniture_metal', 60.5, yb + 0.8, 2.3, 1.0, 1.4, 0.6, 0.03, 0x37474f, { n: 2 });
-  A.rbox(zn, 'furniture_metal', 60.5, yb + 1.56, 2.24, 1.06, 0.06, 0.74, 0.02, 0x263238, { rx: 0.18 });
-  A.furn(zn, 60.15, yb + 0.2, 1.995, 60.85, yb + 1.45, 2.0, 0x4f6470, { metal: true, collide: false });
-  A.furn(zn, 60.25, yb + 1.12, 1.99, 60.75, yb + 1.38, 1.995, 0x0c1418, { collide: false });
-  for (let k = 0; k < 12; k++) A.furn(zn, 60.28 + (k % 3) * 0.06, yb + 0.86 + Math.floor(k / 3) * 0.05, 1.985, 60.32 + (k % 3) * 0.06, yb + 0.9 + Math.floor(k / 3) * 0.05, 1.995, 0xd0d4d6, { collide: false });
-  for (const [yy, w, c] of [[1.0, 0.12, 0x111111], [0.86, 0.1, 0x111111], [0.6, 0.2, 0x111111]]) A.furn(zn, 60.6, yb + yy, 1.985, 60.6 + w, yb + yy + 0.015, 1.995, c, { collide: false });
-  A.furn(zn, 60.15, yb + 1.42, 1.99, 60.85, yb + 1.45, 1.995, 0x1e88e5, { collide: false });
+  // caisse automatique (façade vers l'allée) : socle, caisson laqué, auvent incliné, écran, clavier, fentes, bandeau ;
+  // à 0,8 m de l'allée transversale x = 60 (elle était posée sur son bord)
+  world.physics.add(new Box(60.8, yb, 2, 61.8, yb + 1.6, 2.6, LAYER.FURN)); world.physics.add(new Box(60.77, yb + 1.45, 1.86, 61.83, yb + 1.66, 2.62, LAYER.FURN)); // auvent incliné
+  A.furn(zn, 60.85, yb, 2.05, 61.75, yb + 0.1, 2.55, 0x1a1a1a, { collide: false });
+  A.rbox(zn, 'furniture_metal', 61.3, yb + 0.8, 2.3, 1.0, 1.4, 0.6, 0.03, 0x37474f, { n: 2 });
+  A.rbox(zn, 'furniture_metal', 61.3, yb + 1.56, 2.24, 1.06, 0.06, 0.74, 0.02, 0x263238, { rx: 0.18 });
+  A.furn(zn, 60.95, yb + 0.2, 1.995, 61.65, yb + 1.45, 2.0, 0x4f6470, { metal: true, collide: false });
+  A.furn(zn, 61.05, yb + 1.12, 1.99, 61.55, yb + 1.38, 1.995, 0x0c1418, { collide: false });
+  for (let k = 0; k < 12; k++) A.furn(zn, 61.08 + (k % 3) * 0.06, yb + 0.86 + Math.floor(k / 3) * 0.05, 1.985, 61.12 + (k % 3) * 0.06, yb + 0.9 + Math.floor(k / 3) * 0.05, 1.995, 0xd0d4d6, { collide: false });
+  for (const [yy, w, c] of [[1.0, 0.12, 0x111111], [0.86, 0.1, 0x111111], [0.6, 0.2, 0x111111]]) A.furn(zn, 61.4, yb + yy, 1.985, 61.4 + w, yb + yy + 0.015, 1.995, c, { collide: false });
+  A.furn(zn, 60.95, yb + 1.42, 1.99, 61.65, yb + 1.45, 1.995, 0x1e88e5, { collide: false });
   dev('extinguisher_box', zn, -65.715, yb + 1, 0, Math.PI / 2); // contre le parement (x = -65,84)
   dev('fire_alarm', zn, -65.815, yb + 1.4, 2, Math.PI / 2);
   buildGarageDecor(world, A, dev, rng.fork('garagedecor'));
@@ -1757,10 +1766,11 @@ function buildNav(world, doors) {
   // une demi-contremarche près (les présences ne s'enfoncent plus dans les volées)
   const swMid = (a, b, y0, y1) => {
     const h = (y1 - y0) / 2, n = Math.round(h / 0.25), sd = 5.5 / n, sr = h / n;
+    N(`stW${a}l`, -74.3, y0, 15.0, 'stairsW'); // sur le palier, à l'écart du bout de la main courante (côté noyau)
     N(`stW${a}a`, -73.5 + sd / 2, y0 + sr, 14.4, 'stairsW'); N(`stW${a}a2`, -68 - sd / 2, y0 + h, 14.4, 'stairsW');
-    N(`stW${a}b`, -67.6, y0 + h, 14.4, 'stairsW'); N(`stW${a}c`, -67.6, y0 + h, 20.6, 'stairsW');
+    N(`stW${a}b`, -67.3, y0 + h, 14.4, 'stairsW'); N(`stW${a}c`, -67.3, y0 + h, 20.6, 'stairsW');
     N(`stW${a}d`, -68 - sd / 2, y0 + h + sr, 20.6, 'stairsW'); N(`stW${a}d2`, -73.5 + sd / 2, y1, 20.6, 'stairsW');
-    nav.chain([`stW${a}`, `stW${a}a`, `stW${a}a2`, `stW${a}b`, `stW${a}c`, `stW${a}d`, `stW${a}d2`, `stW${b}`]);
+    nav.chain([`stW${a}`, `stW${a}l`, `stW${a}a`, `stW${a}a2`, `stW${a}b`, `stW${a}c`, `stW${a}d`, `stW${a}d2`, `stW${b}`]);
   };
   swMid('B', '0', -4.5, 0); swMid('0', '1', 0, 5); swMid('1', 'R', 5, 10.5);
   L('stW0', 'ww0_17.75', { door: doors.stW_0.id }); L('stW1', 'ww1_17.75', { door: doors.stW_1.id });
@@ -1775,15 +1785,15 @@ function buildNav(world, doors) {
   for (let x = -60; x <= 60; x += 12) { L(`gar${x}_-6`, `gar${x}_6`); if (x > -60) { L(`gar${x - 12}_-6`, `gar${x}_-6`); L(`gar${x - 12}_6`, `gar${x}_6`); } }
   N('gar_w', -64, -4.5, 9.6, 'garage'); L('gar_w', 'gar-60_6'); L('gar_w', 'boilr', { door: doors.boiler_g.id });
   N('gar_gate', 63.5, -4.5, -4.5, 'garage'); L('gar_gate', 'gar60_-6');
-  N('ramp0', 68, -4.15, -4.5, 'ramp'); N('ramp1', 82, -2.5, -4.5, 'ramp'); N('ramp2', 96, -0.2, -4.5, 'ramp', ['outside']);
-  N('ramp05', 79.5, -2.53, -4.5, 'ramp'); // au droit de la façade : hauteur de la rampe (on ne s'enfonce plus dans la pente)
+  N('ramp0', 68, -4.21, -4.5, 'ramp'); N('ramp1', 82, -2.5, -4.5, 'ramp'); N('ramp2', 96, -0.2, -4.5, 'ramp', ['outside']);
+  N('ramp05', 79.5, -2.53, -4.5, 'ramp'); // au droit de la façade : sur la pente (on ne s'y enfonce plus)
   L('gar_gate', 'ramp0', { shutter: true }); L('ramp0', 'ramp05'); L('ramp05', 'ramp1'); L('ramp1', 'ramp2');
   // escalier est : même principe que l'escalier ouest (noyau x 69,1 … 70,9, z 10,5 … 19,5)
   for (const [y, k] of [[-4.5, 'B'], [0, '0'], [5, '1']]) { N(`stE${k}`, 77.6, y, 9.2, 'stairsE'); N(`stE${k}s`, 77, y, 20.5, 'stairsE'); L(`stE${k}`, `stE${k}s`); }
   const seMid = (a, b, y0, y1) => {
     const h = (y1 - y0) / 2, n = Math.round(h / 0.25), sd = 9 / n, sr = h / n;
     N(`stE${a}w`, 67.8, y0, 9.6, 'stairsE'); N(`stE${a}a`, 67.8, y0 + sr, 10.5 + sd / 2, 'stairsE'); N(`stE${a}a2`, 67.8, y0 + h, 19.5 - sd / 2, 'stairsE');
-    N(`stE${a}b`, 67.8, y0 + h, 20.1, 'stairsE'); N(`stE${a}c`, 72.2, y0 + h, 20.1, 'stairsE');
+    N(`stE${a}b`, 67.8, y0 + h, 20.4, 'stairsE'); N(`stE${a}c`, 72.2, y0 + h, 20.4, 'stairsE'); // (à l'écart des bouts bas des mains courantes de la 2e volée)
     N(`stE${a}d`, 72.2, y0 + h + sr, 19.5 - sd / 2, 'stairsE'); N(`stE${a}d2`, 72.2, y1, 10.5 + sd / 2, 'stairsE'); N(`stE${a}e`, 72.2, y1, 9.6, 'stairsE');
     nav.chain([`stE${a}`, `stE${a}w`, `stE${a}a`, `stE${a}a2`, `stE${a}b`, `stE${a}c`, `stE${a}d`, `stE${a}d2`, `stE${a}e`, `stE${b}`]);
   };
