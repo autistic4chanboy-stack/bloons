@@ -120,6 +120,7 @@ export class Story {
     this.scripted = this.mode === 'story' ? (N.scripted || []).map(s => ({ ...s, t: nightMin(parseT(s.at)), done: false })).sort((a, b) => a.t - b.t) : [];
     this.outcome = { robbery: null, fire: null, deaths: 0, thefts: [], policeCalls: 0, startedAt: Date.now() };
     this.tutorial = day ? { step: 0, wait: 0 } : null;
+    if (this.t > 0) this.stats.played = (this.stats.played || 0) + Math.round(this.t); // temps de service (dossiers d'agent)
     this.t = 0; this.endT = 0;
     g.sim.emit('night', { phase: day ? 'day' : 'dusk', n, time: start, mode: this.mode, unlockedShops: [...this.unlockedShops], unlockedAreas: [...this.unlockedAreas] });
     g.events.configure(this.mode, n);
@@ -158,7 +159,7 @@ export class Story {
       g.env.setTime(p.time); g.env.timeScale = p.phase === 'day' ? 0.5 : NIGHT_RATE;
       g.env.weather = 'clear';
       const N = NIGHTS[Math.min(10, p.n)];
-      if (this.mode === 'story') { g.ui.card(N.title, N.subtitle, 5); setTimeout(() => (N.news || []).forEach((t, i) => setTimeout(() => g.toast(t, 6), i * 2500)), 3500); }
+      if (this.mode === 'story') { g.ui.card(N.title, N.subtitle, 5, (p.phase === 'day' ? 'Journée d\'accueil · ' : '') + 'Nuit ' + p.n + ' / 10'); setTimeout(() => (N.news || []).forEach((t, i) => setTimeout(() => g.toast(t, 6), i * 2500)), 3500); }
       else g.ui.card('Mode infini', 'Nuit ' + p.n, 4);
       if (p.phase === 'day') g.ui.setObjective('Rejoignez Gérard au poste de sécurité (extrémité ouest du rez-de-chaussée).');
       else g.ui.setObjective(this.mode === 'story' ? 'Lisez la note de Gérard sur le bureau. La nuit commence à 22 h.' : 'Survivez jusqu\'à 6 h.');
@@ -168,7 +169,7 @@ export class Story {
     }
     if (p.phase === 'night') {
       this.phase = 'night'; g.isDay = false; g.env.timeScale = NIGHT_RATE; g.env.setTime(22 * 60);
-      g.ui.card(this.mode === 'story' ? 'Nuit ' + p.n : 'Nuit ' + p.n, '22:00', 3.5);
+      g.ui.card('Nuit ' + p.n, '22 h 00 — début de la garde', 3.5);
       g.ui.setObjective(this.mode === 'story' ? 'Surveillez le centre jusqu\'à 6 h.' : 'Survivez jusqu\'à 6 h.');
       g.sfx('pa_chime_end', null, { volume: 0.4, bus: 'ambience' });
       return;
@@ -338,20 +339,28 @@ export class Story {
     if (Net.isHost && !Net.online) setTimeout(() => { if (this.phase === 'night' || this.phase === 'dusk') { if (this.mode === 'infinite') this.gameOver(); else this.fail(this.deathReason); } }, 2500);
   }
 
+  // Rapport de garde (papier tamponné : « R.A.S. » ou « Incidents ») ; date du matin comme l'incrustation de la caméra
   showSummary(p) {
     const g = this.game; g.paused = false;
-    const lines = (p.summary || []).map(([c, t]) => `<li class="${c}">${t}</li>`).join('') || '<li class="good">Nuit calme. Rien à signaler.</li>';
-    const html = `<h1>06:00 — ${p.mode === 'story' ? 'Nuit ' + p.n + ' terminée' : 'Nuit ' + p.n + ' survécue'}</h1><p>Le jour se lève sur le centre Hélios. Les premiers employés arrivent.</p><ul>${lines}</ul>`;
-    g.ui.showSummary(html, Net.isHost ? [[p.mode === 'story' && p.n < 10 ? 'Nuit suivante' : 'Continuer', () => g.sim.do('night_continue', { kind: 'end' })], ['Menu principal', () => g.onQuit()]] : [['En attente de l\'hôte…', () => { }]]);
+    const lines = (p.summary || []).length ? p.summary : [['good', 'Nuit calme. Rien à signaler.']];
+    const bad = lines.some(([c]) => c === 'bad'), agent = String(g.settings.playerName || 'Gardien').replace(/[&<>"]/g, '');
+    g.ui.report({ title: 'Rapport de garde', ref: 'Form. S-12 · ' + (p.mode === 'story' ? 'Histoire' : 'Infini'),
+      fields: [['Nuit n°', p.mode === 'story' ? p.n + ' / 10' : String(p.n)], ['Date', new Date(2026, 10, 14 + p.n).toLocaleDateString('fr-FR')], ['Agent', agent], ['Service', '22 h – 06 h']],
+      lead: `06:00 — ${p.mode === 'story' ? 'Nuit ' + p.n + ' terminée' : 'Nuit ' + p.n + ' survécue'}. Le jour se lève sur le centre Hélios. Les premiers employés arrivent.`,
+      lines, stamp: bad ? ['Incidents'] : ['R.A.S.', 'blue'],
+      buttons: Net.isHost ? [[p.mode === 'story' && p.n < 10 ? 'Nuit suivante' : 'Continuer', () => g.sim.do('night_continue', { kind: 'end' })], ['Menu principal', () => g.onQuit()]] : [['En attente de l\'hôte…', () => { }]] });
     g.sfx('success', null, { bus: 'ui' });
   }
+  // échec, fin de partie : la caméra-piéton a coupé
   showFail(p) {
     const g = this.game;
-    g.ui.showSummary(`<h1>Nuit ${p.n} — échec</h1><p class="bad">${p.reason}</p><p>La nuit va recommencer.</p>`, Net.isHost ? [['Recommencer la nuit', () => g.sim.do('night_continue', { kind: 'fail' })], ['Menu principal', () => g.onQuit()]] : [['En attente de l\'hôte…', () => { }]]);
+    g.ui.report({ kind: 'lost', title: `Nuit ${p.n} — échec`, reason: p.reason, text: '<p>La nuit va recommencer.</p>',
+      buttons: Net.isHost ? [['Recommencer la nuit', () => g.sim.do('night_continue', { kind: 'fail' })], ['Menu principal', () => g.onQuit()]] : [['En attente de l\'hôte…', () => { }]] });
   }
   showGameOver(p) {
     const g = this.game; const best = Save.load().infinite.best;
-    g.ui.showSummary(`<h1>Fin de partie</h1><p>Vous avez tenu <b>${Math.max(0, p.n - 1)}</b> nuit(s) complète(s).</p><p>Record : ${best}</p>`, [['Rejouer', () => { this.night = 1; this.game.night = 1; if (Net.isHost) this.startNight(1); }], ['Menu principal', () => g.onQuit()]]);
+    g.ui.report({ kind: 'lost', osd: 'Fin de service', title: 'Fin de partie', text: `<p>Vous avez tenu <b>${Math.max(0, p.n - 1)}</b> nuit(s) complète(s).</p><p>Record : ${best}</p>`,
+      buttons: [['Rejouer', () => { this.night = 1; this.game.night = 1; if (Net.isHost) this.startNight(1); }], ['Menu principal', () => g.onQuit()]] });
   }
 
   // ── vols ──
@@ -413,8 +422,12 @@ export class Story {
     Save.recordEnding(p.id);
     if (this.mode === 'story') Save.deleteSlot(this.slot);
     const eps = (p.epilogues || []).map(id => EPILOGUES.find(x => x.id === id)).filter(Boolean);
-    const ql = (p.quests || []).length ? `<ul>${p.quests.map(([c, t]) => `<li class="${c}">${t}</li>`).join('')}</ul>` : '';
-    g.ui.showSummary(`<h1>FIN — ${e.name}</h1><p>${e.desc}</p>${eps.map(x => `<h3>Épilogue : ${x.name}</h3><p>${x.desc}</p>`).join('')}${ql}<p class="small">Fins débloquées : ${Object.keys(Save.load().endings).length}/${ENDINGS.length}</p>`, [['Menu principal', () => g.onQuit()]]);
+    // dossier clos : la fin en titre, tampon « Classé » (ou la sanction pour une fin anticipée)
+    g.ui.report({ title: 'Dossier clos', sub: 'Direction · Personnel de sécurité', ref: 'Fin ' + (ENDINGS.indexOf(e) + 1) + ' / ' + ENDINGS.length,
+      fields: [['Agent', String(g.settings.playerName || 'Gardien').replace(/[&<>"]/g, '')], ['Nuit', (p.n || this.night) + ' / 10'], ['Fins débloquées', Object.keys(Save.load().endings).length + ' / ' + ENDINGS.length]],
+      body: `<h3>Fin — ${e.name}</h3><p>${e.desc}</p>${eps.map(x => `<h3>Épilogue : ${x.name}</h3><p>${x.desc}</p>`).join('')}`,
+      lines: p.quests || [], linesTitle: 'Objectifs de la dernière nuit', stamp: [e.early ? e.name : 'Classé'],
+      buttons: [['Menu principal', () => g.onQuit()]] });
   }
 
   // ── sauvegarde ──

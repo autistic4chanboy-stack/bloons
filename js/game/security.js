@@ -794,7 +794,7 @@ export class Security {
     if (this.ui) { this.ui.root.style.display = 'block'; return; }
     const g = this.game;
     const root = document.createElement('div'); root.className = 'cctv';
-    root.innerHTML = `<div class="tabletFrame"></div><img class="pbimg" alt=""><div class="top"><span class="tl"></span><span class="tr"></span></div><div class="log"></div><div class="side"></div><div class="cpanel"></div><div class="tabs"></div><div class="bottom"></div><div class="pb"></div><div class="hint2"></div><div class="roomhint"></div>`;
+    root.innerHTML = `<div class="tabletFrame"></div><img class="pbimg" alt=""><div class="top"><span class="tl"></span><span class="tr"></span></div><div class="log"></div><div class="side"></div><div class="cpanel"></div><div class="dock"><div class="tabs"></div><div class="bottom"></div></div><div class="pb"></div><div class="hint2"></div><div class="roomhint"></div>`;
     g.ui.root.insertBefore(root, g.ui.root.firstChild);
     const q = (s) => root.querySelector(s);
     this.ui = { root, top: q('.top'), tl: q('.tl'), tr: q('.tr'), log: q('.log'), side: q('.side'), panel: q('.cpanel'), tabs: q('.tabs'), bottom: q('.bottom'), pb: q('.pb'), hint: q('.hint2'), room: q('.roomhint'), img: q('.pbimg'), frame: q('.tabletFrame') };
@@ -867,7 +867,7 @@ export class Security {
     this.showFrame(); this.renderUI(true);
   }
   pbStep(d) { const P = this.playback; if (!P) return; P.i = Math.max(0, Math.min(P.frames.length - 1, P.i + d)); P.playing = false; this.showFrame(); this.renderUI(true); }
-  showFrame() { const P = this.playback; if (!P || !this.ui) return; const f = P.frames[P.i]; if (f) this.ui.img.src = f.url; const r = this.ui.pb.querySelector('.pbrange'); if (r) r.value = P.i; const tl = this.ui.pb.querySelector('.pbt'); if (tl && f) tl.textContent = hhmmss(f.t) + (f.motion ? ' · mouvement' : ''); }
+  showFrame() { const P = this.playback; if (!P || !this.ui) return; const f = P.frames[P.i]; if (f) this.ui.img.src = f.url; const r = this.ui.pb.querySelector('.pbrange'); if (r) { r.value = P.i; r.style.setProperty('--p', (P.i / Math.max(1, P.frames.length - 1) * 100).toFixed(1) + '%'); /* curseur commun : remplissage = avancement */ } const tl = this.ui.pb.querySelector('.pbt'); if (tl && f) tl.textContent = hhmmss(f.t) + (f.motion ? ' · mouvement' : ''); }
 
   renderUI(force) {
     const g = this.game; const U = this.ui; if (!U) return;
