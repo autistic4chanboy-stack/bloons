@@ -192,17 +192,19 @@ export function buildMall(world) {
   dev('water_fountain', 'gallery0_w', -64.5, 0.6, 6.5, Math.PI / 2);
   // mur ouest (parement à x = -65,85) : façades tournées vers la galerie, dos contre le mur
   dev('fire_alarm', 'gallery0_w', -65.825, 1.4, -6.5, Math.PI / 2);
-  dev('fire_alarm', 'gallery0_e', 65.6, 1.4, 6.5, Math.PI / 2);
   dev('fire_alarm', 'gallery1_w', -65.825, 6.4, -6.5, Math.PI / 2);
   dev('extinguisher_box', 'gallery0_w', -65.725, 1.0, -7.4, Math.PI / 2);
-  dev('extinguisher_box', 'gallery0_e', 65.8, 1.0, -7.4, Math.PI / 2);
-  dev('extinguisher_box', 'gallery1_e', 65.8, 6.0, 7.4, Math.PI / 2);
+  // bout est : la galerie s'ouvre en grand sur le hall et la mezzanine (pas de mur en x = 66) ; déclencheur et armoires
+  // sur les murs nord / sud du hall et de la mezzanine (ils flottaient au milieu du passage)
+  dev('fire_alarm', 'entrance', 66.6, 1.4, 7.825, Math.PI);
+  dev('extinguisher_box', 'entrance', 66.45, 1.0, -7.725, 0);
+  dev('extinguisher_box', 'mezzanine', 66.45, 6.0, 7.725, Math.PI);
   // Affiche de Lucie près des toilettes de l'étage (et une au RDC)
   // (à 1 cm devant le parement : -65,89 les enterrait dans le mur ouest, -7,85 les mettait à fleur du mur — scintillement)
   poster(world, 'gallery0_w', -65.84, 1.7, 3.5, Math.PI / 2, 2);
   poster(world, 'gallery1_e', 55.2, 6.7, -7.84, 0, 2);
-  poster(world, 'gallery0_e', 65.89, 1.8, -3, -Math.PI / 2, 6);
-  poster(world, 'atrium', -23.9, 2.2, -7.85, 0, 0);
+  poster(world, 'entrance', 67.45, 1.8, 7.84, Math.PI, 6);       // mur nord du hall (elle flottait dans l'ouverture galerie / hall)
+  poster(world, 'atrium', -24.014, 1.7, -1.5, -Math.PI / 2, 0);  // habillage de l'about de l'escalator ouest (elle flottait devant une vitrine)
   poster(world, 'gallery1_w', -65.84, 6.8, 4, Math.PI / 2, 7);
 
   // Mur ouest de la galerie (côté poste) — RDC et étage
@@ -212,7 +214,8 @@ export function buildMall(world) {
   const secSign = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.45), new THREE.MeshBasicMaterial({ map: signTexture('POSTE DE SÉCURITÉ', 0x29b6f6, { h: 120, fontSize: 70, font: 'Arial' }) }));
   secSign.position.set(-65.83, 3.0, 0); secSign.rotation.y = Math.PI / 2; world.zone('gallery0_w').group.add(secSign); world.zone('security').signMats.push(secSign.material);
   // Panneaux de sortie de secours (vert, toujours allumés)
-  for (const [x, y, z, ry, zn, yc] of [[-65.83, 3.4, 5, Math.PI / 2, 'gallery0_w'], [65.83, 3.4, 0, -Math.PI / 2, 'gallery0_e', 4.6], [-65.83, 8.4, 0, Math.PI / 2, 'gallery1_w'], [0, 3.8, 7.85, Math.PI, 'atrium']]) { exitSign(world, zn, x, y, z, ry); A.exitBox(zn, x, y, z, ry, yc); }
+  // (atrium : suspendu sous la coursive nord ; plaqué sur la boulangerie, il était caché derrière son enseigne)
+  for (const [x, y, z, ry, zn, yc] of [[-65.83, 3.4, 5, Math.PI / 2, 'gallery0_w'], [65.83, 3.4, 0, -Math.PI / 2, 'gallery0_e', 4.6], [-65.83, 8.4, 0, Math.PI / 2, 'gallery1_w'], [0, 4.2, 5.2, Math.PI, 'atrium', 4.6]]) { exitSign(world, zn, x, y, z, ry); A.exitBox(zn, x, y, z, ry, yc); }
 
   // ═══════════════════════════ BLOC OUEST (RDC) ═══════════════════════════
   // Mur ouest du bloc (x = -76) RDC : portes réserve, poste (arrière), escalier
@@ -341,7 +344,10 @@ export function buildMall(world) {
   A.ceiling('mezzanine', 'ceiling', 66, -8, 80, 8, 10, 0.02, { collide: false });
   for (const z of [-4, 4]) { LP(A, 'entrance', 71, 4.6, z, 2.4, 0.5); LP(A, 'entrance', 76, 4.6, z, 2.4, 0.5, false); LP(A, 'mezzanine', 73, 10, z, 2.4, 0.5); }
   // façade vitrée (x = 80) avec portes automatiques
-  A.box('entrance', 'chrome', 80, 0, -8, 80.3, 0.2, 8, { collide: false });
+  // soubassement des vitrages seulement (il traversait la baie des portes : les sabots des vantaux s'y enfonçaient et
+  // il faisait une marche de 20 cm porte ouverte) ; seuil affleurant sous les portes
+  for (const [z0, z1] of [[-8, -1.6], [1.6, 8]]) A.box('entrance', 'chrome', 80, 0, z0, 80.3, 0.2, z1);
+  A.box('entrance', 'aluminium', 79.95, 0, -1.6, 80.35, 0.008, 1.6, { collide: false });
   for (const [z0, z1] of [[-8, -1.6], [1.6, 8]]) {
     const gp = new GlassPane(world, world.newId('glass'), { zone: 'entrance', x0: 80, x1: 80, z0, z1, y0: 0.2, y1: 4.4, name: 'Façade vitrée', floorY: 0.01, alarmZone: 'entrance' });
     world.add(gp);
@@ -389,7 +395,8 @@ export function buildMall(world) {
   world.add(dir);
   directoryBoard(world, 'entrance', 75.5, 1.4, -7.85);
   const logo = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.1), new THREE.MeshBasicMaterial({ map: signTexture('CENTRE COMMERCIAL HÉLIOS', 0xffb300, { fontSize: 80 }) }));
-  logo.position.set(79.85, 3.7, 0); logo.rotation.y = -Math.PI / 2; world.zone('entrance').group.add(logo); world.zone('entrance').signMats.push(logo.material);
+  logo.position.set(79.854, 3.7, 0); logo.rotation.y = -Math.PI / 2; world.zone('entrance').group.add(logo); world.zone('entrance').signMats.push(logo.material);
+  A.rbox('entrance', 'steel_dark', 79.905, 3.7, 0, 0.09, 1.16, 6.06, 0.01, 0xffffff, { n: 2 }); // caisson de l'enseigne, fixé sur l'imposte des portes
   // Local poubelles
   A.floor('trash', 'concrete_floor', 66, -22, 80, -8, 0, 0.6, { faces: 'Y' });
   A.ceiling('trash', 'concrete', 66, -22, 80, -8, 4.6, 0.05, { collide: false });

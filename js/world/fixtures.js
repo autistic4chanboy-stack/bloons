@@ -220,21 +220,21 @@ export class Door extends WorldObject {
     if ('open' in patch) {
       this.target = patch.open ? (this.o.swing || 1) * Math.PI / 2 * 0.95 : 0;
       this.col.enabled = !patch.open;
-      if (patch.open) this._placeLeaf();
       this.leafCol.enabled = !!patch.open;
+      if (patch.open) this._placeLeaf(isReset ? this.target : this.angle);
       if (!isReset) {
         const pos = this.pos;
         if (patch.open) g.sfx(this.creaky && !this.state.oiled && Math.random() < 0.5 ? 'door_creak' : 'door_open', pos, { volume: 0.8 });
         else g.sfx(this.o.mat === 'metal' ? 'door_slam' : 'door_close', pos, { volume: 0.7 });
-      } else { this.angle = this.target; this.pivot.rotation.y = this.angle; }
+      } else { this.angle = this.target; this.pivot.rotation.y = this.angle * (this.o.hinge === 'b' ? -1 : 1); }
     }
     if ('padlock' in patch && !isReset && patch.padlock) g.sfx('padlock_close', this.pos);
     if (this.padMesh) this.padMesh.visible = !!this.state.padlock;
     else if (this.state.padlock) this._makePadlock();
   }
-  // boîte englobante du vantail à l'angle d'ouverture (épaisseur avec les poignées)
-  _placeLeaf() {
-    const o = this.o, hs = o.hinge === 'b' ? 1 : -1, dU = -hs, phi = this.target * (o.hinge === 'b' ? -1 : 1), c = Math.cos(phi), s = Math.sin(phi), t = 0.08;
+  // boîte englobante du vantail à l'angle a (épaisseur avec les poignées) ; suit le vantail pendant qu'il pivote
+  _placeLeaf(a) {
+    const o = this.o, hs = o.hinge === 'b' ? 1 : -1, dU = -hs, phi = a * (o.hinge === 'b' ? -1 : 1), c = Math.cos(phi), s = Math.sin(phi), t = 0.08;
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (const u of [0, dU * this.w]) for (const n of [-t, t]) {
       const lx = o.axis === 'x' ? u : n, lz = o.axis === 'x' ? n : u, x = this.pivot.position.x + lx * c + lz * s, z = this.pivot.position.z - lx * s + lz * c;
@@ -252,6 +252,7 @@ export class Door extends WorldObject {
     if (Math.abs(this.angle - this.target) > 0.001) {
       this.angle += (this.target - this.angle) * Math.min(1, dt * 6);
       this.pivot.rotation.y = this.angle * (this.o.hinge === 'b' ? -1 : 1);
+      if (this.leafCol.enabled) this._placeLeaf(this.angle);
     }
   }
 }

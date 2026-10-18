@@ -276,7 +276,10 @@ export function buildDecor(world, A, dev, rng) {
   }
   // ── mobilier de galerie : poubelles de tri, extincteurs, cabines, manèges ──
   for (const [x, z, f] of [[-44, 3.2, 0], [44, -3.2, 0], [-52, -3.2, 0], [52, 3.2, 0], [-41, 5.2, 1], [41, -5.2, 1], [-58, -5.2, 1], [58, 5.2, 1]]) dev('mall_bin', galZone(x, f), x, (f ? 5 : 0) + 0.5, z, z > 0 ? Math.PI : 0);
-  for (const [x, y, z, ry, zn] of [[-24.4, 1.0, 7.6, -Math.PI / 2, 'gallery0_w'], [24.4, 1.0, -7.6, Math.PI / 2, 'gallery0_e'], [-24.4, 6.0, -7.6, -Math.PI / 2, 'gallery1_w'], [24.4, 6.0, 7.6, Math.PI / 2, 'gallery1_e']]) dev('extinguisher_box', zn, x, y, z, ry);
+  // armoires à extincteur sur un support réel (elles flottaient devant les vitrines) : habillage de l'about haut des
+  // escalators au RDC, mur ouest et colonne (patte de fixation) à l'étage ; façade (+z local) vers le passage
+  for (const [x, y, z, ry, zn] of [[-24.137, 1.0, 1.5, -Math.PI / 2, 'gallery0_w'], [24.137, 1.0, -1.5, Math.PI / 2, 'gallery0_e'], [-65.725, 6.0, -7.2, Math.PI / 2, 'gallery1_w'], [36, 6.0, -4.855, Math.PI, 'gallery1_e']]) dev('extinguisher_box', zn, x, y, z, ry);
+  A.rbox('gallery1_e', 'steel_dark', 36, 6.0, -4.705, 0.12, 0.4, 0.05, 0.008); // patte de fixation sur le fût de la colonne
   dev('mall_payphone', 'gallery0_w', -65.45, 1.1, -3.6, Math.PI / 2); dev('mall_payphone', 'gallery0_w', -65.45, 1.1, -4.8, Math.PI / 2);
   dev('mall_payphone', 'gallery1_w', -65.45, 6.1, -5.6, Math.PI / 2);
   dev('mall_kiddie_car', 'gallery0_w', -48.5, 0.6, 2.2, Math.PI / 2); dev('mall_kiddie_horse', 'gallery0_e', 48.5, 0.6, -2.2, -Math.PI / 2);
