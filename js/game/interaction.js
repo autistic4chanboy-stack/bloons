@@ -29,13 +29,26 @@ export class Interaction {
     let obj = null;
     if (hit && hit.box.data && (!block || hit.t <= block.t + 0.12)) obj = hit.box.data;
     if (obj && obj.state?.where === 'held') obj = null;
+    if (!obj && g.world.checkpoints) obj = this.nearReader(cam.position, d); // borne de ronde : il suffit d'être devant
     if (obj) {
       const pr = obj.prompt(p);
-      if (pr) { this.target = obj; this.prompt = pr; this.dist = hit.t; this.point = cam.position.clone().addScaledVector(d, hit.t); }
+      if (pr) { const t = hit && hit.box.data === obj ? hit.t : cam.position.distanceTo(obj.center); this.target = obj; this.prompt = pr; this.dist = t; this.point = cam.position.clone().addScaledVector(d, t); }
     }
     g.ui.setPrompt(this.prompt, this.target);
     if (g.input.hit('KeyE')) this.activate('use');
     else if (g.input.hit('KeyR') && this.target) this.activate('alt');
+  }
+
+  // borne de ronde à moins de 1,8 m, à peu près dans le regard (cône de ±50°) et sans mur entre les deux
+  nearReader(o, d) {
+    const P = this.game.world.physics; let best = null, bs = 0;
+    for (const r of Object.values(this.game.world.checkpoints)) {
+      const c = r.center, dx = c.x - o.x, dy = c.y - o.y, dz = c.z - o.z, L = Math.hypot(dx, dy, dz); if (L > 1.8 || L < 0.05) continue;
+      const k = (dx * d.x + dy * d.y + dz * d.z) / L; if (k < 0.64 || k <= bs) continue;
+      if (P.raycast(o.x, o.y, o.z, dx, dy, dz, L - 0.08, LAYER.WALL | LAYER.DOOR | LAYER.GLASS)) continue;
+      best = r; bs = k;
+    }
+    return best;
   }
 
   activate(verb) {

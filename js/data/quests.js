@@ -11,7 +11,7 @@
 //           onStart / onDone / onFail (effets), autoDone / autoFail (prédicat), with (démarre avec la précédente),
 //           after: 'all' (quand toutes les précédentes sont résolues), fallback 'HH:MM', reward, repeat { every, fx },
 //           enter { zone, fx } (un gardien entre dans la zone pendant l'étape) }
-//   kind : goto { zone | point, r, stay } · ronde { points, ordered } · state { test, arg, count } · flag { flag }
+//   kind : goto { zone | point, r, stay } · ronde { points, ordered, last (borne à pointer en dernier) } · state { test, arg, count } · flag { flag }
 //          items { def, mode: hold | place | shelve, count, zone } · cctv { cams, see, hold, direct } · call { service }
 //          answer { caller, lines, retry } · wait · signal { name } · choice { test, arg, branches [{ id, label, test, fx }] }
 //   at : 'desk' (bureau du poste) · 'phone' · 'cp:<borne>' · 'zone:<zone>' · 'pt:<point nommé>' · 'rear:<magasin>'
@@ -56,8 +56,8 @@ export const QUESTS = {
     { id: 'n1_ronde', title: 'La première ronde', giver: 'Gérard', start: { at: '22:00' },
       intro: { unless: 'tuto', call: [['Gérard', 'Allô, petit ? C\'est Gérard, depuis le parking. J\'ai oublié de te dire : fais ta première ronde maintenant.'], ['Gérard', 'Tu pointes à chaque borne jaune avec E : la galerie, le Royaume du Jouet, le vestiaire, et tu reviens au poste. Desmarais épluche les relevés.']] },
       steps: [
-        { id: 'ronde', kind: 'ronde', points: ['galerie_o', 'jouets', 'vestiaire', 'poste'], ordered: true, until: '01:30',
-          title: 'Faire la première ronde', desc: 'Pointez (E) aux bornes jaunes : galerie ouest, Royaume du Jouet (relevez le rideau), vestiaire, puis le poste.' },
+        { id: 'ronde', kind: 'ronde', points: ['galerie_o', 'jouets', 'vestiaire', 'poste'], last: 'poste', until: '01:30',
+          title: 'Faire la première ronde', desc: 'Pointez (E) aux bornes jaunes, dans l\'ordre que vous voulez : galerie ouest, Royaume du Jouet (relevez le rideau), vestiaire ; le poste en dernier.' },
       ] },
     { id: 'n1_bruit', title: 'Du bruit au Royaume du Jouet', start: { after: 'n1_ronde', delay: 8, fallback: '23:20' },
       onStart: [{ do: 'trigger', name: 'n1_bruit' }],
@@ -100,7 +100,7 @@ export const QUESTS = {
       steps: [
         { id: 'rec', kind: 'state', test: 'rec_on', at: 'desk', until: '00:00', title: 'Lancer l\'enregistrement des caméras',
           desc: 'Gérard a branché l\'enregistreur : console du poste, bouton REC (ou R devant les écrans).' },
-        { id: 'ronde', kind: 'ronde', points: ['hyper', 'hyper_reserve', 'service_n', 'poste'], ordered: true, fallback: '22:30', until: '02:00',
+        { id: 'ronde', kind: 'ronde', points: ['hyper', 'hyper_reserve', 'service_n', 'poste'], last: 'poste', fallback: '22:30', until: '02:00',
           title: 'Ronde des rayons', desc: 'Bornes de l\'hypermarché (rayons, puis réserve), du couloir de service nord par la porte de la réserve (clés), puis le poste.',
           enter: { zone: ['hyper', 'hyper_back'], fx: [{ do: 'trigger', name: 'n2_hyper' }] } },
       ] },

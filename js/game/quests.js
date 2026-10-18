@@ -467,7 +467,7 @@ export class Quests {
     const pos = r ? r.pos.toArray() : null;
     g.sim.emit('fx', { s: 'beep', pos, v: 0.55 });
     if (!this.state) return;
-    let hit = 0, order = null, again = false, any = false;
+    let hit = 0, order = null, again = false, any = false, last = null;
     for (const q of this.defs) for (const st of q.steps) {
       if (st.kind !== 'ronde') continue;
       const key = q.id + '.' + st.id, ss = this.state.s[key]; if (ss.s !== 'active') continue;
@@ -475,12 +475,14 @@ export class Quests {
       any = true; ss.got = ss.got || [];
       if (ss.got.includes(cp)) { again = true; continue; }
       if (st.ordered) { const next = pts.find(id => !ss.got.includes(id)); if (next !== cp) { order = next; continue; } }
+      if (st.last === cp && pts.some(id => id !== cp && !ss.got.includes(id))) { last = pts.filter(id => id !== cp && !ss.got.includes(id)); continue; }
       ss.got.push(cp); ss.p = ss.got.length; hit++;
       (this.mem[key] ||= {}).actor = actor;
     }
     if (hit) { this.dirty = true; setTimeout(() => g.sim.emit('fx', { s: 'beep', pos, v: 0.45, i: 0.6 }), 160); this.push(); return; }
     const name = (id) => CHECKPOINTS[id]?.name || id;
     if (order) g.sim.emit('toast', { text: 'Pointage refusé : la ronde commence par « ' + name(order) + ' ».' }, { to: actor });
+    else if (last) g.sim.emit('toast', { text: 'Cette borne se pointe en dernier. Reste : ' + last.map(name).join(', ') + '.', dur: 3.5 }, { to: actor });
     else if (again) g.sim.emit('toast', { text: 'Borne déjà pointée.' }, { to: actor });
     else if (!any) g.sim.emit('toast', { text: 'Borne « ' + name(cp) + ' » pointée (elle ne fait pas partie de la ronde en cours).', dur: 3 }, { to: actor });
   }
@@ -493,7 +495,8 @@ export class Quests {
       const got = v.s[q.id + '.' + s.id].got || [];
       if (got.includes(cp)) { st = st || 'done'; continue; }
       const next = s.ordered ? pts.find(id => !got.includes(id)) : null;
-      st = !s.ordered || next === cp ? 'next' : 'todo';
+      const wait = s.last === cp && pts.some(id => id !== cp && !got.includes(id));
+      st = (!s.ordered || next === cp) && !wait ? 'next' : 'todo';
     }
     return st;
   }
@@ -506,12 +509,15 @@ export class Quests {
     const key = (this.view ? this.view.v ?? JSON.stringify(this.view.s).length : 'x') + '|' + (blink ? 1 : 0);
     if (key === this._readersKey) return; this._readersKey = key;
     const c = this._ledC || (this._ledC = new THREE.Color());
+    const gl = W.checkpointGlows, gc = gl?.geometry.attributes.color;
     ids.forEach((id, i) => {
       const s = this.readerStatus(id);
       if (s === 'done') c.setRGB(0.15, 1.6, 0.35); else if (s === 'next') c.setRGB(blink ? 2.2 : 0.4, blink ? 1.3 : 0.24, 0.05); else if (s === 'todo') c.setRGB(1.2, 0.7, 0.05); else c.setRGB(0.45, 0.03, 0.02);
       leds.setColorAt(i, c);
+      if (gc) { const k = s === 'next' ? (blink ? 1 : 0.35) : s === 'todo' ? 0.25 : 0; gc.setXYZ(i, 1.0 * k, 0.55 * k, 0.08 * k); }
     });
     if (leds.instanceColor) leds.instanceColor.needsUpdate = true;
+    if (gc) gc.needsUpdate = true;
   }
 
   // ───────────────────────── effets scriptés (hôte) ─────────────────────────
@@ -624,7 +630,11 @@ export class Quests {
     return '';
   }
   subText(st, ss) {
-    if (st.kind === 'ronde') { const id = this.nextPoint(st, ss); return id ? 'Borne ' + cpNum(id) + ' · ' + (CHECKPOINTS[id]?.name || id) : ''; }
+    if (st.kind === 'ronde') {
+      const id = this.nextPoint(st, ss); if (!id) return '';
+      const sh = CHECKPOINTS[id]?.shop && this.game.world.shops?.[CHECKPOINTS[id].shop]?.shutter; // rideau du magasin encore baissé
+      return 'Borne ' + cpNum(id) + ' · ' + (CHECKPOINTS[id]?.name || id) + (sh && sh.state.target > 0.5 ? ' · rideau baissé (E pour le relever)' : '');
+    }
     if (st.kind === 'choice' && st.branches) return st.branches.map(b => b.label).join('  ·  ou  ·  ');
     if (st.kind === 'cctv') return 'Caméras du poste';
     if (st.kind === 'call' || st.kind === 'answer') return 'Téléphone du poste';
@@ -633,11 +643,57 @@ export class Quests {
   // prochaine borne : la suivante dans l'ordre, sinon la plus proche du joueur local
   nextPoint(st, ss) {
     const pts = this.rondePoints(st), got = ss.got || [];
-    const left = pts.filter(id => !got.includes(id)); if (!left.length) return null;
+    let left = pts.filter(id => !got.includes(id)); if (!left.length) return null;
+    if (st.last && left.length > 1) left = left.filter(id => id !== st.last);
     if (st.ordered || left.length === 1) return left[0];
     const p = this.game.player.pos, W = this.game.world;
     let best = left[0], bd = 1e9; for (const id of left) { const r = W.checkpoints[id]; const d = r ? r.pos.distanceTo(p) + Math.abs(r.pos.y - p.y) * 8 : 1e9; if (d < bd) { bd = d; best = id; } }
     return best;
+  }
+  // Guidage du suivi le long du graphe de navigation : prochain point de passage et distance par le chemin (la flèche
+  // suit les couloirs et les portes au lieu de viser à travers les murs) ; à vue et à moins de 12 m, droit sur la cible.
+  // Chemin recalculé deux fois par seconde au plus.
+  guide(t) {
+    const g = this.game, nav = g.entities?.nav, W = g.world; if (!nav || !t) return null;
+    const p = g.player.pos, eye = p.y + 1.5;
+    const los = (x, y, z) => { const dx = x - p.x, dy = y - eye, dz = z - p.z, L = Math.hypot(dx, dy, dz) || 1; return !W.physics.raycast(p.x, eye, p.z, dx, dy, dz, L - 0.25, LAYER.WALL | LAYER.DOOR | LAYER.GLASS | LAYER.FURN); };
+    const direct = Math.hypot(t.x - p.x, t.z - p.z);
+    if (direct < 12 && Math.abs(t.y - eye) < 2.5 && los(t.x, t.y, t.z)) return { x: t.x, y: t.y, z: t.z, dist: direct };
+    let c = this._gd;
+    if (!c || g.time - c.time > 0.5 || c.tx !== t.x || c.tz !== t.z || Math.hypot(c.px - p.x, c.pz - p.z) > 3) {
+      const A = this.navNear(p.x, p.y, p.z, true), B = this.navNear(t.x, t.y - 1.2, t.z, false);
+      const ids = A && B ? nav.path(A.id, B.id, this.guideBlocked()) : null;
+      c = this._gd = { time: g.time, tx: t.x, tz: t.z, px: p.x, pz: p.z, pts: ids ? ids.map(id => nav.nodes.get(id)) : null };
+    }
+    const pts = c.pts; if (!pts || !pts.length) return null;
+    const d2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+    let i = 0; // on avance sur le chemin tant que le joueur est déjà plus près du nœud suivant que le nœud courant
+    while (i < pts.length - 1 && (d2(p, pts[i + 1]) <= d2(pts[i], pts[i + 1]) + 0.3 || d2(p, pts[i]) < 1.6)) i++;
+    let dist = d2(p, pts[i]); for (let k = i; k < pts.length - 1; k++) dist += d2(pts[k], pts[k + 1]);
+    dist += d2(pts[pts.length - 1], t);
+    const w = i === pts.length - 1 && d2(p, pts[i]) < 1.6 ? t : pts[i];
+    return { x: w.x, y: w.y + 1, z: w.z, dist };
+  }
+  // nœud le plus proche à vue (sinon le plus proche), hors conduits
+  navNear(x, y, z, fromPlayer) {
+    const nav = this.game.entities.nav, P = this.game.world.physics, c = [];
+    for (const n of nav.nodes.values()) { if (n.vent) continue; const d = (n.x - x) ** 2 + ((n.y - y) * 3) ** 2 + (n.z - z) ** 2; if (d < 900) c.push([d, n]); }
+    c.sort((a, b) => a[0] - b[0]);
+    for (let k = 0; k < Math.min(8, c.length); k++) { const n = c[k][1], dx = n.x - x, dz = n.z - z, L = Math.hypot(dx, dz); if (L < 0.3 || !P.raycast(x, y + 1, z, dx, 0, dz, L, LAYER.WALL | LAYER.DOOR | LAYER.GLASS)) return n; }
+    return c.length ? c[0][1] : nav.nearest(x, y, z, n => !n.vent);
+  }
+  // passages que le gardien ne peut pas prendre (conduits, rideaux verrouillés, portes condamnées, étage fermé)
+  guideBlocked() {
+    const g = this.game, W = g.world;
+    return this._gb ||= (A, B) => {
+      if (A.vent || B.vent) return true;
+      const ed = A.edges?.[B.id]; if (!ed) return false;
+      if (ed.grate || ed.vent) return true;
+      if (ed.shutter) { const s = ed.shutter === true ? W.garageGate : W.get(ed.shutter); if (s && s.state.locked && s.state.target === 1) return true; }
+      if (ed.door) { const d = W.get(ed.door); if (d && !d.state.open && (d.state.sealed || d.state.padlock || d.o?.armored)) return true; }
+      if (ed.escalator && !g.isAreaUnlocked('gallery1')) return true;
+      return false;
+    };
   }
   // cible (position) d'un objectif pour la flèche du suivi
   target(st, ss) {

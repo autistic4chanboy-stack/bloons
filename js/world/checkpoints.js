@@ -117,8 +117,9 @@ export class RondeReader extends WorldObject {
     super(world, 'ronde:' + id, 'ronde');
     this.cp = id; this.o = o; this.num = o.num; this.zone = o.zone; this.name = 'Borne de ronde — ' + o.name;
     this.center = new THREE.Vector3(o.c.x, o.c.y, o.c.z);
-    const c = o.c, ex = Math.abs(c.nz) > 0.5 ? 0.075 : 0.035, ez = Math.abs(c.nz) > 0.5 ? 0.035 : 0.075;
-    this.setPick(c.x + c.nx * 0.025 - ex, c.y - 0.11, c.z + c.nz * 0.025 - ez, c.x + c.nx * 0.025 + ex, c.y + 0.11, c.z + c.nz * 0.025 + ez);
+    // zone de visée large (plaque, panneau et un peu autour) : on pointe en regardant la borne, sans viser au centimètre
+    const c = o.c, ex = Math.abs(c.nz) > 0.5 ? 0.3 : 0.2, ez = Math.abs(c.nz) > 0.5 ? 0.2 : 0.3;
+    this.setPick(c.x + c.nx * 0.2 - ex, c.y - 0.5, c.z + c.nz * 0.2 - ez, c.x + c.nx * 0.2 + ex, c.y + 0.32, c.z + c.nz * 0.2 + ez);
     this.init({});
   }
   get pos() { return this.center.clone(); }
@@ -165,7 +166,14 @@ export function buildCheckpoints(world) {
   const plate = roundBoxGeo(0.12, 0.18, 0.012, 0.006, 1), body = roundBoxGeo(0.094, 0.112, 0.026, 0.008, 1), screw = latheGeo([[0, 0], [0.006, 0], [0.005, 0.002], [0, 0.003]], 8);
   const pad = latheGeo([[0, 0], [0.029, 0], [0.029, 0.002], [0, 0.003]], 18), ring = latheGeo([[0.028, 0], [0.033, 0], [0.033, 0.003], [0.028, 0.003]], 18), bezel = latheGeo([[0.006, 0], [0.01, 0], [0.01, 0.002], [0.006, 0.002]], 10);
   const labTex = labelTexture(placed.map(r => ({ num: r.num, name: r.def.name })));
-  const leds = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0065, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), n);
+  const leds = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0095, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), n);
+  // halo des témoins : un point additif par borne, noir (invisible) au repos, orange pulsé sur la borne à pointer,
+  // caché par les murs (test de profondeur) ; il se repère de loin dans la pénombre
+  const glowTex = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const x = cv.getContext('2d'); const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const gPos = new Float32Array(n * 3), gCol = new Float32Array(n * 3), gGeo = new THREE.BufferGeometry();
+  gGeo.setAttribute('position', new THREE.BufferAttribute(gPos, 3)); gGeo.setAttribute('color', new THREE.BufferAttribute(gCol, 3));
+  const glows = new THREE.Points(gGeo, new THREE.PointsMaterial({ map: glowTex, size: 0.32, sizeAttenuation: true, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  glows.frustumCulled = false; glows.renderOrder = 6; glows.name = 'checkpoint_glows';
   leds.frustumCulled = false; leds.castShadow = false; leds.name = 'checkpoint_leds';
   const red = new THREE.Color(0.45, 0.03, 0.02), M = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3();
   placed.forEach((r, i) => {
@@ -189,8 +197,12 @@ export function buildCheckpoints(world) {
     // étiquette (rangée i de la texture)
     const v0 = 1 - (i + 1) * LAB_H / T, v1 = 1 - i * LAB_H / T;
     b.box(0, 0.066, 0.0125, 0.104, 0.036, 0.0004, { faces: 'Z', matrix: base, rect: { u0: 0, v0, u1: 1, v1 }, color: 0xffffff });
+    // panneau jaune bien visible au-dessus (« RONDE 07 » + lieu), lisible à quelques mètres à la lampe
+    b.geometry(roundBoxGeo(0.29, 0.085, 0.008, 0.004, 1), L(trs(0, 0.17, 0.004)), { color: 0x16181a });
+    b.box(0, 0.17, 0.0085, 0.27, 0.0675, 0.0004, { faces: 'Z', matrix: base, rect: { u0: 0, v0, u1: 1, v1 }, color: 0xffffff });
     // témoin
     v.set(0.032, 0.018, 0.0405).applyMatrix4(base); M.makeTranslation(v.x, v.y, v.z); leds.setMatrixAt(i, M); leds.setColorAt(i, red);
+    v.set(0.032, 0.018, 0.06).applyMatrix4(base); gPos.set([v.x, v.y, v.z], i * 3);
     const rd = new RondeReader(world, r.id, { name: r.def.name, zone: r.def.zone, num: r.num, c });
     world.add(rd); out[r.id] = rd; order.push(r.id);
   });
@@ -199,8 +211,8 @@ export function buildCheckpoints(world) {
     const mesh = new THREE.Mesh(b.build(), mat); mesh.receiveShadow = true; mesh.castShadow = false; mesh.name = 'checkpoints:' + zone;
     (world.zone(zone)?.group || world.root).add(mesh);
   }
-  world.root.add(leds);
+  world.root.add(leds, glows);
   leds.instanceMatrix.needsUpdate = true; if (leds.instanceColor) leds.instanceColor.needsUpdate = true;
-  world.checkpoints = out; world.checkpointOrder = order; world.checkpointLeds = leds;
+  world.checkpoints = out; world.checkpointOrder = order; world.checkpointLeds = leds; world.checkpointGlows = glows;
   return out;
 }

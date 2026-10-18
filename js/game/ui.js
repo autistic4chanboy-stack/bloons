@@ -397,6 +397,7 @@ UI.prototype.updateQuests = function (dt) {
   // annonces, l'une après l'autre
   if (this.qToastT > 0) { this.qToastT -= dt; if (this.qToastT <= 0) this.qToastEl.classList.remove('on'); }
   else if (this.qToasts.length) { const t = this.qToasts.shift(); this.qToastEl.className = 'q-toast on ' + t.kind; this.qToastEl.innerHTML = t.html; this.qToastT = 4.2; }
+  this.questMark(Q.view ? this._qMark : null); // repère à l'écran : reprojeté à chaque image (le suivi, lui, 10 fois par seconde)
   this.qT -= dt; if (this.qT > 0) return; this.qT = 0.1;
   const rows = Q.view ? Q.rows() : [];
   const hide = g.settings.questHud === false;
@@ -412,19 +413,37 @@ UI.prototype.updateQuests = function (dt) {
     this.qList.innerHTML = show.map(r => `<div class="q-row ${r.opt ? 'opt' : ''} ${now - this.qFresh.get(r.key) < 5 ? 'fresh' : ''}"><div class="q-t"><span class="q-tt">${esc(r.title)}</span>${r.prog ? `<span class="q-p">${esc(r.prog)}</span>` : ''}</div><div class="q-s"><span class="q-a">▲</span><span class="q-d"></span><span class="q-sub">${esc(r.sub)}</span></div></div>`).join('') + (rows.length > show.length ? `<div class="q-more">+${rows.length - show.length} autre${rows.length - show.length > 1 ? 's' : ''} · J : journal</div>` : '');
     this.qRows = [...this.qList.querySelectorAll('.q-row')].map((n, i) => ({ r: show[i], a: n.querySelector('.q-a'), d: n.querySelector('.q-d'), s: n.querySelector('.q-sub') }));
   }
-  // flèche et distance vers la cible de chaque objectif (repère du regard du joueur)
+  // flèche et distance vers la cible de chaque objectif (repère du regard du joueur) ; pour le premier objectif, la flèche
+  // suit le chemin (couloirs, portes) et la distance est celle du trajet
   const p = g.player, pos = p.pos, yaw = p.yaw;
-  for (const R of this.qRows) {
+  let mark = null;
+  this.qRows.forEach((R, i) => {
     const t = Q.target(R.r.st, R.r.ss);
-    if (!t) { R.a.style.visibility = 'hidden'; R.d.textContent = ''; if (!R.r.sub) R.s.textContent = ''; continue; }
-    const dx = t.x - pos.x, dz = t.z - pos.z, dy = t.y - (pos.y + 1), dist = Math.hypot(dx, dz);
+    if (!t) { R.a.style.visibility = 'hidden'; R.d.textContent = ''; if (!R.r.sub) R.s.textContent = ''; return; }
+    const gd = i === 0 && !R.r.opt ? Q.guide(t) : null, w = gd || t;
+    const dx = w.x - pos.x, dz = w.z - pos.z, dy = t.y - (pos.y + 1), dist = gd ? gd.dist : Math.hypot(dx, dz);
     const fwd = -dx * Math.sin(yaw) - dz * Math.cos(yaw), right = dx * Math.cos(yaw) - dz * Math.sin(yaw);
-    const near = dist < 2.5 && Math.abs(dy) < 2.5;
+    const near = Math.hypot(t.x - pos.x, t.z - pos.z) < 2.5 && Math.abs(dy) < 2.5;
     R.a.style.visibility = near ? 'hidden' : 'visible';
     R.a.style.transform = 'rotate(' + Math.atan2(right, fwd).toFixed(2) + 'rad)';
     R.d.textContent = near ? 'ici' : Math.round(dist) + ' m' + (dy > 2.5 ? ' ↑' : dy < -2.5 ? ' ↓' : '');
     if (!R.r.sub) { const z = g.world.zoneAt(t.x, t.y + 0.3, t.z); R.s.textContent = z ? z.name : ''; }
-  }
+    if (i === 0 && !hide) mark = { t, dist, near };
+  });
+  this._qMark = mark;
+};
+// Repère à l'écran sur la cible du premier objectif (losange discret et distance), quand elle est à moins de 25 m et
+// devant soi ; il s'efface tout près de la cible et pendant les écrans (caméras, menus)
+UI.prototype.questMark = function (m) {
+  if (!this.qMarkEl) { this.qMarkEl = el('div', 'q-mark'); this.qMarkEl.innerHTML = '<span class="q-mk">◆</span><span class="q-md"></span>'; this.root.appendChild(this.qMarkEl); this.qMarkD = this.qMarkEl.querySelector('.q-md'); }
+  const n = this.qMarkEl, g = this.game;
+  if (!m || m.near || m.dist > 25 || this.modal) { n.style.opacity = 0; return; }
+  const v = (this._qv ||= g.camera.position.clone()).set(m.t.x, m.t.y, m.t.z).project(g.camera);
+  if (v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) { n.style.opacity = 0; return; }
+  const W = window.innerWidth, H = window.innerHeight;
+  n.style.transform = `translate(${((v.x * 0.5 + 0.5) * W).toFixed(0)}px, ${((-v.y * 0.5 + 0.5) * H).toFixed(0)}px)`;
+  n.style.opacity = Math.min(1, (m.dist - 2.5) / 3).toFixed(2);
+  const txt = Math.round(m.dist) + ' m'; if (this.qMarkD.textContent !== txt) this.qMarkD.textContent = txt;
 };
 UI.prototype.openJournal = function () {
   const n = el('div', 'nb-journal'); this.qJournal = n;

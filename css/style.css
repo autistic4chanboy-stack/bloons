@@ -229,6 +229,9 @@ code { font-family: var(--mono); background: #0b0f16; padding: 0 4px; border-rad
 .q-toast b { color: var(--accent); font-weight: 600; }
 .q-toast.done { border-color: var(--ok); } .q-toast.done b { color: var(--ok); }
 .q-toast.fail { border-color: var(--red); } .q-toast.fail b { color: #ff8a9a; }
+.q-mark { position: absolute; left: 0; top: 0; margin: -9px 0 0 -6px; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 1px; font-family: var(--mono); font-size: 10px; color: #ffcf5a; text-shadow: 0 0 3px rgba(0, 0, 0, 0.95); opacity: 0; transition: opacity .25s; will-change: transform; }
+.q-mark .q-mk { font-size: 11px; line-height: 1; animation: qmk 1.6s ease-in-out infinite; } @keyframes qmk { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+#hud.hud-hidden .q-mark, #hud.cctv-on .q-mark, #hud.q-modal .q-mark { visibility: hidden; }
 .q-row { padding: 3px 8px 4px; border-left: 2px solid rgba(255, 179, 0, 0.75); background-image: linear-gradient(90deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0)); }
 .q-row.opt { border-left-color: rgba(79, 209, 255, 0.6); }
 .q-row.fresh { animation: qfresh 1.2s ease-out 2; } @keyframes qfresh { 0% { background-color: rgba(255, 179, 0, 0.3); } 100% { background-color: transparent; } }
