@@ -149,7 +149,9 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   et en réserve, présentoirs de sol ; budget d'objets par boutique (`BUDGET`, ~16 500 au total, plafond `HARD`). Les
   articles déjà posés sont réutilisés (déplacés avant la fusion des meshes) ; ceux qui ne trouvent pas de place sont
   alignés au sol de la réserve le long de la cloison (les objets uniques restent dans la boutique). Rien n'est posé sur
-  les planches `noLabels`.
+  les planches `noLabels`. Une planche peut être réservée à certaines formes (`shapes`, socle à guitares) ; les
+  intervalles occupés par un appareil posé dessus (`blocked`, relevés par `placeContents` : micro-ondes d'un podium,
+  téléphone d'un bureau) restent libres, au placement comme au réassort.
 - `shopbuilder.js` : coque et aménagement des boutiques ; `stocking.js` complète les rayons ; `shopfront.js` ajoute
   les détails de façade (autocollants des vitrines sur une seule planche de texture, enfants des vitres : ils
   disparaissent avec elles ; portiques antivol `TheftGate`).
@@ -161,6 +163,11 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
   matériaux (`installInteriorMaterials`), donc par l'éclairage de zone. Règle d'aménagement : l'allée d'entrée, l'allée
   transversale (v ≈ 4,5 m) et le couloir de droite vers la réserve restent libres ; la navigation des présences suit ce
   tracé (nœud `<magasin>_m`). Les articles remplissent les rayons du magasin avant ceux de la réserve.
+  Tout ce qui est visible et atteignable a sa boîte de collision (sièges, tabourets, lampadaires, plantes, rideaux
+  tirés des cabines, terminaux de paiement…) ; la porte de la réserve reste dégagée (bureau contre le mur du fond).
+  Cinéma : gradins en stadium (rang A au niveau du sol près de l'écran, rang M en haut, palier de la cabine de
+  projection), couloirs latéraux de plain-pied depuis les entrées du hall, escaliers et garde-corps le long des
+  rangées, une boîte par rangée de fauteuils, écran 4/3 dans son cache.
 - `shelflabels.js` : étiquetage des rayons, appelé après le placement et le réassort. Les produits sont retrouvés
   d'après leur position sur chaque planche (`P.boards` : `pad` = retrait du chant, `flat` = table, `picks` = vitrine
   réfrigérée, `noLabels` = plan de travail du personnel) ; une étiquette par groupe de produits identiques sur un rail
