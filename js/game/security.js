@@ -867,7 +867,7 @@ export class Security {
     this.showFrame(); this.renderUI(true);
   }
   pbStep(d) { const P = this.playback; if (!P) return; P.i = Math.max(0, Math.min(P.frames.length - 1, P.i + d)); P.playing = false; this.showFrame(); this.renderUI(true); }
-  showFrame() { const P = this.playback; if (!P || !this.ui) return; const f = P.frames[P.i]; if (f) this.ui.img.src = f.url; const r = this.ui.pb.querySelector('.pbrange'); if (r) r.value = P.i; const tl = this.ui.pb.querySelector('.pbt'); if (tl && f) tl.textContent = hhmmss(f.t) + (f.motion ? ' · mouvement' : ''); }
+  showFrame() { const P = this.playback; if (!P || !this.ui) return; const f = P.frames[P.i]; if (f) this.ui.img.src = f.url; const r = this.ui.pb.querySelector('.pbrange'); if (r) { r.value = P.i; r.style.setProperty('--p', (P.i / Math.max(1, P.frames.length - 1) * 100).toFixed(1) + '%'); } // curseur commun : remplissage = avancement const tl = this.ui.pb.querySelector('.pbt'); if (tl && f) tl.textContent = hhmmss(f.t) + (f.motion ? ' · mouvement' : ''); }
 
   renderUI(force) {
     const g = this.game; const U = this.ui; if (!U) return;

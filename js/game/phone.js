@@ -91,7 +91,7 @@ export class Phone {
       <div class="pad">${['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map(d => `<button data-d="${d}">${d}</button>`).join('')}</div>
       <div class="act"><button class="call">📞 Appeler</button><button class="hang">⛔ Raccrocher</button><button class="del">⌫</button></div>
       <div class="choices"></div>
-      ${kind === 'desk' ? `<div class="postit"><b>Numéros utiles</b><br>Police : 17 · Pompiers : 18 · SAMU : 15<br>Gérard : 06 47 22 19 87<br>Direction (M. Desmarais) : 01 44 87 19 87</div>` : ''}
+      ${kind === 'desk' ? `<div class="postit nb-postit"><b>Numéros utiles</b>Police : 17 · Pompiers : 18 · SAMU : 15<br>Gérard : 06 47 22 19 87<br>Direction (M. Desmarais) : 01 44 87 19 87</div>` : ''}
       <div class="contacts"></div><p class="hint">Chiffres au clavier ou à la souris, Entrée pour appeler, Échap pour raccrocher.</p>`;
     this.ui = { wrap, num: '', state: 'idle', kind };
     const disp = wrap.querySelector('.disp'), st = wrap.querySelector('.st');

@@ -7,9 +7,13 @@ import { COSTUMES } from '../data/costumes.js';
 import { Net } from '../net/net.js';
 import { Audio } from '../engine/audio.js';
 import { openMapView } from './mapview.js';
+import { winInner, win, keys, paperHead, optionsHTML, bindOptions, navKey, hoverFocus, focusFirst } from './menukit.js';
+import * as Save from './save.js';
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// matricule de l'agent (le même que dans l'incrustation de la caméra-piéton)
+export const agentNo = () => Net.online ? String((parseInt(String(Net.myId).replace(/\D/g, ''), 10) || 4) % 100).padStart(2, '0') : '04';
 
 export class UI {
   constructor(game) {
@@ -49,6 +53,7 @@ export class UI {
       if (this.game.security?.fullscreen || this.game.player.mode === 'desk') return;
       this.openPause(); return;
     }
+    if (this.modal?.nav && navKey(this.modal.node, e, this.modal.nav === 'h')) return; // menus : ↑ ↓ ← →, Entrée
     if (e.code === 'Tab' && !this.game.input.captureHandler) { e.preventDefault(); if (this.modal?.kind === 'inventory') this.closeModal(); else if (!this.modal && this.game.player.alive) this.openInventory(); }
     if (e.code === 'KeyT' && Net.online && !this.modal && !this.game.input.captureHandler) { e.preventDefault(); this.openChat('local'); }
   }
@@ -72,7 +77,8 @@ export class UI {
   alert(text, kind = 'warn', dur = 6) { const a = el('div', 'nb-alert ' + kind, esc(text)); this.alertsEl.prepend(a); while (this.alertsEl.children.length > 5) this.alertsEl.lastChild.remove(); setTimeout(() => a.remove(), dur * 1000); }
   damageFlash(a) { this.dmg.style.transition = 'none'; this.dmg.style.opacity = Math.min(0.8, a); requestAnimationFrame(() => { this.dmg.style.transition = 'opacity 0.8s'; this.dmg.style.opacity = 0; }); }
   fade(to, dur = 1) { this.fadeEl.style.transition = `opacity ${dur}s`; this.fadeEl.style.opacity = to; return new Promise(r => setTimeout(r, dur * 1000)); }
-  card(title, sub, dur = 4) { this.cardEl.innerHTML = `<h1>${esc(title)}</h1><h2>${esc(sub || '')}</h2>`; this.cardEl.classList.add('on'); clearTimeout(this._cardT); this._cardT = setTimeout(() => this.cardEl.classList.remove('on'), dur * 1000); }
+  // carton de titre (début de nuit…) : rubrique façon incrustation, titre condensé, sous-titre
+  card(title, sub, dur = 4, kicker = 'Hélios Sécurité') { this.cardEl.innerHTML = `<div class="cd-k">${esc(kicker)}</div><h1>${esc(title)}</h1><h2>${esc(sub || '')}</h2>`; this.cardEl.classList.add('on'); clearTimeout(this._cardT); this._cardT = setTimeout(() => this.cardEl.classList.remove('on'), dur * 1000); }
   flashSlot(i) { this._flash = { i, t: 0.6 }; }
   error(e) { if (this._errShown) return; this._errShown = true; this.toast('Erreur : ' + (e?.message || e), 8); setTimeout(() => this._errShown = false, 5000); }
   showWatch() { this.toast('🕒 ' + this.game.clockString() + (this.game.isDay ? '' : '  —  nuit ' + this.game.night), 2.5); }
@@ -82,9 +88,10 @@ export class UI {
     this.closeModal(true);
     const wrap = el('div', 'nb-modal ' + (opts.cls || '')); wrap.appendChild(node);
     this.layerEl.appendChild(wrap);
-    this.modal = { kind, node: wrap, onEsc: opts.onEsc, onClose: opts.onClose };
+    this.modal = { kind, node: wrap, onEsc: opts.onEsc, onClose: opts.onClose, nav: opts.nav || false };
     this._noPauseOnUnlock = true; this.game.input.unlock(); setTimeout(() => this._noPauseOnUnlock = false, 200);
     if (opts.pause) this.game.paused = true;
+    if (opts.nav) { hoverFocus(wrap); focusFirst(wrap, opts.focus); } // menu : sélection au clavier dès l'ouverture
     return wrap;
   }
   closeModal(silent = false) {
@@ -162,16 +169,17 @@ export class UI {
 
   breakers(dev) {
     const g = this.game; const P = g.power;
-    const wrap = el('div', 'nb-panel');
+    const wrap = el('section', 'nb-win nb-panel');
     const render = () => {
-      const s = P.state; const gen = s.gen;
-      wrap.innerHTML = `<h2>Tableau électrique général</h2>
+      const s = P.state; const gen = s.gen, foc = document.activeElement?.dataset?.c; // garde la sélection clavier au rafraîchissement
+      wrap.innerHTML = winInner({ k: 'Sous-sol · Local technique', title: 'Tableau électrique général', ref: 'TGBT', body: `
         <div class="row ${s.mains ? 'ok' : 'bad'}">Réseau EDF : <b>${s.mains ? 'PRÉSENT' : 'COUPÉ'}</b> — Groupe : <b>${gen.running ? 'EN MARCHE' : 'ARRÊTÉ'}</b> (${Math.round(gen.fuel)} %)</div>
         <div class="grid">${Object.entries(CIRCUITS).map(([c, name]) => {
           const on = s.breakers[c] !== false, blown = s.blown[c];
           return `<button class="brk ${on ? 'on' : 'off'} ${blown ? 'blown' : ''}" data-c="${c}"><span>${esc(name)}</span><b>${blown ? 'FUSIBLE GRILLÉ' : on ? 'ON' : 'OFF'}</b></button>`;
-        }).join('')}</div>
-        <p class="hint">Cliquez pour basculer un disjoncteur. Un fusible grillé se remplace avec un fusible en main. Échap pour fermer.</p>`;
+        }).join('')}</div>`,
+        foot: `<p class="hint">Cliquez pour basculer un disjoncteur. Un fusible grillé se remplace avec un fusible en main.</p>${keys([['↑ ↓', 'Choisir'], ['Entrée', 'Basculer'], ['Échap', 'Fermer']])}` });
+      if (foc) wrap.querySelector(`[data-c="${foc}"]`)?.focus({ preventScroll: true });
       wrap.querySelectorAll('.brk').forEach(b => b.onclick = () => {
         const c = b.dataset.c;
         if (P.state.blown[c]) { if (g.player.hasItem('fuse')) g.sim.do('fuse', { c, prop: g.player.inv.findDef('fuse') }); else this.toast('Il faut un fusible.'); return; }
@@ -180,18 +188,18 @@ export class UI {
       });
     };
     render(); const off = g.hooks.on('power_state', render);
-    this.openModal('breakers', wrap, { onClose: off });
+    this.openModal('breakers', wrap, { onClose: off, nav: true });
   }
 
   pa(dev) {
     const g = this.game;
-    const wrap = el('div', 'nb-panel');
+    const wrap = el('section', 'nb-win nb-panel');
     const styles = [['muzak', 'Musique d\'ambiance'], ['jazz', 'Jazz'], ['classical', 'Classique'], ['disco', 'Disco'], ['chanson', 'Variété'], ['xmas', 'Noël'], ['lofi', 'Lofi'], ['music_box', 'Boîte à musique']];
-    wrap.innerHTML = `<h2>Régie d'annonces</h2>
+    wrap.innerHTML = winInner({ k: 'Poste de sécurité · Sonorisation', title: 'Régie d\'annonces', ref: 'Micro', body: `
       <textarea maxlength="200" placeholder="Votre annonce (elle sera diffusée dans tout le centre)…"></textarea>
-      <div class="btns"><button data-a="say">📢 Annoncer</button><button data-a="chime">🔔 Carillon</button><button data-a="bell">🚨 Test alarme</button></div>
-      <h3>Musique dans le centre</h3><div class="btns">${styles.map(([s, n]) => `<button data-m="${s}">${n}</button>`).join('')}<button data-m="stop">⏹ Arrêter</button></div>
-      <p class="hint">Échap pour fermer</p>`;
+      <div class="btns"><button data-a="say" class="primary">📢 Annoncer</button><button data-a="chime">🔔 Carillon</button><button data-a="bell">🚨 Test alarme</button></div>
+      <h3 class="nb-h3">Musique dans le centre</h3><div class="btns">${styles.map(([s, n]) => `<button data-m="${s}">${n}</button>`).join('')}<button data-m="stop">⏹ Arrêter</button></div>`,
+      foot: keys([['Échap', 'Fermer']]) });
     const ta = wrap.querySelector('textarea');
     ta.addEventListener('focus', () => g.input.textMode = true); ta.addEventListener('blur', () => g.input.textMode = false);
     wrap.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
@@ -206,15 +214,15 @@ export class UI {
 
   openInventory() {
     const g = this.game, p = g.player;
-    const wrap = el('div', 'nb-inv');
+    const wrap = el('section', 'nb-win nb-inv');
     const render = () => {
       const slots = p.inv.slots.map((id, i) => { const pr = id ? g.props.get(id) : null; return `<div class="slot ${i === p.inv.sel ? 'sel' : ''}" data-i="${i}"><b>${(i + 1) % 10}</b>${pr ? `<span class="sw" style="background:#${pr.def.c.toString(16).padStart(6, '0')}"></span>${esc(pr.def.name)}` : '<em>vide</em>'}</div>`; }).join('');
       const held = p.heldProp;
       const worn = Object.entries(p.wear).filter(([k, v]) => v && ['feet', 'head', 'face', 'body', 'neck', 'hands'].includes(k) && typeof v === 'string').map(([k, v]) => `<li>${esc(ITEMS[v]?.name || v)} <button data-un="${k}">Retirer</button></li>`).join('');
-      wrap.innerHTML = `<h2>Inventaire</h2><div class="slots">${slots}</div>
+      wrap.innerHTML = winInner({ k: 'Hélios Sécurité · Équipement de l\'agent', title: 'Inventaire', ref: esc(COSTUMES[p.costume]?.name || ''), body: `<div class="slots">${slots}</div>
         <div class="detail">${held ? `<h3>${esc(held.def.name)}</h3><p>${esc(held.def.desc || '')}</p>${held.data.value || held.def.value ? `<p>Valeur : ${held.data.value || held.def.value} €</p>` : ''}${held.data.battery !== undefined ? `<p>Piles : ${Math.round(held.data.battery * 100)} %</p>` : ''}` : '<p>Sélectionnez un objet (1-0 ou clic).</p>'}</div>
-        <div class="worn"><h3>Tenue</h3><p>Costume : <b>${esc(COSTUMES[p.costume]?.name)}</b> ${p.costume !== 'guard' ? '<button data-un="costume">Retirer</button>' : ''}</p><ul>${worn}</ul></div>
-        <p class="hint">Tab ou Échap pour fermer — G : poser — clic droit : lancer</p>`;
+        <div class="worn"><h3 class="nb-h3">Tenue</h3><p>Costume : <b>${esc(COSTUMES[p.costume]?.name)}</b> ${p.costume !== 'guard' ? '<button data-un="costume">Retirer</button>' : ''}</p><ul>${worn}</ul></div>`,
+        foot: keys([['1-0', 'Choisir'], ['G', 'Poser'], ['Clic droit', 'Lancer'], ['Tab', 'Fermer']]) });
       wrap.querySelectorAll('.slot').forEach(s => s.onclick = () => { p.inv.select(+s.dataset.i); render(); });
       wrap.querySelectorAll('[data-un]').forEach(b => b.onclick = () => { this.unwear(b.dataset.un); render(); });
     };
@@ -227,42 +235,33 @@ export class UI {
     const v = p.wear[slot]; if (!v) return; p.wear[slot] = null; if (slot === 'face') p.wear.faceItem = null; g.sim.do('spawnprop', { def: v, pos: p.dropPos(), held: true }); p.setCostume(p.costume);
   }
 
+  // Pause : la caméra-piéton en veille (incrustation « PAUSE », REC figé), la liste de l'écran titre ; les options
+  // sont celles du menu principal (mêmes rubriques, mêmes commandes), appliquées et enregistrées aussitôt
   openPause() {
     const g = this.game;
     const wrap = el('div', 'nb-pause');
     const s = g.settings;
-    wrap.innerHTML = `<h1>Pause</h1>
-      <div class="menu"><button data-a="resume">Reprendre</button><button data-a="options">Options</button>${g.mode === 'story' && !Net.online ? '<button data-a="restart">Recommencer la nuit</button>' : ''}<button data-a="quit">Quitter vers le menu</button></div>
-      <div class="opts" style="display:none">
-        <label>Volume <input type="range" min="0" max="1" step="0.05" data-o="volume" value="${s.volume ?? 0.9}"></label>
-        <label>Musique <input type="range" min="0" max="1" step="0.05" data-o="musicVolume" value="${s.musicVolume ?? 0.8}"></label>
-        <label>Voix <input type="range" min="0" max="1" step="0.05" data-o="voiceVolume" value="${s.voiceVolume ?? 1}"></label>
-        <label>Sensibilité <input type="range" min="0.2" max="3" step="0.1" data-o="sensitivity" value="${s.sensitivity ?? 1}"></label>
-        <label>Champ de vision <input type="range" min="55" max="100" step="1" data-o="fov" value="${s.fov ?? 72}"></label>
-        <label>Échelle de rendu <input type="range" min="0.4" max="1" step="0.05" data-o="renderScale" value="${s.renderScale ?? 1}"></label>
-        <label><input type="checkbox" data-o="autoScale" ${s.autoScale !== false ? 'checked' : ''}> Résolution dynamique</label>
-        <label><input type="checkbox" data-o="shadows" ${s.shadows !== false ? 'checked' : ''}> Ombres de la lampe</label>
-        <label><input type="checkbox" data-o="bloom" ${s.bloom !== false ? 'checked' : ''}> Halo lumineux (bloom)</label>
-        <label><input type="checkbox" data-o="bodycam" ${s.bodycam !== false ? 'checked' : ''}> Effet caméra-piéton</label>
-        <label><input type="checkbox" data-o="screamers" ${s.screamers !== false ? 'checked' : ''}> Screamers</label>
-        <label><input type="checkbox" data-o="subtitles" ${s.subtitles !== false ? 'checked' : ''}> Sous-titres</label>
-        <label><input type="checkbox" data-o="voices" ${s.voices !== false ? 'checked' : ''}> Babillage des personnages</label>
-        <label><input type="checkbox" data-o="invertY" ${s.invertY ? 'checked' : ''}> Inverser l'axe vertical</label>
-        <button data-a="back">Retour</button>
-      </div>`;
+    const when = g.mode === 'infinite' ? 'Mode infini · nuit ' + g.night : g.isDay ? 'Journée d\'accueil' : 'Nuit ' + g.night + ' / 10';
+    wrap.innerHTML = `<div class="ps-osd"><b><i>❚❚</i> PAUSE</b><span>Hélios Sécurité · ${esc(when)} · ${esc(g.clockString())}</span></div>
+      <nav class="nb-osdmenu ps-menu" aria-label="Pause"><button data-a="resume"><span>Reprendre</span><small>Échap</small></button><button data-a="options"><span>Options</span><small>réglages</small></button>${g.mode === 'story' && !Net.online ? '<button data-a="restart"><span>Recommencer la nuit</span></button>' : ''}<button data-a="quit"><span>Quitter vers le menu</span></button></nav>
+      <p class="ps-keys">${keys([['↑ ↓', 'Choisir'], ['Entrée', 'Valider'], ['Échap', 'Reprendre']])}</p>
+      <div class="ps-opts" hidden>${win({ title: 'Options', k: 'Hélios Sécurité · Réglages du poste', ref: 'Pupitre', cls: 'w-opts', body: optionsHTML(s, { game: true }), foot: keys([['↑ ↓', 'Choisir'], ['← →', 'Régler'], ['Échap', 'Retour']]) + '<button data-a="back">Retour</button>' })}</div>`;
+    const menu = wrap.querySelector('.ps-menu'), opts = wrap.querySelector('.ps-opts'), pk = wrap.querySelector('.ps-keys');
+    const showOpts = (on) => { menu.hidden = pk.hidden = on; opts.hidden = !on; this.root.classList.toggle('nb-paused', !on); focusFirst(on ? opts : menu, on ? null : '[data-a=options]'); }; // l'incrustation s'efface derrière la fenêtre
     wrap.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
       const a = b.dataset.a;
       if (a === 'resume') this.closeModal();
-      if (a === 'options') { wrap.querySelector('.menu').style.display = 'none'; wrap.querySelector('.opts').style.display = 'grid'; }
-      if (a === 'back') { wrap.querySelector('.menu').style.display = ''; wrap.querySelector('.opts').style.display = 'none'; }
+      if (a === 'options') showOpts(true);
+      if (a === 'back') showOpts(false);
       if (a === 'restart') { this.closeModal(true); g.story.restartNight('Nuit recommencée.'); }
       if (a === 'quit') { g.onQuit?.(); }
     });
-    wrap.querySelectorAll('[data-o]').forEach(inp => inp.oninput = inp.onchange = () => {
-      const k = inp.dataset.o; const v = inp.type === 'checkbox' ? inp.checked : parseFloat(inp.value);
-      s[k] = v; g.applySettings?.(k);
+    bindOptions(opts, s, (k, v) => {
+      g.applySettings?.(k);
+      if (k === 'questHud') { g.quests?.setHud(v); this.qKey = ''; } else try { Save.saveSettings({ [k]: v }); } catch (e) { /* stockage indisponible */ }
     });
-    this.openModal('pause', wrap, { pause: true });
+    this.root.classList.add('nb-paused');
+    this.openModal('pause', wrap, { pause: true, cls: 'nb-pausemodal', nav: true, onEsc: () => opts.hidden ? this.closeModal() : showOpts(false), onClose: () => this.root.classList.remove('nb-paused') });
   }
 
   // ── plan : la pancarte du centre en plein écran (mapview.js), repère du joueur en direct ou celui d'une borne ──
@@ -275,10 +274,26 @@ export class UI {
   }
 
   // ── écrans de fin / mort / résumé ──
-  showSummary(html, buttons) {
-    const n = el('div', 'nb-summary', html);
-    const b = el('div', 'btns'); for (const [label, fn] of buttons) { const bt = el('button', '', esc(label)); bt.onclick = () => { this.closeModal(true); fn(); }; b.appendChild(bt); } n.appendChild(b);
-    this.openModal('summary', n, { onEsc: () => { } });
+  showSummary(html, buttons, o = {}) {
+    const n = el('div', o.node || 'nb-summary', html);
+    const b = el('div', 'btns'); buttons.forEach(([label, fn], i) => { const bt = el('button', i ? '' : 'primary', esc(label)); bt.onclick = () => { this.closeModal(true); fn(); }; b.appendChild(bt); }); n.appendChild(b);
+    this.openModal('summary', n, { onEsc: () => { }, cls: o.cls, nav: 'h' });
+  }
+  // Feuilles de fin de nuit. Papier (rapport de garde à l'aube, dossier clos des fins) : en-tête du centre, champs,
+  // observations ✓ / ✗, visa et tampon. kind 'lost' (échec, fin de partie) : la caméra-piéton a coupé, écran noir.
+  // o : { kind, title, ref, sub, fields: [[libellé, valeur]], lead, body, lines: [[classe, texte]], linesTitle,
+  //       stamp: [texte, 'blue'?], osd, reason, text, buttons }
+  report(o) {
+    const g = this.game;
+    if (o.kind === 'lost') {
+      const html = `<div class="ls-osd"><b>■</b> ${esc(o.osd || 'Enregistrement interrompu')}</div><h1>${o.title}</h1>${o.reason ? `<p class="ls-reason">${o.reason}</p>` : ''}${o.text || ''}<p class="ls-meta">Hélios Sécurité · Agent ${agentNo()} · ${esc(g.clockString())}</p>`;
+      return this.showSummary(html, o.buttons, { node: 'nb-lost', cls: 'nb-lostmodal' });
+    }
+    const fields = (o.fields || []).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+    const lines = o.lines?.length ? `<h2>${o.linesTitle || 'Observations'}</h2><ul class="rp-l">${o.lines.map(([c, t]) => `<li class="${c}">${t}</li>`).join('')}</ul>` : '';
+    const html = `${paperHead(o.sub || 'Service de sécurité · Poste central', o.ref)}<h1>${o.title}</h1>${fields ? `<dl class="rp-f">${fields}</dl>` : ''}${o.lead ? `<p class="rp-lead">${o.lead}</p>` : ''}${o.body || ''}${lines}
+      <div class="rp-sign"><span class="vis">Visa de la direction<i>M. Desmarais</i></span>${o.stamp ? `<span class="stamp ${o.stamp[1] || ''}">${o.stamp[0]}</span>` : ''}</div>`;
+    this.showSummary(html, o.buttons, { node: 'nb-report' });
   }
   screamerFlash(kind = 'face', dur = 0.7) {
     if (this.game.settings.screamers === false) return;
@@ -448,14 +463,14 @@ UI.prototype.questMark = function (m) {
 UI.prototype.openJournal = function () {
   const n = el('div', 'nb-journal'); this.qJournal = n;
   n.addEventListener('click', (e) => { if (e.target.dataset?.a === 'close') this.closeModal(); if (e.target.dataset?.a === 'hud') { const g = this.game; g.quests.setHud(g.settings.questHud === false); this.qKey = ''; this.renderJournal(); } });
-  this.openModal('journal', n);
+  this.openModal('journal', n, { nav: 'h' });
   this.renderJournal();
   this.game.sfx('book_page', null, { volume: 0.35, bus: 'ui' });
 };
 UI.prototype.renderJournal = function () {
   const g = this.game, n = this.qJournal; if (!n || this.modal?.kind !== 'journal') return;
   const J = g.quests?.journal();
-  if (!J) { n.innerHTML = '<h2>Journal de garde</h2><p class="jr-empty">Aucun objectif pour l\'instant.</p><div class="btns"><button data-a="close">Fermer</button></div>'; return; }
+  if (!J) { n.innerHTML = paperHead('Cahier de consignes · Poste central') + '<h2>Journal de garde</h2><p class="jr-empty">Aucun objectif pour l\'instant.</p><div class="btns"><button data-a="close" class="primary">Fermer</button></div>'; return; }
   const head = J.mode === 'story' ? 'Nuit ' + J.night + (J.subtitle ? ' — ' + J.subtitle : '') : 'Mode infini — nuit ' + J.night;
   const pts = (s) => s.points ? `<p class="jr-pts">${s.points.map(p => `<span class="${p.got ? 'got' : ''}">${p.got ? '✓' : '·'} ${esc(p.num)} ${esc(p.name)}</span>`).join(s.ordered ? ' → ' : ' ')}</p>` : '';
   const step = (s) => s.s === 'hidden' ? '' : `<li class="${s.s}">${esc(s.title)}${s.opt ? ' <span class="jr-tag">facultatif</span>' : ''}${s.prog ? `<span class="jr-p">${esc(s.prog)}</span>` : ''}${s.choice ? `<span class="jr-c">— ${esc(s.choice)}</span>` : ''}${s.s === 'active' && s.desc ? `<p>${esc(s.desc)}</p>` : ''}${pts(s)}</li>`;
@@ -464,5 +479,7 @@ UI.prototype.renderJournal = function () {
     const tag = q.s === 'over' ? (q.ok ? '<span class="jr-tag ok">terminée</span>' : '<span class="jr-tag ko">incomplète</span>') : q.optional ? '<span class="jr-tag">facultative</span>' : '';
     return `<section class="jr-q ${q.s}"><h3>${esc(q.title)}${q.giver ? ` <em>${esc(q.giver)}</em>` : ''} ${tag}</h3><ul>${q.steps.map(step).join('')}${upcoming}</ul>${q.reward && q.s !== 'over' ? `<p class="jr-rw">Récompense : ${esc(q.reward)}</p>` : ''}</section>`;
   }).join('') || '<p class="jr-empty">Rien pour l\'instant. La nuit commence à 22 h : lisez la note de Gérard sur le bureau.</p>';
-  n.innerHTML = `<h2>Journal de garde<small>${esc(head)}</small></h2><p class="jr-sum">${J.total ? `Objectifs : ${J.done}/${J.total} · ` : ''}${esc(g.clockString())}</p>${quests}<div class="btns"><button data-a="close">Fermer (J)</button><button data-a="hud">${g.settings.questHud === false ? 'Afficher' : 'Masquer'} le suivi à l'écran (H)</button></div><p class="hint">Les objectifs manqués ne bloquent jamais la nuit : ils comptent au rapport de l'aube.</p>`;
+  const foc = n.contains(document.activeElement) ? document.activeElement.dataset.a : 'close'; // sélection gardée au rafraîchissement
+  n.innerHTML = `${paperHead('Cahier de consignes · Poste central', esc(head))}<h2>Journal de garde</h2><p class="jr-sum">${J.total ? `Objectifs : ${J.done}/${J.total} · ` : ''}${esc(g.clockString())}</p>${quests}<div class="btns"><button data-a="close" class="primary">Fermer (J)</button><button data-a="hud">${g.settings.questHud === false ? 'Afficher' : 'Masquer'} le suivi à l'écran (H)</button></div><p class="hint">Les objectifs manqués ne bloquent jamais la nuit : ils comptent au rapport de l'aube.</p>`;
+  if (foc) n.querySelector(`[data-a="${foc}"]`)?.focus({ preventScroll: true });
 };
