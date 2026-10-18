@@ -13,6 +13,7 @@ import { buildItemGeometry } from '../world/meshes.js';
 import { PropSystem } from '../world/props.js';
 import { DeviceFactory, ScreenManager } from '../world/devices.js';
 import { PowerGrid, Lighting } from '../world/power.js';
+import { batchGlassPanes, batchStaticMeshes } from '../world/fixtures.js';
 import { Sim } from './sim.js';
 import { Net } from '../net/net.js';
 import { Player } from './player.js';
@@ -113,6 +114,8 @@ export class Game {
     const atlasTex = this.atlas.finalize();
     this.mats.atlas = atlasTex;
     for (const [k, m] of this.mats.cache) if (k.startsWith('props|')) { m.map = atlasTex; m.needsUpdate = true; }
+    // lots statiques : vitres (et autocollants) puis appareils et interrupteurs immobiles, un mesh par (zone, matériau)
+    batchGlassPanes(this.world); batchStaticMeshes(this.world);
     progress(0.7, 'Systèmes…');
     await tick();
     this.env = new Environment(this);

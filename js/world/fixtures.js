@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { WorldObject } from './world.js';
 import { Box, LAYER } from '../engine/physics.js';
 import { quickGeometry, buildItemGeometry } from './meshes.js';
-import { GeoBuilder, roundBoxGeo, latheGeo, trs } from '../engine/geo.js';
+import { GeoBuilder, roundBoxGeo, latheGeo, trs, concatGeometries } from '../engine/geo.js';
 import { LORE } from '../data/lore.js';
 import { ITEMS } from '../data/items.js';
 
@@ -367,6 +367,7 @@ export class GlassPane extends WorldObject {
   }
   onState(patch, isReset) {
     this.mesh.visible = !this.state.broken;
+    if (this._batched) for (const r of this._batched) r.show(!this.state.broken); // vitre (et autocollants) dans un lot fusionné
     this.col.enabled = !this.state.broken;
     if (this.state.broken && this.state.opened && !isReset) { this.world.game.sfx('lock_open', this.mesh.position); return; }
     if (this.state.broken && !isReset) {
@@ -389,6 +390,74 @@ export class GlassPane extends WorldObject {
     this.shards = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xcfe8ef, roughness: 0.05, metalness: 0.5, side: THREE.DoubleSide }));
     (this.world.zone(this.o.zone)?.group || this.world.root).add(this.shards);
   }
+}
+
+// Vitres fusionnées (fin de construction) : les vitres d'une zone qui partagent un matériau, et leurs autocollants,
+// sont regroupées en un mesh par (zone, matériau) au lieu d'un mesh — et d'un appel de dessin — par vitre. Chaque vitre
+// garde son objet (position, visibilité, collisions) ; son mesh ne se dessine plus (matériau invisible) et une vitre
+// brisée efface sa plage de sommets dans le lot (sommets ramenés en un point), rétablie à la remise à zéro.
+const NO_DRAW = new THREE.MeshStandardMaterial({ visible: false, transparent: true, opacity: 0 }); // jamais compilé ni dessiné
+export function batchGlassPanes(world) {
+  const lots = new Map();
+  const lot = (parent, mat, renderOrder) => { const k = parent.uuid + '|' + mat.uuid; let e = lots.get(k); if (!e) lots.set(k, e = { parent, mat, renderOrder, list: [] }); return e; };
+  for (const o of world.objects.values()) {
+    if (!(o instanceof GlassPane)) continue;
+    const m = o.mesh; if (!m || !m.parent || Array.isArray(m.material) || !m.material.visible || !m.geometry.index) continue;
+    m.updateMatrix();
+    lot(m.parent, m.material, m.renderOrder).list.push({ pane: o, geo: m.geometry, matrix: m.matrix.clone() });
+    for (const c of [...m.children]) { // autocollants (vitrophanie) : même lot que leur vitre
+      if (!c.isMesh || Array.isArray(c.material) || !c.geometry.index || c.children.length) continue;
+      c.updateMatrix(); lot(m.parent, c.material, c.renderOrder).list.push({ pane: o, geo: c.geometry, matrix: m.matrix.clone().multiply(c.matrix) }); m.remove(c);
+    }
+    m.material = NO_DRAW;
+  }
+  for (const e of lots.values()) {
+    const { geometry, ranges } = concatGeometries(e.list);
+    const mesh = new THREE.Mesh(geometry, e.mat); mesh.renderOrder = e.renderOrder; mesh.matrixAutoUpdate = false; mesh.name = 'vitres';
+    e.parent.add(mesh);
+    const P = geometry.attributes.position;
+    e.list.forEach((it, i) => {
+      const { start, count } = ranges[i], orig = P.array.slice(start * 3, (start + count) * 3);
+      (it.pane._batched ||= []).push({
+        show(on) {
+          const a = P.array;
+          if (on) a.set(orig, start * 3); else for (let k = start; k < start + count; k++) { a[k * 3] = 0; a[k * 3 + 1] = -500; a[k * 3 + 2] = 0; }
+          P.addUpdateRange(start * 3, count * 3); P.needsUpdate = true;
+        },
+      });
+    });
+  }
+}
+
+// Appareils et interrupteurs immobiles (fin de construction) : le corps d'un appareil (ItemFixture : groupe posé une fois
+// pour toutes, mesh au repos) ou d'un interrupteur ne bouge jamais ; ils sont fusionnés en un mesh par (zone, matériau)
+// — le même matériau « props » de zone, donc le même éclairage — au lieu d'un mesh chacun. Le mesh d'origine reste en
+// place (références, écrans et pièces enfants) mais ne se dessine plus. Les appareils qui animent leur corps (classe
+// avec animatesMesh : lave-linge, manège, fauteuil pivotant, mannequin) restent à part.
+export function batchStaticMeshes(world) {
+  const lots = new Map(); let n = 0;
+  for (const o of world.objects.values()) {
+    const m = o.mesh; if (!m || !m.isMesh || Array.isArray(m.material) || !m.material.visible || o.constructor.animatesMesh) continue;
+    const dev = !!(o.def && o.group && m.parent === o.group && o.group.parent && o.group.parent.name.startsWith('zone:'));
+    const sw = o instanceof LightSwitch && m.parent && m.parent.name.startsWith('zone:');
+    if (!dev && !sw) continue;
+    const g = m.geometry; if (!g.index || !g.attributes.normal || !g.attributes.uv || g.morphAttributes.position) continue;
+    const parent = dev ? o.group.parent : m.parent;
+    if (dev) o.group.updateMatrix(); m.updateMatrix();
+    const matrix = dev ? o.group.matrix.clone().multiply(m.matrix) : m.matrix.clone();
+    const k = parent.uuid + '|' + m.material.uuid + '|' + (g.attributes.color ? 'c' : '') + (m.castShadow ? 's' : '') + (m.receiveShadow ? 'r' : '');
+    let e = lots.get(k); if (!e) lots.set(k, e = { parent, mat: m.material, cast: m.castShadow, receive: m.receiveShadow, list: [] });
+    e.list.push({ geo: g, matrix }); m.material = NO_DRAW; n++;
+  }
+  for (const e of lots.values()) {
+    for (let s = 0; s < e.list.length;) { // lots de 60 000 sommets au plus (index 16 bits)
+      let v = 0, t = s; while (t < e.list.length && (t === s || v + e.list[t].geo.attributes.position.count < 60000)) v += e.list[t++].geo.attributes.position.count;
+      const { geometry } = concatGeometries(e.list.slice(s, t));
+      const mesh = new THREE.Mesh(geometry, e.mat); mesh.castShadow = e.cast; mesh.receiveShadow = e.receive; mesh.matrixAutoUpdate = false; mesh.name = 'appareils';
+      e.parent.add(mesh); s = t;
+    }
+  }
+  return n;
 }
 
 // ───────────────────────── INTERRUPTEUR D'ÉCLAIRAGE ─────────────────────────

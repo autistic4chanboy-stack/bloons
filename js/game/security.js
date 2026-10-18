@@ -288,7 +288,7 @@ export class Security {
       for (const c of g.world.cameras) { if (!unlocked.has(c.id)) continue; n++; c.kind = 'fixed'; c.short = 'CAM ' + String(n).padStart(2, '0'); out.push(c); }
     }
     let pn = 0;
-    for (const pr of g.props.find(x => x.def.use === 'place_cam')) {
+    for (const pr of g.props.findUse('place_cam')) { // liste indexée par type (pas de parcours de tous les objets du monde)
       if (!pr.data.cam || pr.state.where !== 'world') continue; pn++;
       const pos = new THREE.Vector3(...pr.state.pos).add(new THREE.Vector3(0, 0.05, 0));
       const z = g.world.zoneAt(pos.x, pos.y + 0.2, pos.z);
