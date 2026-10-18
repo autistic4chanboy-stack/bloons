@@ -176,7 +176,7 @@ export function buildCheckpoints(world) {
     let b = bodies.get(r.def.zone); if (!b) { b = new GeoBuilder({ colors: true, white }); bodies.set(r.def.zone, b); }
     b.geometry(plate, L(trs(0, 0, 0.006)), { color: 0x2b3036 });
     b.geometry(body, L(trs(0, -0.024, 0.025)), { color: 0x454d56 });
-    for (const sy of [-0.078, 0.078]) b.geometry(screw, L(trs(0, sy, 0.012, Math.PI / 2, 0, 0)), { color: 0x9aa0a6 });
+    for (const sx of [-0.046, 0.046]) b.geometry(screw, L(trs(sx, -0.078, 0.012, Math.PI / 2, 0, 0)), { color: 0x9aa0a6 }); // vis en bas : le haut reçoit l'étiquette
     b.geometry(ring, L(trs(0, -0.032, 0.038, Math.PI / 2, 0, 0)), { color: 0x8e959c });
     b.geometry(pad, L(trs(0, -0.032, 0.038, Math.PI / 2, 0, 0)), { color: 0x15181b });
     b.geometry(bezel, L(trs(0.032, 0.018, 0.038, Math.PI / 2, 0, 0)), { color: 0x111315 });
@@ -188,7 +188,7 @@ export function buildCheckpoints(world) {
     }
     // étiquette (rangée i de la texture)
     const v0 = 1 - (i + 1) * LAB_H / T, v1 = 1 - i * LAB_H / T;
-    b.box(0, 0.064, 0.0125, 0.1, 0.025, 0.0004, { faces: 'Z', matrix: base, rect: { u0: 0, v0, u1: 1, v1 }, color: 0xffffff });
+    b.box(0, 0.066, 0.0125, 0.104, 0.036, 0.0004, { faces: 'Z', matrix: base, rect: { u0: 0, v0, u1: 1, v1 }, color: 0xffffff });
     // témoin
     v.set(0.032, 0.018, 0.0405).applyMatrix4(base); M.makeTranslation(v.x, v.y, v.z); leds.setMatrixAt(i, M); leds.setColorAt(i, red);
     const rd = new RondeReader(world, r.id, { name: r.def.name, zone: r.def.zone, num: r.num, c });
