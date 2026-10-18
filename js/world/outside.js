@@ -176,7 +176,7 @@ function markSheet() {
 
 function signSheet() {
   if (SIGNS) return SIGNS;
-  const S = sheet(1024, 1024), B = '#1d4f9c';
+  const S = sheet(1024, 1536), B = '#1d4f9c'; // 1024 × 1536 : l'étagère du bas (ticket, métal) déborde d'un 1024²
   const panel = (c, x, y, w, h, bg, fg = '#ffffff', border = true) => { c.fillStyle = bg; c.fillRect(x, y, w, h); if (border) { c.strokeStyle = fg; c.lineWidth = 4; c.strokeRect(x + 7, y + 7, w - 14, h - 14); } c.fillStyle = fg; };
   const round = (c, x, y, s, ring, inner) => { c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x + s / 2, y + s / 2, s / 2 - 2, 0, 7); c.fill(); c.strokeStyle = ring; c.lineWidth = s * 0.11; c.beginPath(); c.arc(x + s / 2, y + s / 2, s / 2 - s * 0.07, 0, 7); c.stroke(); if (inner) inner(); };
   const tri = (c, x, y, s, down) => { c.fillStyle = '#ffffff'; c.strokeStyle = '#d32f2f'; c.lineWidth = 12; c.lineJoin = 'round'; c.beginPath(); if (down) { c.moveTo(x + 8, y + 12); c.lineTo(x + s - 8, y + 12); c.lineTo(x + s / 2, y + s - 10); } else { c.moveTo(x + s / 2, y + 10); c.lineTo(x + s - 8, y + s - 14); c.lineTo(x + 8, y + s - 14); } c.closePath(); c.fill(); c.stroke(); };
@@ -526,6 +526,7 @@ function buildTrench(A, Q, world, lamps) {
   A.rbox(ZO, 'furniture_metal', 94.5, yT + 0.5, -4.5, 0.36, 1.0, 0.32, 0.02, 0xe0b000, { n: 2 });
   A.lathe(ZO, 'furniture_metal', [[0, 0], [0.08, 0], [0.08, 0.14], [0, 0.14]], 12, 94.5, yT + 0.95, -4.66, 0x3a3a3a, { rx: Math.PI / 2 });
   { const p0 = V3(94.5, yT + 0.95, -4.62), d = V3(0.08, 0.97, -0.22).normalize(); for (let k = 0; k < 9; k++) A.beam(ZO, 'furniture', p0.clone().addScaledVector(d, k * 0.4), p0.clone().addScaledVector(d, (k + 1) * 0.4), 0.06, 0.1, k % 2 ? 0xf2f2f2 : 0xd32f2f); }
+  world.physics.add(new Box(94.4, yT + 0.9, -5.0, 94.68, yT + 2.3, -4.55, LAYER.FURN)); // lisse levée (jusqu'au-dessus de la tête)
 }
 
 // ───────────────────────── façade est ─────────────────────────
@@ -539,6 +540,7 @@ function buildEastFacade(A, world) {
     for (let y = 1.25; y < 10; y += 1.25) F(XF + 0.05, y - 0.008, lo, XF + 0.055, y + 0.008, hi, 0x2a2d30);
     for (let z = 10.8; z < 25.4; z += 2.5) F(XF + 0.05, 0.45, s * z - 0.008, XF + 0.055, 10.0, s * z + 0.008, 0x2a2d30);
     F(XF, 0, lo, XF + 0.1, 0.45, hi, 0x2b2b2b, false); // soubassement
+    world.physics.add(new Box(XF - 0.05, YR, lo, XF + 0.1, 10, hi, LAYER.FURN)); // le mur s'arrête au nu (80,4) : le bardage dépasse
   }
   F(80.65, 10.0, -25.5, 80.7, 11.62, 25.5, 0x8b9095); F(80.62, 11.62, -25.55, 80.74, 11.67, 25.55, 0xb8bdc2); // bandeau, couvertine
   const y0 = 4.3, ext = 3.2, cy = (t) => y0 + Math.sin(t * Math.PI * 0.5) * 0.25 - t * 0.1;
@@ -766,6 +768,7 @@ function signPost(A, zn, x, z, a, panels, o = {}) {
     else if (p.key in TRI) { const h = p.h, w = p.w, pts = TRI[p.key] ? [[-w / 2, h / 2 - 0.02], [w / 2, h / 2 - 0.02], [0, -h / 2 + 0.03]] : [[0, h / 2 - 0.03], [w / 2, -h / 2 + 0.03], [-w / 2, -h / 2 + 0.03]]; A.plate(zn, 'furniture_metal', pts, -0.012, 0.012, 0x9aa0a6, { m: new THREE.Matrix4().makeRotationY(-a + Math.PI / 2).setPosition(cx - nx * 0.014, cy, cz - nz * 0.014) }); }
     else A.rbox(zn, 'furniture_metal', cx - nx * 0.014, cy, cz - nz * 0.014, Math.abs(nz) * p.w + Math.abs(nx) * 0.022 + 0.004, p.h + 0.02, Math.abs(nx) * p.w + Math.abs(nz) * 0.022 + 0.004, 0.006, 0x9aa0a6);
     SIGN_Q.push({ zone: zn, x: cx + nx * 0.001, y: cy, z: cz + nz * 0.001, nx, nz, w: p.w, h: p.h, key: p.key });
+    if (cy - p.h / 2 < y0 + 2.0 && p.w > 0.16) { const hx = Math.abs(nz) * p.w / 2 + Math.abs(nx) * 0.05, hz = Math.abs(nx) * p.w / 2 + Math.abs(nz) * 0.05; A.world.physics.add(new Box(cx - hx, cy - p.h / 2, cz - hz, cx + hx, cy + p.h / 2, cz + hz, LAYER.FURN)); } // panneau à hauteur de tête
     if (o.both && !ROUND.has(p.key) && !(p.key in TRI)) SIGN_Q.push({ zone: zn, x: cx - nx * 0.03, y: cy, z: cz - nz * 0.03, nx: -nx, nz: -nz, w: p.w, h: p.h, key: p.key });
   }
   A.world.physics.add(new Box(x - 0.07, y0, z - 0.07, x + 0.07, y0 + top, z + 0.07, LAYER.FURN));
@@ -810,6 +813,16 @@ function bikeHoop(A, zn, x, z, a, y0 = YP) {
   A.sweep(zn, 'steel', [V3(P[0].x, y0, P[0].z), V3(P[0].x, y0 + 0.5, P[0].z), ...P.slice(2, 9), V3(P[10].x, y0 + 0.5, P[10].z), V3(P[10].x, y0, P[10].z)], circleShape(0.026, 6));
   A.world.physics.add(new Box(x - Math.abs(ux) * 0.38 - 0.04, y0, z - Math.abs(uz) * 0.38 - 0.04, x + Math.abs(ux) * 0.38 + 0.04, y0 + 0.82, z + Math.abs(uz) * 0.38 + 0.04, LAYER.FURN));
 }
+// vélo attaché à un arceau : roues fines, cadre en losange, guidon, selle ; a : direction de l'avant
+function bike(A, zn, x, z, a, color, y0 = YP) {
+  const ux = Math.cos(a), uz = Math.sin(a), P = (f, s, y) => V3(x + ux * f - uz * s, y0 + y, z + uz * f + ux * s), R = 0.33, o = { segs: 4, open: true };
+  for (const f of [-0.52, 0.52]) { const pts = []; for (let k = 0; k <= 16; k++) { const t = k / 16 * Math.PI * 2; pts.push(P(f + Math.cos(t) * R, 0, R + Math.sin(t) * R)); } A.sweep(zn, 'furniture', pts, circleShape(0.022, 4), 0x151515); A.tube(zn, 'furniture_metal', P(f, -0.04, R), P(f, 0.04, R), 0.03, 0x9a9ea2, o); }
+  const T = (p, q, r = 0.017) => A.tube(zn, 'furniture_metal', p, q, r, color, o), bb = P(-0.05, 0, 0.33), seat = P(-0.2, 0, 0.82), head = P(0.36, 0, 0.8), rw = P(-0.52, 0, R), fw = P(0.52, 0, R);
+  T(rw, bb); T(bb, seat); T(seat, rw); T(seat, head); T(bb, head); T(head, fw);
+  A.tube(zn, 'furniture_metal', P(0.33, -0.25, 0.93), P(0.33, 0.25, 0.93), 0.012, 0x2a2a2a, o); T(head, P(0.33, 0, 0.93), 0.015);
+  A.rbox(zn, 'furniture', seat.x, seat.y + 0.04, seat.z, 0.12, 0.05, 0.24, 0.02, 0x1a1a1a, { ry: Math.PI / 2 - a });
+  A.world.physics.add(new Box(x - Math.abs(ux) * 0.88 - Math.abs(uz) * 0.15, y0, z - Math.abs(uz) * 0.88 - Math.abs(ux) * 0.15, x + Math.abs(ux) * 0.88 + Math.abs(uz) * 0.15, y0 + 1.0, z + Math.abs(uz) * 0.88 + Math.abs(ux) * 0.15, LAYER.FURN));
+}
 // chariot de supermarché : panier grillagé évasé, châssis, poignée de couleur, roulettes ; a : direction de l'avant
 function caddy(A, W, zn, x, z, a, y0 = YR, handle = 0xc62828) {
   const ux = Math.cos(a), uz = Math.sin(a), rx = -uz, rz = ux, P = (f, s, y) => [x + ux * f + rx * s, y0 + y, z + uz * f + rz * s], Vp = (f, s, y) => V3(...P(f, s, y));
@@ -817,10 +830,11 @@ function caddy(A, W, zn, x, z, a, y0 = YR, handle = 0xc62828) {
   const c = [P(fr, -wf, yb0), P(fr, wf, yb0), P(bk, wb, yb0 + 0.04), P(bk, -wb, yb0 + 0.04), P(fr, -wf - 0.03, yf), P(fr, wf + 0.03, yf), P(bk, wb + 0.03, yk), P(bk, -wb - 0.03, yk)];
   const q = (i, j, k, l, L, H) => W.quad(c[i], c[j], c[k], c[l], [0, 1, 0], [0, 0, L / 0.2, H / 0.2], grey);
   q(0, 1, 2, 3, 0.55, 0.92); q(1, 0, 4, 5, 0.5, 0.46); q(0, 3, 7, 4, 0.92, 0.5); q(2, 1, 5, 6, 0.92, 0.5); q(3, 2, 6, 7, 0.6, 0.52);
-  for (const [i, j] of [[4, 5], [5, 6], [6, 7], [7, 4], [0, 1], [2, 3], [0, 3], [1, 2]]) A.tube(zn, 'furniture_metal', V3(...c[i]), V3(...c[j]), 0.011, 0xb8bec2, { segs: 4 });
-  for (const s of [-1, 1]) { A.tube(zn, 'furniture_metal', Vp(fr - 0.02, s * 0.2, 0.12), Vp(bk, s * 0.26, 0.12), 0.013, 0xb8bec2, { segs: 4 }); A.tube(zn, 'furniture_metal', Vp(bk, s * 0.26, 0.12), Vp(bk - 0.05, s * 0.28, 1.0), 0.013, 0xb8bec2, { segs: 4 }); }
-  A.tube(zn, 'furniture', Vp(bk - 0.06, -0.27, 1.02), Vp(bk - 0.06, 0.27, 1.02), 0.02, handle, { segs: 6 });
-  for (const f of [fr - 0.04, bk + 0.04]) for (const s of [-0.19, 0.19]) A.tube(zn, 'furniture', Vp(f, s - 0.015, 0.05), Vp(f, s + 0.015, 0.05), 0.05, 0x1c1c1c, { segs: 8 });
+  const o4 = { segs: 4, open: true };
+  for (const [i, j] of [[4, 5], [5, 6], [6, 7], [7, 4], [0, 1], [2, 3], [0, 3], [1, 2]]) A.tube(zn, 'furniture_metal', V3(...c[i]), V3(...c[j]), 0.011, 0xb8bec2, o4);
+  for (const s of [-1, 1]) { A.tube(zn, 'furniture_metal', Vp(fr - 0.02, s * 0.2, 0.12), Vp(bk, s * 0.26, 0.12), 0.013, 0xb8bec2, o4); A.tube(zn, 'furniture_metal', Vp(bk, s * 0.26, 0.12), Vp(bk - 0.05, s * 0.28, 1.0), 0.013, 0xb8bec2, o4); }
+  A.tube(zn, 'furniture', Vp(bk - 0.06, -0.27, 1.02), Vp(bk - 0.06, 0.27, 1.02), 0.02, handle, { segs: 6, open: true });
+  for (const f of [fr - 0.04, bk + 0.04]) for (const s of [-0.19, 0.19]) A.beam(zn, 'furniture', Vp(f, s, 0.0), Vp(f, s, 0.1), 0.03, 0.1, 0x1c1c1c, V3(ux, 0, uz)); // roulettes
 }
 // abri à chariots : quatre poteaux, toiture cintrée, bardage grillagé sur trois côtés, enseigne ; caddies emboîtés
 function trolleyShelter(A, W, zn, x0, z0, x1, z1, open, n = 2, y0 = YR) {
@@ -847,6 +861,10 @@ function trolleyShelter(A, W, zn, x0, z0, x1, z1, open, n = 2, y0 = YR) {
       else caddy(A, W, zn, x0 + off, z0 + t, open === 'z' ? Math.PI / 2 : -Math.PI / 2, y0, r ? 0x1565c0 : 0xc62828);
     }
   }
+  // pile de caddies : un bloc sur toute la largeur, du fond jusqu'au dernier chariot (côté ouvert)
+  const cnt = Math.floor((len - 1.2) / 0.3), s0 = 0.6 - 0.58, s1 = 0.6 + (cnt - 1) * 0.3 + 0.58;
+  if (alongX) A.world.physics.add(new Box(x0 + s0, y0, z0 + 0.05, x0 + s1, y0 + 1.05, z1 - 0.05, LAYER.FURN));
+  else A.world.physics.add(new Box(x0 + 0.05, y0, z0 + s0, x1 - 0.05, y0 + 1.05, z0 + s1, LAYER.FURN));
 }
 
 // ───────────────────────── voitures garées ─────────────────────────
@@ -907,7 +925,7 @@ function carModel(key) {
     put(T, rot.clone().setPosition(xw, d.wr, za), 3);
     put(SW, rot.clone().setPosition(sd * (hx + 0.011), d.wr, za), 3); put(RIM, rot.clone().setPosition(sd * (hx + 0.012), d.wr, za), 4);
   }
-  const ws = S.find((q) => q[3] === 'ws'), zm = ws ? ws[0] + 0.05 : 0.6, RB = roundBoxGeo(0.12, 0.1, 0.2, 0.03, 1);
+  const ws = S.find((q) => q[3] === 'ws'), zm = ws ? ws[0] + 0.05 : 0.6, RB = new THREE.BoxGeometry(0.12, 0.1, 0.2);
   for (const sd of [1, -1]) put(RB, new THREE.Matrix4().makeTranslation(sd * (d.W / 2 + 0.07), d.belt + 0.1, zm), 0);
   T.dispose(); RIM.dispose(); SW.dispose(); RB.dispose();
   const M = { p, n, sl, i: idx, d }; MODEL_CACHE.set(key, M); return M;
@@ -1004,8 +1022,8 @@ function roadworks(A, W, Q, world, zc, lamps) { // avenue barrée : clôtures de
   world.physics.add(new Box(176.2, YR - 0.2, zc - 0.25, 199, YR + 2.1, zc + 0.25, LAYER.FURN));
   const sd = -Math.sign(zc); // côté du parking
   for (let x = 186.6; x < 196; x += 1.25) { const z = zc + sd * 1.0; A.rbox(ZF, 'furniture', x, YR + 0.5, z, 1.0, 1.0, 0.16, 0.03, Math.round((x - 186.6) / 1.25) % 2 ? 0xf4f4f4 : 0xc62828); }
-  world.physics.add(new Box(186, YR, zc + sd * 1.0 - 0.1, 196, YR + 1.0, zc + sd * 1.0 + 0.1, LAYER.FURN));
-  signPost(A, ZF, 191, zc + sd * 1.6, sd > 0 ? Math.PI / 2 : -Math.PI / 2, [{ key: 'barree', w: 0.8, h: 0.8, y: 1.7 }, { key: 'deviation', w: 0.6, h: 0.6, y: 0.95 }], { y0: YR });
+  world.physics.add(new Box(186, YR, zc + sd * 1.0 - 0.1, 196, YR + 1.2, zc + sd * 1.0 + 0.1, LAYER.FURN)); // balises et feux
+  signPost(A, ZF, 191, zc + sd * 2.0, sd > 0 ? Math.PI / 2 : -Math.PI / 2, [{ key: 'barree', w: 0.8, h: 0.8, y: 1.7 }, { key: 'deviation', w: 0.6, h: 0.6, y: 0.95 }], { y0: YR });
   for (const x of [187, 195]) lamps.push({ kind: 'beacon', x, y: YR + 1.08, z: zc + sd * 1.0, zone: ZF, circuit: null, state: 'blink' });
 }
 function cityTextures() { // façades d'immeubles lointains : de nuit (fenêtres allumées) et de jour (voilées par la brume)
@@ -1169,7 +1187,7 @@ function furnish(A, W, Q, world, rng, lamps, bays, lit, pub, TB) {
   for (const [x, z] of [[85, 36], [92, 39.2], [96.3, 33.5], [85, -40], [91, -44.5], [96.2, -37.5], [88, -57], [95.5, -56.5]]) tr(T, x, z);
   for (const [x, z] of [[64, 32], [68, 38.5], [78, 37], [66, -57], [76, -56.5]]) tr(TS, x, z);
   for (let x = -70; x <= 50; x += 15) for (const s of [1, -1]) tree(TS, rng, x + (s > 0 ? 0 : 7), YR, s * 34, { h: rng.range(6.5, 8.5), r: 2.6 });
-  for (let k = 0; k < 9; k++) { const a = k / 9 * 6.28; shrub(T, rng, RC[0] + Math.cos(a) * 3.6, YP + 0.18, RC[1] + Math.sin(a) * 3.6, 0.55); }
+  for (let k = 0; k < 9; k++) { const a = k / 9 * 6.28, x = RC[0] + Math.cos(a) * 3.6, z = RC[1] + Math.sin(a) * 3.6; shrub(T, rng, x, YP + 0.18, z, 0.55); world.physics.add(new Box(x - 0.55, YP, z - 0.55, x + 0.55, YP + 0.85, z + 0.55, LAYER.FURN)); }
   for (let x = 63; x < 174; x += 8.5) for (const s of [1, -1]) poplar(TF, rng, x + rng.range(-1, 1), YR, s * rng.range(67, 70));
   for (let z = -150; z <= 150; z += 14) tree(TF, rng, 207 + rng.range(-2, 4), YR, z + rng.range(-3, 3), { h: rng.range(8, 11), r: rng.range(3, 4) });
   // soleil d'Hélios au centre du giratoire : disque de laiton à rayons sur un socle de pierre
@@ -1177,6 +1195,7 @@ function furnish(A, W, Q, world, rng, lamps, bays, lit, pub, TB) {
   A.lathe(ZL, 'furniture_metal', [[0, -0.06], [1.1, -0.04], [1.15, 0], [1.1, 0.04], [0, 0.06]], 24, RC[0], YP + 3.0, RC[1], 0xc9a227, { rx: Math.PI / 2 });
   for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6; A.beam(ZL, 'furniture_metal', V3(RC[0] + Math.cos(a) * 1.15, YP + 3.0 + Math.sin(a) * 1.15, RC[1]), V3(RC[0] + Math.cos(a) * 1.9, YP + 3.0 + Math.sin(a) * 1.9, RC[1]), 0.05, 0.12, 0xc9a227, V3(0, 0, 1)); }
   A.tube(ZL, 'furniture_metal', V3(RC[0], YP + 1.1, RC[1]), V3(RC[0], YP + 1.9, RC[1]), 0.06, 0x8d6e2a, { segs: 8 });
+  world.physics.add(new Box(RC[0] - 1.95, YP + 1.1, RC[1] - 0.1, RC[0] + 1.95, YP + 4.95, RC[1] + 0.1, LAYER.FURN)); // rayons bas du soleil
   // ── clôtures, portails d'accès pompiers, piliers de l'entrée du site ──
   for (const s of [1, -1]) {
     fence(A, W[ZS], ZS, FW, s * 61.8, XF, s * 61.8); fence(A, W[ZL], ZL, XF, s * 61.8, FX, s * 61.8);
@@ -1185,12 +1204,13 @@ function furnish(A, W, Q, world, rng, lamps, bays, lit, pub, TB) {
     gate(A, W[ZS], ZS, FW + 0.2, s * 47.5, FW + 0.2, s * 53.5, 1.9);
     A.box(ZL, 'brick', 175.45, YR, s * 7.3 - 0.35, 176.15, YP + 2.3, s * 7.3 + 0.35, { layer: LAYER.FURN }); A.box(ZL, 'concrete', 175.38, YP + 2.3, s * 7.3 - 0.42, 176.22, YP + 2.42, s * 7.3 + 0.42, { collide: false });
   }
-  A.furn(ZL, 176.0, YP + 0.85, 8.85, 176.08, YP + 1.65, 11.75, 0x20262e, { collide: false }); SIGN_Q.push({ zone: ZL, x: 176.085, y: YP + 1.25, z: 10.3, nx: 1, nz: 0, w: 2.8, h: 0.52, key: 'entreeSite' });
+  A.furn(ZL, 176.0, YP + 0.85, 8.85, 176.08, YP + 1.65, 11.75, 0x20262e, { collide: false }); world.physics.add(new Box(175.9, YP + 0.85, 8.85, 176.12, YP + 1.65, 11.75, LAYER.FURN)); SIGN_Q.push({ zone: ZL, x: 176.085, y: YP + 1.25, z: 10.3, nx: 1, nz: 0, w: 2.8, h: 0.52, key: 'entreeSite' });
   // ── parvis : bancs, corbeilles, potelets, arceaux à vélos, abri à chariots, abribus, borne d'urgence ──
   bench(A, ZO, 89.4, 17.6, 0, { seat: true }); bench(A, ZO, 89.4, 24.4, 0); bench(A, ZO, 89.4, -24.4, 0, { seat: true }); bench(A, ZO, 84.5, 9.8, Math.PI / 2);
   for (const [x, z] of [[82.4, 7.6], [91.5, 20.6], [91.5, -22.5], [90, -10.8], [109.4, 22.85], [109.4, -22.85], [131, 24.15], [131, -24.15]]) bin(A, x < 98 ? ZO : ZL, x, z);
   for (const z of [-0.6, 0.8, 2.2, 3.8, 6.8, 22.1, 24.9, -22.1, -24.9]) bollard(A, ZO, 98.15, z);
   for (let z = 16.4; z < 20.6; z += 0.9) bikeHoop(A, ZO, 82.9, z, 0);
+  bike(A, ZO, 82.9, 17.45, 0, 0x1e5bb0); bike(A, ZO, 82.9, 19.25, Math.PI, 0xb71c1c);
   trolleyShelter(A, W[ZO], ZO, 89.4, 10.4, 94.6, 12.7, 'X', 2, YP);
   busShelter(A, world, 91.8, -17.2, 95.3, -12.8, pub);
   signPost(A, ZO, 96.0, -20.5, -Math.PI / 2, [{ key: 'bus', w: 0.5, h: 0.5, y: 2.45 }, { key: 'arret', w: 1.0, h: 0.25, y: 1.98 }], { both: true });
