@@ -149,7 +149,8 @@ function devicesIn(ev, f, kinds) {
 }
 function propsIn(ev, f, defIds) {
   const g = ev.g; const zones = f.where === 'all' ? null : new Set(ev.zonesFor(f.where));
-  return g.props.find(p => defIds.includes(p.defId) && (p.state.where === 'home' || p.state.where === 'world')).filter(p => !zones || zones.has(p.zone) || zones.has(g.world.zoneAt(...p.state.pos)?.id));
+  // listes indexées par type (ordre du monde), articles au repos ou posés
+  return g.props.findDefs(defIds).filter(p => !zones || zones.has(p.zone) || zones.has(g.world.zoneAt(...p.state.pos)?.id));
 }
 const pick = (a) => a[Math.floor(R() * a.length)];
 
