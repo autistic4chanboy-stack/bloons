@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { signTexture } from '../engine/textures.js';
 import {
   furnMaterial, scale, postcardSpinner, lotteryStand, consultDesk, pouf, ballCage, photoKiosk, backdrop, softbox, lollipop, flowerBucket, workbench,
-  jewelCase as kJewelCase, table as kTable, counter as kCounter, woodMat, FU, ME,
+  jewelCase as kJewelCase, table as kTable, counter as kCounter, frame as kFrame, woodMat, FU, ME,
 } from './furnkit.js';
 
 // ───────────────────────── papiers peints procéduraux ─────────────────────────
@@ -277,6 +277,44 @@ function menuTex(title, lines, style = 'chalk', accent = '#ffcc00') {
   });
 }
 
+// affiche de cinéma (portrait 2:3) : fond dégradé, silhouette, titre sur deux lignes, mention
+function posterTex(kind) {
+  return cnv(256, 384, (x, w, h) => {
+    const P = kind === 'mannequins' ? { bg0: '#2a0508', bg1: '#060203', ink: '#e8dcc8', acc: '#c62828', t1: 'LA NUIT DES', t2: 'MANNEQUINS', sub: 'Séance de 23 h · Salle 1' }
+      : { bg0: '#d9c9a3', bg1: '#8a7550', ink: '#2a2118', acc: '#5a4630', t1: 'LES GRANDS', t2: 'MAGASINS', sub: 'Film muet · 1924' };
+    const gr = x.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, P.bg0); gr.addColorStop(1, P.bg1); x.fillStyle = gr; x.fillRect(0, 0, w, h);
+    x.fillStyle = P.acc; x.globalAlpha = 0.9;
+    if (kind === 'mannequins') { // silhouette de mannequin de vitrine sous un projecteur
+      x.beginPath(); x.ellipse(w / 2, 92, 22, 27, 0, 0, Math.PI * 2); x.fill();
+      x.fillRect(w / 2 - 6, 116, 12, 16); x.beginPath(); x.moveTo(w / 2 - 46, 140); x.lineTo(w / 2 + 46, 140); x.lineTo(w / 2 + 30, 250); x.lineTo(w / 2 - 30, 250); x.closePath(); x.fill();
+      x.fillRect(w / 2 - 26, 250, 18, 70); x.fillRect(w / 2 + 8, 250, 18, 70);
+      x.globalAlpha = 0.18; x.fillStyle = '#ffffff'; x.beginPath(); x.moveTo(w / 2 - 10, 0); x.lineTo(w / 2 + 10, 0); x.lineTo(w / 2 + 90, 330); x.lineTo(w / 2 - 90, 330); x.closePath(); x.fill();
+    } else { // chapeau melon et escalier roulant
+      x.beginPath(); x.ellipse(w / 2, 120, 60, 12, 0, 0, Math.PI * 2); x.fill(); x.beginPath(); x.ellipse(w / 2, 100, 34, 30, 0, Math.PI, Math.PI * 2); x.fill(); x.fillRect(w / 2 - 34, 99, 68, 14);
+      for (let k = 0; k < 7; k++) x.fillRect(40 + k * 24, 300 - k * 22, 30, 6);
+      x.lineWidth = 5; x.strokeStyle = P.acc; x.beginPath(); x.moveTo(36, 312); x.lineTo(220, 150); x.stroke();
+    }
+    x.globalAlpha = 1; x.textAlign = 'center'; x.fillStyle = P.ink;
+    x.font = '700 26px Georgia, serif'; x.fillText(P.t1, w / 2, 340);
+    x.font = '900 34px Georgia, serif'; x.fillText(P.t2, w / 2, 372);
+    x.font = 'italic 15px Georgia, serif'; x.fillText(P.sub, w / 2, 30);
+    x.strokeStyle = P.ink; x.globalAlpha = 0.5; x.lineWidth = 3; x.strokeRect(7, 7, w - 14, h - 14); x.globalAlpha = 1;
+  });
+}
+// Affiches rétroéclairées des films à l'affiche, sur le mur de la salle côté hall (plan v, face au hall) ; elles
+// s'éteignent avec le courant
+export function cinemaPosters(L, v, us) {
+  ['magasins', 'mannequins'].forEach((kind, i) => {
+    const u = us[i], w = 0.78, hh = 1.17, y0 = 1.62;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), new THREE.MeshBasicMaterial({ map: posterTex(kind) }));
+    m.position.set(L.X(u), L.y + y0, L.Z(v - 0.034)); m.rotation.y = L.faceFront; m.matrixAutoUpdate = false; m.updateMatrix();
+    L.c.zone.group.add(m); L.c.zone.signMats.push(m.material);
+    const p = L.penAt(u, v, L.faceFront, null, y0);
+    p.box(FU, -w / 2 - 0.04, -hh / 2 - 0.04, 0, w / 2 + 0.04, hh / 2 + 0.04, 0.03, 0x15151a, 'xXyYZ');            // caisson
+    kFrame(p, w, hh, 0.035, 0.04, 0xb8963e);                                                                         // cadre doré
+  });
+}
+
 // ───────────────────────── aménagements ─────────────────────────
 // Repères (magasin d'une case : W = 12, D = 10) : entrée au centre de la façade (u = W/2), comptoirs et rayons hors de
 // l'allée d'entrée, de l'allée transversale v ∈ [3,9 ; 5,1] et du couloir de droite u ∈ [W-2,2 ; W-1] (v > 4,5).
@@ -294,7 +332,7 @@ export const INTERIOR_LAYOUTS = {
     const sh = { back: 0xe9f5ee, backMetal: false, plinth: green, base: 0.3 };
     L.wallShelf('L', 1.4, 5.8, 5, 2.1, 0.4, white, null, sh);
     L.wallShelf('R', 1.6, 8.8, 5, 2.1, 0.4, white, null, sh);
-    L.island(1.3, 4.3, 2.0, 3, 1.35, white, 0.9, { cap: green, capH: 0.1 }); L.island(7.7, 10.4, 2.0, 3, 1.35, white, 0.9, { cap: green, capH: 0.1 });
+    L.island(1.4, 4.2, 2.0, 3, 1.35, white, 0.9, { cap: green, capH: 0.1 }); L.island(7.7, 10.4, 2.0, 3, 1.35, white, 0.9, { cap: green, capH: 0.1 });
     // comptoir du pharmacien au fond, face à l'entrée ; tiroirs à médicaments et rayonnages derrière
     L.counter(2.2, 6.7, 8.8, 7.4, 1.0, white, 2, oak);
     L.penAt(5.5, 6.69, L.faceFront).rbox(FU, -3.3, 0.3, -0.01, 3.3, 0.42, 0.01, 0.005, green); // bandeau vert
@@ -306,7 +344,7 @@ export const INTERIOR_LAYOUTS = {
   },
   tabac(L) {
     const W = L.W, wood = 0x4e3524, dark = 0x2b1d14, rk = { back: 0x5d4037, backMetal: false, uprights: 0x3e2723, metal: false };
-    L.counter(0.9, 6.0, 6.6, 6.8, 1.05, wood, 1, 0x2a1a10);
+    L.counter(1.0, 6.0, 6.6, 6.8, 1.05, wood, 1, 0x2a1a10);
     L.wallBlock('B', 0.8, 6.6, 0, 0.95, 0.55, dark, null, 'doors', { top: 0x2a1a10 });
     L.wallShelf('B', 0.8, 6.6, 7, 2.55, 0.28, 0x3a2a20, null, { base: 1.1, from: 0.95, back: 0x1e140e, backMetal: false, uprights: 0x1e140e, metal: false });
     L.wallShelf('R', 1.4, 8.8, 6, 2.0, 0.32, 0x6d4c41, null, rk);   // presse
@@ -314,7 +352,7 @@ export const INTERIOR_LAYOUTS = {
     L.table(7.6, 1.6, 9.4, 2.4, 0.8, 0x5d4037, 1);                   // quotidiens
     L.solid(1.0, 1.6, 2.4, 2.2, 0, 1.1); lotteryStand(L.penAt(1.7, 1.9, L.faceIn), 1.4, 0.6, 0x1565c0); // stand de jeux
     L.board('u', 1.1, 2.3, 1.9, 1.14, 0.5, 0.3, L.faceFront, null, { noLabels: true });
-    L.solid(3.3, 2.6, 3.5, 2.8, 0, 1.75);                               // tourniquet à cartes postales
+    L.solid(3.15, 2.45, 3.65, 2.95, 0, 1.75);                           // tourniquet à cartes postales (socle Ø 50 cm, poches)
     const cards = []; for (let h = 0.5; h < 1.7; h += 0.3) cards.push(L.rng.pick([0xffffff, 0xfff3e0, 0xe3f2fd, 0xfce4ec]));
     postcardSpinner(L.penAt(3.4, 2.7, 0), cards);
     L.pendant(2.4, 6.4, 2.35, 0x8a6d3b, 'cone', 0.32); L.pendant(5.0, 6.4, 2.35, 0x8a6d3b, 'cone', 0.32);
@@ -332,7 +370,7 @@ export const INTERIOR_LAYOUTS = {
     L.floorLamp(3.9, 9.0);
     L.counter(8.6, 2.9, 10.8, 3.6, 1.0, wood, 1, 0x3e2723);
     L.pendant(2.5, 2.0, 2.3, 0x2f4a3a, 'cone'); L.pendant(2.5, 3.25, 2.3, 0x2f4a3a, 'cone'); L.pendant(9.7, 3.25, 2.4, 0x2f4a3a, 'cone', 0.3);
-    L.plant(10.9, 1.0, 0.9);
+    L.plant(11.4, 0.55, 0.9);                                            // dans l'angle (plus de recoin derrière)
   },
   mobizone(L, s) {
     const W = L.W, white = 0xf7f7f7, oak = 0xd8c3a5, grey = 0x9aa3ab, sh = { back: 0xeceff1, backMetal: false, base: 0.4, plinth: grey };
@@ -355,7 +393,7 @@ export const INTERIOR_LAYOUTS = {
     L.partition(0.17, 7.5, 2.6, 7.58, 2.4, 0xe8e4dc); L.partition(3.4, 7.5, 3.48, 9.88, 2.4, 0xe8e4dc); // salle d'examen
     L.wallHigh('B', 1.5, 1.5);                                      // tableau d'acuité (1er emplacement mural)
     L.wallHigh('R', 9.35, 1.5);                                     // miroir
-    L.chairDeco(1.6, 8.4, L.faceIn === 0 ? PI : 0, 0x37474f);
+    L.chairDeco(1.6, 8.7, L.faceIn === 0 ? PI : 0, 0x37474f);
     L.counter(8.8, 1.4, 10.8, 2.1, 1.0, oak, 1, 0x5d4037);
     L.pendant(2.5, 2.2, 2.4, 0xffffff, 'globe', 0.32);
   },
@@ -379,7 +417,7 @@ export const INTERIOR_LAYOUTS = {
     L.rug(2.4, 5.6, 6.0, 7.4, 0xb08968, 0x6d4c41);
     L.floorSpot(4.2, 6.5, L.faceFront);                                 // banc d'essayage
     for (const u of [2.75, 5.65]) { L.solid(u - 0.22, 6.28, u + 0.22, 6.72, 0, 0.42); pouf(L.penAt(u, 6.5, 0), 0.44, 0.44, 0.42, 0x8d6e63); } // poufs
-    L.wallHigh('L', 2.0, 0.75);                                         // miroir bas (fixe)
+    L.wallHigh('L', 0.8, 0.75);                                         // miroir bas (fixe), devant la caisse et non derrière
     L.pendant(4.2, 6.5, 2.4, 0x3e2723, 'drum', 0.5);
     L.plant(10.9, 9.3, 0.9);
   },
@@ -392,21 +430,21 @@ export const INTERIOR_LAYOUTS = {
     L.solid(1.6, 6.0, 2.8, 7.0, 0, 0.06);                                // bac à ballons grillagé
     L.solid(1.6, 6.0, 2.8, 7.0, 0, 0.9); ballCage(L.penAt(2.2, 6.5, L.faceFront), 1.2, 1.0, 0.9, dark);
     L.board('u', 1.65, 2.75, 6.5, 0.4, 0.9, 0.6, L.faceFront, null, { noLabels: true });
-    L.counter(0.9, 3.0, 2.8, 3.7, 1.0, dark, 1, 0x455a64);
+    L.counter(1.0, 3.0, 2.8, 3.7, 1.0, dark, 1, 0x455a64);
     L.floorSpot(3.4, 8.0, L.faceFront);                                 // tente
     L.floorSpot(8.4, 1.5, L.faceFront); L.floorSpot(9.4, 1.5, L.faceFront); // vélos
     L.floorSpot(6.4, 9.35, L.faceFront);                                // panier de basket
   },
   photo(L) {
     const W = L.W, grey = 0x37474f, white = 0xf5f5f5;
-    L.counter(0.9, 1.4, 3.6, 2.1, 1.0, grey, 1, 0x212121);
+    L.counter(1.0, 1.4, 3.6, 2.1, 1.0, grey, 1, 0x212121);
     L.wallShelf('L', 2.8, 8.4, 4, 2.0, 0.28, white, null, { back: 0xe0e0e0, backMetal: false });
     for (const v of [1.6, 2.8]) { L.wallBlock('R', v, v + 0.7, 0, 1.0, 0.45, grey, null, 'none'); photoKiosk(L.wallPen('R', v, v + 0.7), 0.7, 0.46, grey); } // bornes d'impression
     L.frames('R', 4.4, 9.0, 1.2, 2.6, [0xe0c9a6, 0x90a4ae, 0xffccbc, 0xc5e1a5, 0xb3e5fc, 0xffffff, 0x3e2723]);
     L.table(7.4, 2.0, 10.4, 2.8, 0.9, white, 2);
     // studio : fond blanc arrondi, deux réflecteurs, tabouret
-    L.solid(1.2, 9.3, 5.2, 9.36, 0, 3.0); backdrop(L.penAt(3.2, 9.36, L.faceFront), 4.0, 0xfafafa);
-    for (const u of [0.9, 5.5]) softbox(L.penAt(u, 7.6, L.ryOf(3.2 - u, 1.0)), 1.85, 0xf8f8f8);
+    L.solid(1.05, 9.3, 5.35, 9.36, 0, 3.0); backdrop(L.penAt(3.2, 9.36, L.faceFront), 4.0, 0xfafafa); // fond et ses deux mâts
+    for (const u of [0.9, 5.5]) { softbox(L.penAt(u, 7.6, L.ryOf(3.2 - u, 1.0)), 1.85, 0xf8f8f8); L.solid(u - 0.4, 7.2, u + 0.4, 8.0, 0, 2.0); } // trépied et boîte à lumière
     L.stool(3.2, 8.6, 0x212121, 0.65);
     L.wallFloor('B', 7.4);                                              // photomaton
   },
@@ -429,7 +467,7 @@ export const INTERIOR_LAYOUTS = {
     for (const u of [1.6, 3.2, 8.6, 10.2]) L.pendant(u, 2.6, 2.5, L.rng.pick(shades), L.rng.pick(['cone', 'globe', 'drum']), 0.38);
     L.pendant(6.8, 6.7, 2.2, 0xd8c39a, 'drum', 0.45);
     L.wallHigh('L', 6.2, 1.55); L.wallHigh('L', 7.4, 1.55);             // miroirs décoratifs
-    L.plant(10.8, 9.2, 1.0); L.plant(0.65, 5.0, 0.8);
+    L.plant(11.2, 9.45, 1.0); L.plant(0.65, 5.0, 0.8);                 // (hors du débattement de la porte de la réserve)
   },
   bonbons(L) {
     const W = L.W, pink = 0xf48fb1, white = 0xfafafa;
@@ -440,8 +478,8 @@ export const INTERIOR_LAYOUTS = {
     L.counter(5.8, 7.6, 9.4, 8.3, 1.0, white, 1, pink);
     L.floorSpot(8.7, 6.9, L.faceFront);                                 // barbe à papa
     L.floorSpot(3.6, 1.0, L.faceIn); L.floorSpot(8.4, 1.0, L.faceIn);   // distributeurs de boules
-    for (const [u, c] of [[1.4, 0xe91e63], [2.6, 0x29b6f6], [3.8, 0xffeb3b]]) { // sucettes géantes
-      lollipop(L.penAt(u, 9.62, L.faceFront), 2.2, c);
+    for (const [u, c] of [[1.4, 0xe91e63], [2.6, 0x29b6f6], [3.8, 0xffeb3b]]) { // sucettes géantes (bâton : collision ; le disque passe au-dessus de la tête)
+      lollipop(L.penAt(u, 9.62, L.faceFront), 2.2, c); L.solid(u - 0.05, 9.57, u + 0.05, 9.67, 0, 1.9);
     }
   },
   octet(L, s) {
@@ -457,7 +495,7 @@ export const INTERIOR_LAYOUTS = {
   },
   boulangerie(L) {
     const cream = 0xf2ead8, wood = 0x8a6440;
-    L.glassCounter(0.8, 5.3, 9.6, 6.3, 1.1, cream, wood, { regU: 8.9 });
+    L.glassCounter(0.9, 5.3, 9.6, 6.3, 1.1, cream, wood, { regU: 8.9 });
     L.wallShelf('B', 0.8, 8.8, 4, 2.0, 0.45, wood, null, { back: 0x6d4c41, backMetal: false, metal: false, base: 0.7, plinth: 0x5d4037 }); // panetières
     L.wallBlock('L', 7.0, 9.0, 0, 0.92, 0.68, 0xb0bec5, null, 'kitchen'); // plan de travail (four, cafetière)
     L.counterSpot(0.5, 7.5, 0.92, PI / 2); L.counterSpot(0.5, 8.5, 0.92, PI / 2);
@@ -468,7 +506,7 @@ export const INTERIOR_LAYOUTS = {
   },
   cafe(L) {
     const wood = 0x4e342e, zinc = 0xb8bcc0, red = 0x7a1f1f;
-    L.counter(0.8, 5.6, 9.6, 6.4, 1.1, wood, 1, zinc);
+    L.counter(1.0, 5.6, 9.6, 6.4, 1.1, wood, 1, zinc);
     for (let u = 1.4; u < 9.2; u += 1.0) L.stool(u, 5.28, red, 0.76);
     L.mirror('B', 1.0, 8.6, 1.3, 2.4);
     L.wallShelf('B', 1.0, 8.6, 3, 2.5, 0.25, wood, null, { base: 1.4, from: 1.3, back: 0x2b1d14, backMetal: false, metal: false }); // arrière-bar
@@ -484,7 +522,7 @@ export const INTERIOR_LAYOUTS = {
   },
   pizzeria(L) {
     const wood = 0x6d4c41, cream = 0xf3e9d2, red = 0xc62828;
-    L.counter(0.8, 5.6, 9.6, 6.4, 1.05, wood, 1, cream);
+    L.counter(1.0, 5.6, 9.6, 6.4, 1.05, wood, 1, cream);
     L.wallFloor('B', 3.0);                                              // four à pizza
     L.counterSpot(8.6, 6.0, 1.05, L.faceFront + PI);                    // fontaine à sodas
     L.wallBlock('B', 5.0, 8.8, 0, 0.92, 0.7, 0xb0bec5, null, 'kitchen'); L.board('u', 5.1, 8.7, 9.53, 0.92, 0.6, 0.4, L.faceFront);
@@ -495,7 +533,7 @@ export const INTERIOR_LAYOUTS = {
   },
   burger(L) {
     const red = 0xc62828, steel = 0xb0bec5;
-    L.counter(0.8, 5.6, 9.6, 6.4, 1.05, red, 2, steel);
+    L.counter(1.0, 5.6, 9.6, 6.4, 1.05, red, 2, steel);
     L.wallFloor('B', 1.4); L.wallFloor('B', 2.1);                         // friteuses
     L.counterSpot(8.9, 6.0, 1.05, L.faceFront + PI);                     // fontaine à sodas
     L.wallBlock('B', 2.8, 8.8, 0, 0.92, 0.7, steel, null, 'kitchen'); L.board('u', 3.0, 8.6, 9.53, 0.92, 0.6, 0.4, L.faceFront);
@@ -511,15 +549,15 @@ export const INTERIOR_LAYOUTS = {
   },
   sushi(L) {
     const wood = 0xc8a46e, dark = 0x2b1d14;
-    L.solid(0.8, 1.6, 2.0, 8.6, 0, 0.95); kCounter(L.penAt(1.4, 5.1, L.ryOf(1, 0)), { L: 7.0, D: 1.2, h: 1.0, color: dark, top: wood }); // comptoir du tapis
-    L.counterSpot(1.4, 5.1, 1.0, PI / 2);                                // tapis à sushis (1er emplacement)
-    for (const v of [2.3, 3.4, 4.5, 5.6, 6.7, 7.8]) L.floorSpot(2.45, v, -PI / 2); // tabourets (chaises)
+    L.solid(0.9, 1.6, 2.1, 8.6, 0, 0.95); kCounter(L.penAt(1.5, 5.1, L.ryOf(1, 0)), { L: 7.0, D: 1.2, h: 1.0, color: dark, top: wood }); // comptoir du tapis
+    L.counterSpot(1.5, 5.1, 1.0, PI / 2);                                // tapis à sushis (1er emplacement)
+    for (const v of [2.3, 3.4, 4.5, 5.6, 6.7, 7.8]) L.floorSpot(2.55, v, -PI / 2); // tabourets (chaises)
     L.wallBlock('B', 3.0, 8.8, 0, 0.92, 0.65, 0xb0bec5, null, 'kitchen'); L.counterSpot(4.0, 9.55, 0.92, L.faceFront); // cuisine, cuiseur à riz
     L.board('u', 5.0, 8.6, 9.55, 0.92, 0.5, 0.4, L.faceFront);
     L.counter(8.8, 1.4, 10.8, 2.1, 1.0, dark, 1, wood);
     L.table(7.6, 2.6, 8.6, 3.4, 0.4, wood, 1); L.rug(7.3, 2.3, 8.9, 3.7, 0x9e2b25, 0xd8c39a);
-    for (const v of [2.6, 4.6, 6.6]) L.pendant(1.4, v, 2.3, 0xf5efe0, 'globe', 0.4);
-    L.plant(10.9, 9.2, 1.1, 0x2b1d14);
+    for (const v of [2.6, 4.6, 6.6]) L.pendant(1.5, v, 2.3, 0xf5efe0, 'globe', 0.4);
+    L.plant(11.2, 9.45, 1.1, 0x2b1d14);
   },
   glacier(L) {
     const white = 0xfafafa, blue = 0x81d4fa;
@@ -534,18 +572,20 @@ export const INTERIOR_LAYOUTS = {
     const wood = 0x6d4c41;
     for (const [u, v] of [[2.3, 2.4], [9.4, 2.6], [2.4, 6.6], [6.4, 6.6]]) L.table(u - 1, v - 0.6, u + 1, v + 0.6, 0.6, wood, 2);
     L.wallShelf('L', 4.0, 9.0, 3, 1.6, 0.5, wood, null, { metal: false, back: 0x5d4037, backMetal: false });
-    L.wallShelf('B', 1.0, 8.8, 3, 1.6, 0.5, wood, null, { metal: false, back: 0x5d4037, backMetal: false });
+    // étagère du fond arrêtée avant le comptoir : la fleuriste a la place de se tenir derrière sa caisse
+    L.wallShelf('B', 1.0, 7.0, 3, 1.6, 0.5, wood, null, { metal: false, back: 0x5d4037, backMetal: false });
     L.counter(7.6, 8.4, 9.6, 9.1, 1.0, 0xad1457, 1, wood);
     const flowers = [0xe53935, 0xffeb3b, 0xf8bbd0, 0xffffff, 0x8e24aa, 0xff9800];
-    for (const [u, v] of [[4.6, 1.2], [7.4, 1.2], [10.9, 4.0], [10.9, 5.4], [0.7, 4.4]]) { // seaux de fleurs
+    for (const [u, v] of [[4.6, 1.2], [7.4, 1.2], [10.9, 4.0], [10.9, 5.4], [0.62, 3.62]]) { // seaux de fleurs (le dernier devant l'étagère, plus dedans)
       const cols = []; for (let k = 0; k < 5; k++) cols.push(L.rng.pick(flowers));
       flowerBucket(L.penAt(u, v, 0), [...cols, ...cols.slice(0, 2)], () => L.frng.next());
+      L.solid(u - 0.21, v - 0.21, u + 0.21, v + 0.21, 0, 0.8); // seau et bouquet
     }
-    L.plant(10.8, 9.0, 1.1); L.plant(0.7, 9.1, 0.9);
+    L.plant(11.0, 8.5, 1.1); L.plant(0.6, 9.45, 0.9);
   },
   quincaillerie(L) {
     const grey = 0xbdbdbd, orange = 0xef6c00;
-    L.island(0.9, 8.9, 5.6, 5, 1.9, 0xd0d0d0, 1.0); L.island(0.9, 8.9, 7.6, 5, 1.9, 0xd0d0d0, 1.0);
+    L.island(1.0, 8.9, 5.6, 5, 1.9, 0xd0d0d0, 1.0); L.island(1.0, 8.9, 7.6, 5, 1.9, 0xd0d0d0, 1.0);
     L.wallShelf('L', 1.4, 4.8, 5, 2.2, 0.4, grey); L.wallShelf('R', 2.6, 9.0, 5, 2.2, 0.4, grey);
     L.wallShelf('B', 0.8, 8.8, 4, 2.2, 0.45, grey);
     L.table(1.4, 2.0, 4.0, 2.8, 0.8, orange, 2);                           // promotions
@@ -555,10 +595,10 @@ export const INTERIOR_LAYOUTS = {
   },
   bijouterie(L) {
     const dark = 0x2b2b38, gold = 0xc9a227;
-    jewelCase(L, 0.8, 2.0, 1.5, 8.0, 'v');
+    jewelCase(L, 0.95, 2.0, 1.65, 8.0, 'v');
     jewelCase(L, 2.6, 6.4, 8.0, 7.1, 'u');
     jewelCase(L, 9.4, 1.6, 10.6, 3.4, 'v');
-    L.counter(8.0, 6.4, 9.6, 7.1, 1.0, dark, 1, gold);
+    L.counter(8.06, 6.4, 9.66, 7.1, 1.0, dark, 1, gold);                // contre la vitrine, sans y entrer (plateau débordant)
     L.wallShelf('B', 1.0, 8.8, 3, 1.8, 0.3, dark, null, { back: 0x1a1a24, backMetal: false, metal: false });
     for (const u of [4.0, 6.2]) L.chairDeco(u, 5.85, 0, 0x5a1f3a);
     for (const u of [3.4, 5.3, 7.2]) L.pendant(u, 6.75, 2.3, 0xe8e8e8, 'globe', 0.26);

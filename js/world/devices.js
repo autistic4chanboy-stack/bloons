@@ -526,6 +526,9 @@ class Projector extends ItemFixture {
     if (sc) {
       const scr = new THREE.Mesh(new THREE.PlaneGeometry(sc.w, sc.h), new THREE.MeshBasicMaterial({ color: 0x050505 }));
       scr.position.set(sc.x, sc.y, sc.z); scr.rotation.y = sc.ry; (world.zone(zone)?.group || world.root).add(scr); this.screenMesh = scr; this.bigScreen = sc;
+      // toile éteinte : surface mate claire éclairée par la salle (et noire quand la salle l'est), l'image projetée
+      // reste un matériau lumineux
+      this.onMat = scr.material; this.offMat = world.game.mats.get('plaster_e2e2de', zone);
       // faisceau
       const len = Math.abs(sc.z - pos.z);
       const cone = new THREE.Mesh(new THREE.ConeGeometry(sc.w * 0.5, len, 4, 1, true), new THREE.MeshBasicMaterial({ color: 0x8899bb, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
@@ -540,7 +543,9 @@ class Projector extends ItemFixture {
   trigger(p) { this.set({ on: true, film: 1 }); this.startTimer(p.dur || 120); }
   screenVisible() { return true; }
   onState(p, r) {
+    if (this.onMat) this.screenMesh.material = this.onMat;
     this.setScreen(this.state.on ? FILMS[this.state.film] : 'off', 1.1);
+    if (this.offMat && !this.state.on) this.screenMesh.material = this.offMat;
     if (this.beam) this.beam.visible = this.state.on;
     if (this.state.on && !r) { this.loopOn('projector', { volume: 0.5 }); this.musicOff(0.1); if (this.bigScreen) this.musicOn(this.state.film === 0 ? 'piano_bar' : 'cinema_score', { pos: new THREE.Vector3(this.bigScreen.x, this.bigScreen.y, this.bigScreen.z), volume: 0.6 }); }
     else { this.loopOff(); this.musicOff(); }

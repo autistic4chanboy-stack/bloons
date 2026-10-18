@@ -232,18 +232,29 @@ class Stocker {
       while (u < f.len - 0.05) {
         const take = Math.min(left, f.len - u); const u1 = f.len - u - take < 0.4 ? f.len : u + take;
         const [cat, ps] = all[ci]; f.bands.push({ u0: u, u1, cat });
-        for (const sg of f.segs) if (sg.role !== 'cases') this.cells.push({ f, sg, u0: u, u1, ps, cat, occ: [] });
+        for (const sg of f.segs) if (sg.role !== 'cases') for (const [a, b] of this.freeParts(sg, u, u1)) this.cells.push({ f, sg, u0: a, u1: b, ps, cat, occ: [] });
         left -= (u1 - u); u = u1;
         if (left <= 0.05 && ci < all.length - 1) { ci++; left = weight(all[ci]) / W * L; }
         else if (left <= 0.05) left = 1e9;
       }
     }
   }
+  // parties d'une case [u0, u1] (repère de la planche) laissées libres par les appareils posés dessus (b.blocked,
+  // relevé par placeContents : micro-ondes d'un podium, téléphone d'un bureau…)
+  freeParts(sg, u0, u1) {
+    let parts = [[u0, u1]];
+    for (const [x0, x1] of sg.b.blocked || []) {
+      const a = x0 - sg.a0, b = x1 - sg.a0, next = [];
+      for (const [p, q] of parts) { if (b <= p || a >= q) { next.push([p, q]); continue; } if (a - p > 0.12) next.push([p, a]); if (q - b > 0.12) next.push([b, q]); }
+      parts = next;
+    }
+    return parts;
+  }
   // largeur de l'assortiment d'une famille (quantités listées plafonnées)
   weight([, ps]) { return ps.reduce((a, p) => a + Math.min(p.unique ? 0.5 : Math.min(2, Math.max(1, p.n)), p.cap / 4) * this.pitch(p), 0) + 0.05; }
   // pas d'un facing : les petits articles se touchent presque, les gros gardent l'écart du style
   pitch(p) { return p.w + Math.min(this.st.gap, 0.003 + p.w * 0.06); }
-  fits(p, sg) { return p.h <= sg.clear - 0.006 && p.dep <= sg.depth + 0.04 && p.w <= sg.len; }
+  fits(p, sg) { return p.h <= sg.clear - 0.006 && p.dep <= sg.depth + 0.04 && p.w <= sg.len && (!sg.b.shapes || sg.b.shapes.includes(p.d.shape)) && !(p.h < (sg.b.minH || 0)); } // b.shapes / b.minH : planche réservée (socle à guitares : les grands instruments)
   // ordre des candidats d'une case : articles listés à replacer d'abord, gros formats en bas, petits en haut
   order(c) {
     const { sg } = c; let cands = c.ps.filter((p) => this.fits(p, sg) && (!p.unique || (this.pinLeft.get(p.id) || 0) > 0) && (this.placed.get(p.id) || 0) < p.cap); if (!cands.length) return cands;
@@ -386,16 +397,18 @@ class Stocker {
     pr._setPickAt?.(x, y, z, ry); this.moved++;
   }
   // Articles listés sans place dans le planogramme (trop grands pour toutes les cases) : rangés sur les planches de la
-  // réserve, sinon au sol de la boutique
+  // réserve ; les objets uniques (jamais en réserve) dans un creux d'un rayon de la boutique ; sinon au sol
   strays() {
     const left = []; for (const [, list] of this.pool) while (list.length) left.push(list.shift());
     if (!left.length) return;
-    const occ = new Map(); for (const sl of this.kept) if (sl.sg.back) { if (!occ.has(sl.sg)) occ.set(sl.sg, []); occ.get(sl.sg).push([sl.a - sl.p.w / 2 - sl.sg.a0, sl.a + sl.p.w / 2 - sl.sg.a0]); }
-    const back = this.segs.filter((sg) => sg.back);
+    const occ = new Map(), put = (sg, a0, a1) => { if (!occ.has(sg)) occ.set(sg, []); occ.get(sg).push([a0, a1]); };
+    for (const sl of this.kept) put(sl.sg, sl.a - sl.p.w / 2 - sl.sg.a0, sl.a + sl.p.w / 2 - sl.sg.a0);
+    for (const sg of this.segs) for (const [x0, x1] of sg.b?.blocked || []) put(sg, x0 - sg.a0, x1 - sg.a0); // appareils posés sur la planche
+    const back = this.segs.filter((sg) => sg.back), shop = this.segs.filter((sg) => !sg.back);
     for (const pr of left) {
       const d = pr.def; let done = false;
-      for (const sg of (this.prods.find((q) => q.id === pr.defId)?.unique ? [] : back)) { // objets uniques : jamais en réserve
-        if (d.s[1] > sg.clear - 0.006 || d.s[2] > sg.depth + 0.06) continue;
+      for (const sg of (this.prods.find((q) => q.id === pr.defId)?.unique ? shop : back)) {
+        if (d.s[1] > sg.clear - 0.006 || d.s[2] > sg.depth + 0.06 || (sg.b?.shapes && !sg.b.shapes.includes(d.shape)) || d.s[1] < (sg.b?.minH || 0)) continue;
         const o = (occ.get(sg) || []).sort((a, b) => a[0] - b[0]); let a = 0.02;
         for (const [o0, o1] of [...o, [sg.len, sg.len]]) { if (o0 - a >= d.s[0] + 0.03) break; a = Math.max(a, o1 + 0.02); }
         if (a + d.s[0] + 0.02 > sg.len) continue;
@@ -411,8 +424,14 @@ class Stocker {
   floorStray(pr) {
     if (this.zb && !this.prods.find((q) => q.id === pr.defId)?.unique && this.backFloor(pr)) return; // objets uniques : restent dans la boutique
     const sp = this.floorSpots.length ? this.floorSpots[(this.R.next() * this.floorSpots.length) | 0] : null, z = this.zf;
-    const x = sp ? sp.x + (this.R.next() - 0.5) * 0.5 : (z.min[0] + z.max[0]) / 2 + (this.R.next() - 0.5) * 3, zz = sp ? sp.z + (this.R.next() - 0.5) * 0.5 : (z.min[2] + z.max[2]) / 2 + (this.R.next() - 0.5) * 2;
-    this.relocate(pr, x, this.floorY + pr.def.s[1] / 2 + 0.002, zz, this.R.next() * 6, sp?.zone || this.s.id);
+    let x = sp ? sp.x + (this.R.next() - 0.5) * 0.5 : (z.min[0] + z.max[0]) / 2 + (this.R.next() - 0.5) * 3, zz = sp ? sp.z + (this.R.next() - 0.5) * 0.5 : (z.min[2] + z.max[2]) / 2 + (this.R.next() - 0.5) * 2;
+    // pas dans un meuble : si l'emplacement est pris (bac, portant, présentoir posé dessus), on s'en écarte par paliers
+    const e = Math.max(pr.def.s[0], pr.def.s[2]) / 2 + 0.03, zn = sp?.zone || this.s.id, Z = this.world.zone(zn), y0 = this.floorY;
+    const clear = (cx, cz) => Z?.contains(cx, y0 + 1.0, cz, -e) !== false && !this.world.physics.near(cx - e, cz - e, cx + e, cz + e, LAYER.WALL | LAYER.FURN | LAYER.DOOR | LAYER.GLASS).some((b) => b.max[1] > y0 + 0.04 && b.min[1] < y0 + 1.2 && b.max[0] > cx - e && b.min[0] < cx + e && b.max[2] > cz - e && b.min[2] < cz + e);
+    if (!clear(x, zz)) {
+      found: for (const r of [0.5, 0.9, 1.4]) for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, cx = x + Math.cos(a) * r, cz = zz + Math.sin(a) * r; if (clear(cx, cz)) { x = cx; zz = cz; break found; } }
+    }
+    this.relocate(pr, x, y0 + pr.def.s[1] / 2 + 0.002, zz, this.R.next() * 6, zn);
   }
   // Réserve : rangées au sol le long de la cloison (produits en attente de mise en rayon), entre les cartons de stock
   // (à gauche) et le bureau / la porte (à droite) ; deux rangées au plus, puis retour au comportement par défaut
@@ -485,7 +504,10 @@ class Stocker {
     this.dec(sp.zone, (k) => { k.box(sp.x, barY, sp.z, ax === 'x' ? L : 0.025, 0.025, ax === 'x' ? 0.025 : L, 0xbdbdbd); for (const s of [-1, 1]) { const px = sp.x + (ax === 'x' ? s * L / 2 : 0), pz = sp.z + (ax === 'z' ? s * L / 2 : 0); k.box(px, y0 + 0.71, pz, 0.03, 1.42, 0.03, 0x9e9e9e); k.box(px, y0 + 0.02, pz, ax === 'x' ? 0.06 : 0.45, 0.04, ax === 'x' ? 0.45 : 0.06, 0x616161); } });
     this.collider(sp.x, sp.z, hw - 0.05, hd - 0.05, 1.45);
     const n = 9; for (let i = 0; i < n; i++) {
-      const p = hangers[(i + ((this.R.next() * hangers.length) | 0)) % hangers.length]; const d = p.d; const t = (i + 0.5) / n - 0.5;
+      // les vêtements déjà créés et encore sans place passent avant les copies : aucun ne reste plié par terre
+      const k0 = i + ((this.R.next() * hangers.length) | 0); let p = hangers[k0 % hangers.length];
+      for (let j = 0; j < hangers.length; j++) { const q = hangers[(k0 + j) % hangers.length]; if ((this.pool.get(q.id) || []).length) { p = q; break; } }
+      const d = p.d; const t = (i + 0.5) / n - 0.5;
       if (p.unique && !(this.pool.get(p.id) || []).length) continue;
       const x = sp.x + (ax === 'x' ? t * L * 0.92 : 0), z = sp.z + (ax === 'z' ? t * L * 0.92 : 0), y = barY + 0.03 - d.s[1] / 2;
       const ry = (ax === 'x' ? 0 : Math.PI / 2) + Math.PI / 2 + (this.R.next() - 0.5) * 0.15;
