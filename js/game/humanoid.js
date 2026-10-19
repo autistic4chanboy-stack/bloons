@@ -316,6 +316,7 @@ function dress(o, pr) {
     }
   }
   if (O.coat === true) O.coat = O.top;
+  if (pr.c && O.skirt) O.skirt = { ...O.skirt, top: Math.min(O.skirt.top, 0.93) }; // taille d'enfant plus basse
   if (!O.hairStyle) O.hairStyle = f ? (pr.c ? pick(R, 2, ['bob', 'ponytail', 'long', 'bob']) : pick(R, 2, ['long', 'bob', 'ponytail', 'bun', 'long'])) : pick(R, 2, pr.c ? ['short', 'side', 'buzz', 'curly'] : ['short', 'short', 'side', 'buzz', 'bald', 'curly']);
   if (O.hat === 'balaclava' || O.hat === 'helmet') O.hairStyle = 'none';
   O.waistY = O.tuck || O.skirt ? 1.0 : O.hem;
