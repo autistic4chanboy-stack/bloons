@@ -145,8 +145,13 @@ Appelé avant chaque rendu (vue principale, caméras de surveillance, photos) av
 - `zone.visibleAt(pos, niveau, near, zoneDeLaCaméra, range)` remplace ces règles pour une zone : les abords extérieurs
   (`outside.js`) ne sont dessinés que depuis dehors, le toit, ou les zones qui voient par la façade vitrée (hall,
   mezzanine, galeries est) ; rien de l'extérieur n'est dessiné depuis le cœur du centre.
-- Personnages : un seul mesh à squelette (`THREE.SkinnedMesh`) par personnage (`humanoid.js` : corps continu, visage
-  modelé, mains, tenues) ; les accessoires tenus suivent l'os de la main (`propR`).
+- Personnages : style « horreur sur console 32 bits » ; un seul mesh à squelette (`THREE.SkinnedMesh`) et un seul
+  matériau par personnage (`humanoid.js` : 300 à 1 300 triangles, proportions d'adulte ou d'enfant, longueurs de
+  jambes par personnage pour l'animation) ; visages, tenues, cheveux et fourrures peints en basse définition dans un
+  atlas partagé de 1024 × 1024 (`chartex.js` : cases mises en cache par clé, alpha = masque de teinte par la couleur
+  du sommet, visages libérés quand plus personne ne s'en sert, envoi partiel au GPU). Réglages `PS1` (humanoid.js) :
+  calage des sommets sur une grille d'écran basse définition et part de placage affine, réservés aux personnages ;
+  les accessoires tenus suivent l'os de la main (`propR`).
 
 ## Rendu : pipeline et matériaux (`js/engine/renderer.js`, `materials.js`, `textures.js`, `js/world/power.js`)
 - Scène rendue dans une cible HalfFloat avec texture de profondeur ; passe demi-résolution : SSAO (12 échantillons,
