@@ -8,9 +8,11 @@
 //  - manches, jambes et hanches, ceintures, chaussures, mains et gants, mèches, couvre-chefs, fourrures, plastique…
 // Couleurs sur 15 bits (5 bits par canal, tramage ordonné 4 × 4) ; l'alpha sert de masque de teinte : 255 = multiplié
 // par la couleur du sommet (tissus et peau teintés par personnage), 0 = couleur peinte telle quelle (insignes, yeux,
-// boutons, lettres). Texels nets au grossissement (NearestFilter), mipmaps au loin (pas de scintillement des foules).
-// Une fois la page envoyée au GPU, une case peinte en cours de partie (visage d'un client qui arrive) n'envoie que son
-// rectangle (texSubImage2D), pas les 4 Mo de la page.
+// boutons, lettres). Texels nets au grossissement (NearestFilter), mipmaps au loin (pas de scintillement des foules),
+// lus au texel le plus proche dans chaque niveau : cases alignées sur 16 px, aucun niveau utile ne mêle deux cases.
+// Une fois la page envoyée au GPU, les cases peintes en cours de partie (visage d'un client qui arrive) n'envoient que
+// le rectangle qui les englobe (texSubImage2D, mipmaps refaites une fois), au rendu suivant (flushAtlas, appelé par les
+// matériaux des personnages juste avant de dessiner), pas les 4 Mo de la page.
 import * as THREE from 'three';
 import { ENV } from '../engine/materials.js';
 
@@ -28,16 +30,17 @@ class Page {
   constructor(i) {
     this.i = i; this.data = new Uint8Array(AW * AW * 4); this.used = new Uint8Array(GW * GW); this.tiles = new Map();
     const t = this.tex = new THREE.DataTexture(this.data, AW, AW);
-    t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapLinearFilter;
     t.generateMipmaps = true; t.flipY = false; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.name = 'atlas_personnages_' + i; t.needsUpdate = true;
     t.onUpdate = () => { this.live = true; }; // page entière envoyée : les cases suivantes partent seules
   }
-  // envoi d'une case peinte (page déjà au GPU : son seul rectangle ; sinon la page entière au prochain rendu)
+  // case peinte : la page entière part au prochain rendu si elle n'est pas encore au GPU, sinon le rectangle englobant
+  // les cases en attente part avant le prochain dessin d'un personnage (flushAtlas)
   flush(t) {
-    const R = ENV.renderer;
-    if (!this.live || !R) { this.tex.needsUpdate = true; return; }
-    try { R.copyTextureToTexture(this.tex, this.tex, new THREE.Box2(new THREE.Vector2(t.x, t.y), new THREE.Vector2(t.x + t.w, t.y + t.h)), new THREE.Vector2(t.x, t.y)); }
-    catch { this.tex.needsUpdate = true; }
+    if (!this.live || !ENV.renderer) { this.tex.needsUpdate = true; return; }
+    const d = this.dirty;
+    this.dirty = d ? [Math.min(d[0], t.x), Math.min(d[1], t.y), Math.max(d[2], t.x + t.w), Math.max(d[3], t.y + t.h)] : [t.x, t.y, t.x + t.w, t.y + t.h];
+    _dirty = true;
   }
   // premier emplacement libre de w × h texels (multiples de 16), ou null
   alloc(w, h) {
@@ -61,8 +64,21 @@ class Page {
   }
 }
 const PAGES = [];
-let _clock = 0;
+let _clock = 0, _dirty = false;
+const _box = new THREE.Box2(), _at = new THREE.Vector2();
+// envoi des cases en attente (un rectangle par page, mipmaps refaites une seule fois) ; appelé avant chaque dessin
+export function flushAtlas() {
+  if (!_dirty) return; _dirty = false;
+  for (const p of PAGES) {
+    const d = p.dirty; if (!d) continue; p.dirty = null;
+    if ((d[2] - d[0]) * (d[3] - d[1]) > AW * AW * 0.5) { p.tex.needsUpdate = true; continue; }
+    _box.min.set(d[0], d[1]); _box.max.set(d[2], d[3]); _at.set(d[0], d[1]);
+    try { ENV.renderer.copyTextureToTexture(p.tex, p.tex, _box, _at); } catch { p.tex.needsUpdate = true; }
+  }
+}
 export const pageTex = (i = 0) => page(i).tex;
+// état de l'atlas (diagnostic) : pages, cases, cases libérables, occupation de chaque page (cellules de 16 px)
+export const atlasStats = () => PAGES.map((p) => ({ tiles: p.tiles.size, dyn: [...p.tiles.values()].filter((t) => t.dyn).length, inUse: [...p.tiles.values()].filter((t) => t.refs > 0).length, cells: p.used.reduce((a, b) => a + b, 0) }));
 function page(i) { while (PAGES.length <= i) PAGES.push(new Page(PAGES.length)); return PAGES[i]; }
 // Case de l'atlas (clé → case en cache) ; paint(P) peint la case une seule fois. dyn : case libérable (visages) quand
 // plus aucun personnage ne s'en sert. Lève 'PAGE_PLEINE' si la page n'a plus de place.
@@ -396,7 +412,7 @@ export function paintTop(P, o) {
   if (knit || o.hood) for (let v = 59; v < 64; v++) for (let u = 0; u < 128; u++) P.shade(u, v, u % 2 ? 0.82 : 0.95);
   else for (let u = 0; u < 128; u++) P.shade(u, 63, 0.84);
   // bandes réfléchissantes (tenue de feu) : jaune fluo, liseré argent
-  if (o.bands) for (const v0 of o.bands) for (let u = 0; u < 128; u++) { P.set(u, v0, 0xc9c02a, raw); P.set(u, v0 + 1, 0xb8bcc0, raw); P.set(u, v0 + 2, 0xc9c02a, raw); }
+  if (o.bands) for (const v0 of o.bands) for (let u = 0; u < 128; u++) { P.set(u, v0, 0xe0d418, raw); P.set(u, v0 + 1, 0xc8ccd0, raw); P.set(u, v0 + 2, 0xe0d418, raw); }
   if (o.belly != null) for (let v = 10; v < 60; v++) for (let u = 14; u < 50; u++) { const r = ((u - 31.5) / 17) ** 2 + ((v - 34) / 24) ** 2; if (r < 1) P.set(u, v, mul(o.belly, 0.92 + 0.12 * hash2(u, v, 2)), raw); else if (r < 1.12 && (u + v) % 3 === 0) P.set(u, v, mul(o.belly, 0.55), raw); }
 }
 // logo du centre Hélios : soleil à rayons (écussons des agents)
@@ -430,7 +446,7 @@ export function paintSleeve(P, o) {
   if (o.patch === 'sun') sunLogo(P, 21, 6, 0xe8c547, 0x1f2a44);
   if (o.patch === 'police') { P.fill(21, 6, 2, 4, 0x1e3a8a, 0); P.fill(23, 6, 2, 4, 0xf2f2f2, 0); P.fill(25, 6, 2, 4, 0xc62828, 0); }
   if (o.patch === 'flag') { P.fill(20, 8, 3, 5, 0x1e3a8a, 0); P.fill(23, 8, 3, 5, 0xf2f2f2, 0); P.fill(26, 8, 3, 5, 0xc62828, 0); }
-  if (o.bands) for (const v0 of o.bands) for (let u = 0; u < 32; u++) { P.set(u, v0, 0xc9c02a, 0); P.set(u, v0 + 1, 0xb8bcc0, 0); P.set(u, v0 + 2, 0xc9c02a, 0); }
+  if (o.bands) for (const v0 of o.bands) for (let u = 0; u < 32; u++) { P.set(u, v0, 0xe0d418, 0); P.set(u, v0 + 1, 0xc8ccd0, 0); P.set(u, v0 + 2, 0xe0d418, 0); }
   if (o.rings) for (const v0 of o.rings) for (let u = 0; u < 32; u++) { P.set(u, v0, 0x90a4ae, 0); P.set(u, v0 + 1, 0x78909c, 0); }
 }
 // ───────────────────────── jambes et hanches (64 × 64 : jambe 32 × 64, hanches 32 × 32, ceinture 32 × 8) ─────────────────────────
@@ -445,7 +461,7 @@ export function paintPants(P, o) {
   for (const v of [33, 35, 38]) for (let u = 10; u < 22; u++) if ((u * 3 + v) % 5) P.shade(u, v, 0.88);
   for (let u = 0; u < 32; u++) { P.shade(u, 62, 0.86); P.shade(u, 63, 0.8); }
   if (o.cargo) { P.rect(19, 22, 10, 13, gray(0xb8), 1); P.fill(19, 22, 10, 3, gray(0xd0), 1); P.hline(19, 28, 25, gray(0xa8), 1); }
-  if (o.bands) for (const v0 of o.bands) for (let u = 0; u < 32; u++) { P.set(u, v0, 0xc9c02a, 0); P.set(u, v0 + 1, 0xb8bcc0, 0); P.set(u, v0 + 2, 0xc9c02a, 0); }
+  if (o.bands) for (const v0 of o.bands) for (let u = 0; u < 32; u++) { P.set(u, v0, 0xe0d418, 0); P.set(u, v0 + 1, 0xc8ccd0, 0); P.set(u, v0 + 2, 0xe0d418, 0); }
   // hanches (32 × 32 en haut à droite) : devant col 40, côté +x col 48, dos col 56 ; braguette, poches
   const H = 32;
   for (let v = 0; v < 32; v++) { if (v < 20 && !o.skirtish) P.shade(H + 8, v, v < 18 ? 0.84 : 1); P.shade(H + 16, v, 0.86); P.shade(H, v, 0.86); }
@@ -488,8 +504,8 @@ export function paintHand(P, k) {
 // ───────────────────────── matières (fourrure, plastique, peau, mèches, chair…) ─────────────────────────
 function furFill(P, x0, y0, w, h, c, seed) {
   for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) {
-    const n = hash2(x, y >> 1, seed), dirt = hash2(x >> 3, y >> 3, seed + 1) > 0.78 ? 0.72 : 1;
-    P.set(x, y, mul(c, (0.78 + 0.34 * n) * dirt * (hash2(x, y, seed + 2) > 0.93 ? 0.7 : 1)), 0);
+    const n = hash2(x, y, seed), m = hash2(x >> 2, y >> 2, seed + 3), dirt = hash2(x >> 3, y >> 3, seed + 1) > 0.9 ? 0.84 : 1;
+    P.set(x, y, mul(c, (0.86 + 0.12 * n + 0.08 * m) * dirt * (hash2(x, y, seed + 2) > 0.97 ? 0.8 : 1)), 0);
   }
 }
 function plasticFill(P, x0, y0, w, h, c) {

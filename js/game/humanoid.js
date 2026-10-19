@@ -116,7 +116,7 @@ function normals(p, ix, flat, split = 1e9) {
 // zb : z minimal des sommets du bassin, du torse, du cou et de la tête au-dessus des hanches (personnage couché sur le dos)
 class Kit {
   constructor(pg = 0) { this.pg = pg; this.P = []; this.N = []; this.U = []; this.C = []; this.E = []; this.S = []; this.W = []; this.I = []; this.zb = 0; this.tiles = []; this.y0 = 0.8; }
-  use(t) { if (t && !this.tiles.includes(t)) this.tiles.push(t); return t; }
+  use(t) { if (t && !this.tiles.includes(t)) { this.tiles.push(t); TX.acquire(t); } return t; } // retenue dès la construction
   add(s, t, o) {
     t = this.use(t || TX.mat('white', this.pg));
     let p = s.p.slice(), ix = s.i, uv = s.uv;
@@ -344,7 +344,8 @@ function headTile(K, pr, O) {
   };
   return K.use(TX.tile(TX.headKey(f), 64, 64, (P) => TX.paintHead(P, f, L), K.pg, true));
 }
-const T = (K, key, w, h, paint) => K.use(TX.tile(key, w, h, paint, K.pg));
+// case propre aux tenues (libérable quand plus aucun personnage ne la porte) ; les matières (TX.mat) restent en place
+const T = (K, key, w, h, paint) => K.use(TX.tile(key, w, h, paint, K.pg, true));
 function outfitTiles(K, pr, O) {
   const yTop = pr.torso[pr.torso.length - 1][0], row = (y) => Math.round((yTop - y) / (yTop - O.waistY) * 64);
   const top = { style: O.style, collar: O.collar, placket: O.placket, pockets: O.pockets, pocket1: O.pocket1, epaul: O.epaul, badge: O.badge, patch: O.patch, nameTag: O.nameTag, logo: O.logo, print: O.print, yoke: O.yoke, text: O.text, inner: O.jacket ? O.inner : O.labcoat ? 0xc8d8e8 : null, hood: O.hood, zip: O.zip, plaid: O.plaid, stripes: O.stripes, dots: O.dots, ribbed: O.ribbed, collarRaw: O.collarRaw, seed: O.print || O.plaid ? (O.seed || 1) : 1 };
@@ -537,8 +538,8 @@ function hairPieces(K, pr, O, hm) {
     K.add({ p, i: ix, uv }, tile, { m: hm, c: hc, r: 0.7, b });
   }
   // rideau des cheveux longs / du carré : bande à double face qui tombe des côtés et de la nuque
-  if (st === 'stringy') for (let i = 0; i < 11; i++) { // rampant : longues mèches raides autour du crâne, quelques-unes devant le visage
-    const th = -Math.PI + (i + 0.5) / 11 * TAU + (hash(i, 2, 5) - 0.5) * 0.3, y0 = 0.12 - 0.05 * Math.abs(Math.cos(th / 2)), q = headSurf(HR, th, y0, 0.006), d = [Math.sin(th), 0, Math.cos(th)], tg = [Math.cos(th), 0, -Math.sin(th)], Lh = 0.22 + hash(i, 7, 2) * 0.16, w = 0.012;
+  if (st === 'stringy') for (let i = 0; i < 14; i++) { // rampant : longues mèches raides autour du crâne, quelques-unes devant le visage
+    const th = -Math.PI + (i + 0.5) / 14 * TAU + (hash(i, 2, 5) - 0.5) * 0.25, y0 = 0.13 - 0.05 * Math.abs(Math.cos(th / 2)), q = headSurf(HR, th, y0, 0.006), d = [Math.sin(th), 0, Math.cos(th)], tg = [Math.cos(th), 0, -Math.sin(th)], Lh = 0.26 + hash(i, 7, 2) * 0.18, w = 0.019;
     const P = [add3(q, scl(tg, -w)), add3(q, scl(tg, w)), add3(add3(q, scl(d, 0.03)), [-tg[0] * w * 0.5, -Lh, -tg[2] * w * 0.5]), add3(add3(q, scl(d, 0.03)), [tg[0] * w * 0.5, -Lh, tg[2] * w * 0.5])];
     K.add(twoSided({ p: P.flat(), i: [0, 2, 1, 1, 2, 3], uv: [i * 2.8, 1, i * 2.8 + 2.5, 1, i * 2.8, 30, i * 2.8 + 2.5, 30] }), tile, { m: hm, c: hc, r: 0.6, b });
   }
@@ -566,7 +567,7 @@ function hairPieces(K, pr, O, hm) {
 function hatPieces(K, pr, O, hm) {
   const HR = pr.headR, b = B.head, h = O.hat; if (!h || h === 'balaclava') return;
   if (h === 'cap' || h === 'police') {
-    const pol = h === 'police', key = pol ? 'police' : O.style === 'guard' ? 'capGuard' : O.bag === 'delivery' ? 'capDelivery' : 'cap', t = K.use(TX.tile('hat|' + key, 32, 32, (P) => TX.paintHat(P, key), K.pg));
+    const pol = h === 'police', key = pol ? 'police' : O.style === 'guard' ? 'capGuard' : O.bag === 'delivery' ? 'capDelivery' : 'cap', t = T(K, 'hat|' + key, 32, 32, (P) => TX.paintHat(P, key));
     const o = O.hairStyle === 'none' || O.hairStyle === 'buzz' || O.hairStyle === 'bald' ? 0.008 : 0.016;
     const ys = pol ? [0.096, 0.13, 0.172, 0.19] : [0.1, 0.14, 0.172, 0.186], ks = pol ? [1, 1.04, 1.16, 1.1] : [1, 0.995, 0.88, 0.55];
     const R = ys.map((y, i) => { const q = R7(secAt(HR, Math.min(0.176, y))); return R7([y + 0.012 * (i === 0 ? 1 : 0), (q[1] + o) * ks[i], (q[2] + o) * ks[i], (q[3] + o) * ks[i], q[4], 2.3]); });
@@ -580,7 +581,7 @@ function hatPieces(K, pr, O, hm) {
     K.add(twoSided({ p: V.flat(), i: ix, uv: uv.flat() }), t, { m: hm, c: pol ? 0x18181a : O.hatCol, r: pol ? 0.3 : 0.7, b });
   }
   if (h === 'firehelmet') { // casque de sapeur-pompier : coque, crête, visière dorée, couvre-nuque
-    const t = K.use(TX.tile('hat|firehelmet', 32, 32, (P) => TX.paintHat(P, 'firehelmet'), K.pg)), tv = K.use(TX.tile('hat|visor', 32, 32, (P) => TX.paintHat(P, 'visor'), K.pg));
+    const t = T(K, 'hat|firehelmet', 32, 32, (P) => TX.paintHat(P, 'firehelmet')), tv = T(K, 'hat|visor', 32, 32, (P) => TX.paintHat(P, 'visor'));
     const shR = (y, k = 1) => { const q = R7(secAt(HR, Math.min(0.176, y))); return R7([y, (q[1] + 0.03) * k, (q[2] + 0.034) * k, (q[3] + 0.034) * k, q[4], 2.2]); };
     const R = [shR(0.05, 1.0), shR(0.11, 1.01), shR(0.155, 0.96), shR(0.19, 0.74), shR(0.205, 0.4)], cols = colsAt(10, -Math.PI);
     K.add(tube(R, cols, cols.map((th) => 16 + th / Math.PI * 16), [28, 20, 12, 5, 1], { c1: [0, 0.21, R[4][4]], uc1: [16, 0.5] }), t, { m: hm, c: O.fireCol, r: 0.25, mt: 0.15, b });
@@ -594,7 +595,7 @@ function hatPieces(K, pr, O, hm) {
     K.add(twoSided({ p: N.flat(), i: ix2, uv: N.flatMap(() => [8, 8]) }), null, { m: hm, c: 0x1e2430, r: 0.9, b });
   }
   if (h === 'helmet') { // casque d'astronaute : sphère blanche, visière dorée, collerette
-    const t = K.use(TX.tile('hat|helmet', 32, 32, (P) => TX.paintHat(P, 'helmet'), K.pg)), tv = K.use(TX.tile('hat|visor', 32, 32, (P) => TX.paintHat(P, 'visor'), K.pg));
+    const t = T(K, 'hat|helmet', 32, 32, (P) => TX.paintHat(P, 'helmet')), tv = T(K, 'hat|visor', 32, 32, (P) => TX.paintHat(P, 'visor'));
     const C = [0, 0.055, 0], Rr = 0.17, rings = [];
     for (let i = 0; i <= 6; i++) { const a = -Math.PI / 2 + Math.PI * i / 6; rings.push({ c: [C[0], C[1] + Math.sin(a) * Rr, C[2]], ax: [1, 0, 0], az: [0, 0, 1], rx: Math.cos(a) * Rr + 1e-4, rz: Math.cos(a) * Rr + 1e-4 }); }
     const sph = loftF(rings, 10, (r, c) => [c / 10 * 32, r / 6 * 31], false, false);
@@ -694,11 +695,11 @@ function asmBear(K, pr, o) {
   for (const s of [-1, 1]) K.add(facets([[0, 1.47, nz], [s * 0.07, 1.5, nz - 0.01], [s * 0.07, 1.44, nz - 0.01], [s * 0.035, 1.47, nz + 0.012]], [[0, 1, 3], [0, 3, 2], [3, 1, 2], [0, 2, 1]], [[8, 8], [8, 8], [8, 8], [8, 8]], [s * 0.03, 1.47, nz - 0.03]), null, { c: 0xb71c1c, r: 0.6, w: wTorso(pr), flat: true });
   for (const s of [-1, 1]) {
     const A = SD(s), j = J['arm' + A], rs = armRings(pr).map(([t, a, bb]) => R7([-t, a, bb, bb, 0, 2])).reverse(), cols = colsAt(6, -Math.PI);
-    K.add(tube(rs, cols, cols.map((_, c) => c / 6 * 32), rs.map((_, i) => 31 - i / (rs.length - 1) * 30)), fur, { m: M4(j[0], j[1], j[2], 0, 0, 0, s, 1, 1), c: 0xffffff, r: 0.97, w: wArm(J, s) });
+    K.add(tube(rs, cols, cols.map((_, c) => c / 6 * 32), rs.map((_, i) => (i % 2 ? 31.5 : 0.5))), fur, { m: M4(j[0], j[1], j[2], 0, 0, 0, s, 1, 1), c: 0xffffff, r: 0.97, w: wArm(J, s) });
     const hm2 = handMatrix(pr, s), pw = T(K, 'hand|fur', 32, 32, (P) => TX.paintHand(P, 'fur'));
     K.add(loftF(sphereRings([0.005, 0.05, 0], 0.03, 0.06, 0.05, 4), 6, (r, c) => [c / 6 * 32, r / 4 * 31], false, false), pw, { m: hm2, c: 0xffffff, r: 0.97, b: B['hand' + A] });
     const l = J['leg' + A], lr = legRings(pr, false).map(([t, a, bb, z]) => R7([-t, a, bb, bb, z, 2])).reverse();
-    K.add(tube(lr, cols, cols.map((_, c) => c / 6 * 32), lr.map((_, i) => 31 - i / (lr.length - 1) * 30)), fur, { m: M4(l[0], l[1], l[2], 0, 0, 0, s, 1, 1), c: 0xffffff, r: 0.97, w: wLeg(J, s) });
+    K.add(tube(lr, cols, cols.map((_, c) => c / 6 * 32), lr.map((_, i) => (i % 2 ? 31.5 : 0.5))), fur, { m: M4(l[0], l[1], l[2], 0, 0, 0, s, 1, 1), c: 0xffffff, r: 0.97, w: wLeg(J, s) });
     const f = J['foot' + A];
     K.add(loftF(sphereRings([0, -0.025, 0.05], 0.075, 0.06, 0.15, 4), 8, (r, c) => [c / 8 * 32, r < 1 ? 28 : r / 4 * 31], false, false), pw, { m: M4(f[0], f[1], f[2], 0, 0, 0, s, 1, 1), c: 0xffffff, r: 0.95, b: B['foot' + A] });
   }
@@ -821,6 +822,8 @@ function ps1Patch(m, snap = PS1.snap) {
       .replace('#include <color_fragment>', 'diffuseColor.rgb *= mix( vec3( 1.0 ), vColor, ps1Tex.a );');
   };
   m.customProgramCacheKey = () => key + '|ps1' + sn + af;
+  const obr = m.onBeforeRender; // cases d'atlas peintes depuis le dernier rendu : envoyées avant de dessiner
+  m.onBeforeRender = function (r, s, c, g, o, gr) { TX.flushAtlas(); obr.call(this, r, s, c, g, o, gr); };
   return m;
 }
 const _mats = new Map();
@@ -843,9 +846,8 @@ export function buildHumanoid(opts = {}) {
   let K = null, O = null;
   for (let pg = 0; pg < 8 && !K; pg++) {
     try { K = new Kit(pg); K.y0 = pr.legs.hips - 0.15; O = (ASM[kind] || asmHuman)(K, pr, opts) || {}; }
-    catch (e) { if (e.message !== 'PAGE_PLEINE') throw e; K = null; }
+    catch (e) { if (K) for (const t of K.tiles) TX.release(t); if (e.message !== 'PAGE_PLEINE') throw e; K = null; }
   }
-  for (const t of K.tiles) TX.acquire(t);
   body.add(bones.hips);
   const mesh = new THREE.SkinnedMesh(K.geometry(), humanMat(K.pg));
   mesh.name = 'body'; mesh.castShadow = true; mesh.receiveShadow = true;
@@ -993,11 +995,13 @@ export function litHumanoid(root) {
 // l'avant-bras part du poignet vers fa (repère canonique). o : {m, grip, skin, glove, fat, sleeve, cuff ('shirt' | 'rib' |
 // 'ring' | 'ruff' | 'none'), band (bande réfléchissante), watch, fur, plastic} ; peu de polygones, textures de l'atlas
 // (page 0) : main (peau, gant, patte de fourrure, plastique), manche de la tenue
+const _pinned = new Set();
 const fpTiles = (o) => {
   const hand = o.fur ? 'fur' : o.plastic ? 'plastic' : o.glove != null ? 'glove' : 'bare';
   const th = TX.tile('hand|' + hand, 32, 32, (P) => TX.paintHand(P, hand), 0);
   const sk = { style: o.fur ? 'fur' : 'fp', short: false, elbow: 30, cuffRib: o.cuff === 'rib', bands: o.band ? [20] : null, fur: o.fur ? 0xb07434 : undefined, plastic: o.plastic ? 0xe9e2d4 : undefined };
   const ts = TX.tile('sleeve|' + JSON.stringify(sk), 32, 64, (P) => TX.paintSleeve(P, sk), 0);
+  for (const t of [th, ts]) if (!_pinned.has(t)) { _pinned.add(t); TX.acquire(t); } // la géométrie des bras ne libère rien : cases épinglées
   return { th, ts, skin: TX.mat('skin', 0), white: TX.mat('white', 0), metal: TX.mat('metal', 0) };
 };
 export function buildFPArm(o) {
@@ -1046,7 +1050,6 @@ export function rig(J, par) {
 }
 export function skinned(K, parent, bones, rootBone, sphere) {
   parent.add(rootBone);
-  for (const t of K.tiles) TX.acquire(t);
   parent.userData.tiles = K.tiles;
   const mesh = new THREE.SkinnedMesh(K.geometry(), humanMat(K.pg));
   mesh.castShadow = true; mesh.receiveShadow = true; mesh.boundingSphere = sphere;
